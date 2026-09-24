@@ -161,12 +161,17 @@ Detailed routing/cost metadata may be opt-in.
 ### Projects
 
 ```text
-GET    /management/v1/projects
-POST   /management/v1/projects
-GET    /management/v1/projects/{id}
-PATCH  /management/v1/projects/{id}
-POST   /management/v1/projects/{id}/archive
+POST   /management/v1/organizations
+GET    /management/v1/organizations
+GET    /management/v1/organizations/{organizationId}/projects
+POST   /management/v1/organizations/{organizationId}/projects
+GET    /management/v1/organizations/{organizationId}/projects/{projectId}
+POST   /management/v1/organizations/{organizationId}/projects/{projectId}/archive
 ```
+
+Every project operation is authorized against its path organization. `POST`
+archive is a P0 terminal state transition; project settings and unarchive are
+not part of the initial contract.
 
 ### API Keys
 

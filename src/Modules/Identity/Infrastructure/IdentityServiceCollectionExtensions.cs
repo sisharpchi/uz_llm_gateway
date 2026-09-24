@@ -185,9 +185,16 @@ public static class IdentityServiceCollectionExtensions
 
 public static class IdentityRouteHandlerBuilderExtensions
 {
-    public static RouteHandlerBuilder RequireIdentityCsrf(this RouteHandlerBuilder builder) =>
+    public static RouteHandlerBuilder RequireIdentityCsrf(this RouteHandlerBuilder builder) => builder.RequireManagementCsrf();
+
+    public static RouteHandlerBuilder RequireManagementCsrf(this RouteHandlerBuilder builder) =>
         builder.AddEndpointFilter(async (context, next) =>
         {
+            if (context.HttpContext.User.Identity?.IsAuthenticated != true)
+            {
+                return Results.Unauthorized();
+            }
+
             var request = context.HttpContext.Request;
             var csrf = context.HttpContext.RequestServices.GetRequiredService<ICsrfTokenValidator>();
             var valid = await csrf.ValidateAsync(

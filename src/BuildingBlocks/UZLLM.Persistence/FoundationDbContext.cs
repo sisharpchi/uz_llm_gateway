@@ -20,6 +20,12 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     internal DbSet<IdentityOperatorAccessEntity> IdentityOperatorAccesses => Set<IdentityOperatorAccessEntity>();
 
+    internal DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
+
+    internal DbSet<OrganizationMemberEntity> OrganizationMembers => Set<OrganizationMemberEntity>();
+
+    internal DbSet<ProjectEntity> Projects => Set<ProjectEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
@@ -88,6 +94,55 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
                 .WithOne(account => account.OperatorAccess)
                 .HasForeignKey<IdentityOperatorAccessEntity>(access => access.AccountId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrganizationEntity>(entity =>
+        {
+            entity.ToTable("organization", "org");
+            entity.HasKey(organization => organization.Id);
+            entity.Property(organization => organization.Id).HasColumnName("id");
+            entity.Property(organization => organization.Name).HasColumnName("name").HasMaxLength(120);
+            entity.Property(organization => organization.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(organization => organization.CreatedAt).HasColumnName("created_at");
+        });
+
+        modelBuilder.Entity<OrganizationMemberEntity>(entity =>
+        {
+            entity.ToTable("member", "org");
+            entity.HasKey(member => new { member.OrganizationId, member.AccountId });
+            entity.Property(member => member.OrganizationId).HasColumnName("organization_id");
+            entity.Property(member => member.AccountId).HasColumnName("account_id");
+            entity.Property(member => member.Role).HasColumnName("role").HasMaxLength(30);
+            entity.Property(member => member.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(member => member.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(member => member.AccountId);
+            entity.HasOne(member => member.Organization)
+                .WithMany(organization => organization.Members)
+                .HasForeignKey(member => member.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(member => member.Account)
+                .WithMany()
+                .HasForeignKey(member => member.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProjectEntity>(entity =>
+        {
+            entity.ToTable("project", "gateway");
+            entity.HasKey(project => project.Id);
+            entity.Property(project => project.Id).HasColumnName("id");
+            entity.Property(project => project.OrganizationId).HasColumnName("organization_id");
+            entity.Property(project => project.Name).HasColumnName("name").HasMaxLength(120);
+            entity.Property(project => project.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(project => project.SettingsJson).HasColumnName("settings_json").HasColumnType("jsonb");
+            entity.Property(project => project.CreatedAt).HasColumnName("created_at");
+            entity.Property(project => project.ArchivedAt).HasColumnName("archived_at");
+            entity.HasIndex(project => new { project.OrganizationId, project.Name }).IsUnique();
+            entity.HasIndex(project => new { project.OrganizationId, project.Id }).IsUnique();
+            entity.HasOne(project => project.Organization)
+                .WithMany(organization => organization.Projects)
+                .HasForeignKey(project => project.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<OutboxMessageEntity>(entity =>

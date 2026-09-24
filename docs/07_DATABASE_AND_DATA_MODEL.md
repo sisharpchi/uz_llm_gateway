@@ -35,9 +35,10 @@ audit
 
 ### `org.member`
 - organization_id
-- user_id
+- account_id (FK to `iam.user.id`)
 - role
 - status
+- created_at
 
 ### `gateway.project`
 - id
@@ -46,6 +47,12 @@ audit
 - status
 - settings_json
 - created_at
+- archived_at nullable
+
+`org.member` has a composite primary key of `(organization_id, account_id)`.
+`gateway.project` has a foreign key to `org.organization`, and project names
+are unique within their organization. Later tables that carry both project and
+organization use the project scope as a tenant guard.
 
 ### `gateway.api_key`
 - id

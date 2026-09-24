@@ -14,8 +14,9 @@ same-model failover precedes P1 cross-model fallback.
 | FOUNDATION-003 | Completed |
 | OPS-001 | Completed |
 | IDENTITY-001 | Completed |
+| ORGS-001 | Completed |
 
-All remaining task-register entries are `Planned`.
+All remaining task-register entries are `Planned` unless listed above.
 
 ## P0 task register
 

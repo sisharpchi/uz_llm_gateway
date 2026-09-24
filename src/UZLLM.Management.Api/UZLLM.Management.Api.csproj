@@ -8,6 +8,8 @@
     <ProjectReference Include="..\BuildingBlocks\UZLLM.Observability\UZLLM.Observability.csproj" />
     <ProjectReference Include="..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
     <ProjectReference Include="..\Modules\Identity\UZLLM.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Modules\Organizations\UZLLM.Modules.Organizations.csproj" />
+    <ProjectReference Include="..\Modules\Projects\UZLLM.Modules.Projects.csproj" />
   </ItemGroup>
 
 </Project>
