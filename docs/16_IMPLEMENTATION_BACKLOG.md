@@ -19,12 +19,21 @@ same-model failover precedes P1 cross-model fallback.
 | BILLING-001 | Completed |
 | APIKEYS-001 | Completed |
 | CATALOG-001 | Completed |
+| USAGE-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above.
 
 `FIN-001` through `FIN-004` are accepted by `BILLING-002`, where reservations,
 API-key caps, and settlement exist. `BILLING-001` establishes their wallet and
 ledger prerequisites without prematurely implementing reservation behavior.
+
+`USAGE-001` persists unknown evidence and a bounded reconciliation deadline,
+but cannot complete `FIN-005`'s financial release/platform-exposure outcome
+without the reservation and settlement aggregate. `BILLING-002` accepts the
+full `FIN-005` scenario; `USAGE-001` accepts evidence durability (`FIN-006`).
+Likewise, `USAGE-001` establishes the `FR-090` request/attempt record; final
+cost, latency, and routing outcome are completed by `GATEWAY-001` and exposed
+by `USAGE-002` after provider execution and settlement exist.
 
 `FR-078` is accepted by `PAYMENT-001`: a payment amount and the credit it
 created cannot be recorded before the payment aggregate exists. `BILLING-001`
@@ -47,15 +56,15 @@ usage, reservation, and settlement state that follows this credential task.
 | BILLING-001 | Money types, wallet, immutable ledger, fee/pricing versions | ORGS-001 | FR-070–071, FR-079; ADR-019 foundation | Wallet/ledger immutability and historical fee/FX version tests |
 | APIKEYS-001 | Show-once keys, auth, status, expiry | ORGS-001 | FR-020–022, FR-025 | Secret/revocation tests |
 | CATALOG-001 | Models, mappings, capabilities, price history | FOUNDATION-003 | FR-030–034 | Effective-price tests |
-| USAGE-001 | Logical requests, attempts, evidence, idempotency | APIKEYS-001, CATALOG-001 | FR-090, FR-130–132 | IDEM-001, FIN-005–006 |
-| BILLING-002 | Atomic reservation, budgets, settlement, debt | BILLING-001, USAGE-001 | FR-023, FR-075–077, FR-081, FR-133 | FIN-001–006, PAY-003 |
+| USAGE-001 | Logical requests, attempts, evidence, idempotency | APIKEYS-001, CATALOG-001 | FR-090 and FR-132 record foundation, FR-130–131 | IDEM-001, FIN-006; durable unknown evidence and reconciliation deadline |
+| BILLING-002 | Atomic reservation, budgets, settlement, debt | BILLING-001, USAGE-001 | FR-023, FR-075–077, FR-081, FR-132–133 | FIN-001–006, PAY-003 |
 | LIMITS-001 | Distributed RPM/concurrency and recovery behavior | APIKEYS-001, OPS-001 | FR-103–106, NFR-066 | OPS-001 |
 | PROVIDER-001 | Normalized provider contracts and OpenAI adapter | CATALOG-001, USAGE-001 | FR-050–054 | Contract/error fixtures |
-| GATEWAY-001 | Models/chat, admission, SSE, finalization | BILLING-002, LIMITS-001, PROVIDER-001 | FR-040–047 | SSE-001–002, OPS-002 |
+| GATEWAY-001 | Models/chat, admission, SSE, finalization | BILLING-002, LIMITS-001, PROVIDER-001 | FR-040–047, FR-090 execution completion | SSE-001–002, OPS-002 |
 | PAYMENT-001 | FX quotes, intents, Payme, CLICK, reversals/reconciliation | BILLING-002, OPS-001 | FR-072–074, FR-078, FR-081 | PAY-001–003 |
 | FRONTEND-001 | Customer/admin shells, onboarding, keys, billing | IDENTITY-001, PAYMENT-001 | FR-001–003, FR-020–021 | Browser tenant/secret tests |
 | PROVIDER-002 | Anthropic adapter and same-model health/failover | PROVIDER-001, GATEWAY-001 | FR-062, FR-067, FR-134 | Bounded fallback fixtures |
-| USAGE-002 | Activity, request detail, rollups, basic analytics | USAGE-001, BILLING-002 | FR-092–094 | Cursor, totals, isolation tests |
+| USAGE-002 | Activity, request detail, rollups, basic analytics | USAGE-001, BILLING-002 | FR-090 read model, FR-092–094 | Cursor, totals, isolation tests |
 | ADMIN-001 | Provider/pricing/payment/ledger/incident controls | AUDIT-001, PAYMENT-001 | FR-120–126 | Operator authorization tests |
 | OPS-002 | Two-node deployment, TLS, secrets, backup/restore, release gates | ADMIN-001, PROVIDER-002 | NFR-001–084 | Recovery and load drills |
 

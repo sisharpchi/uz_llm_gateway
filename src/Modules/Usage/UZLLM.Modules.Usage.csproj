@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <ProjectReference Include="..\..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
+  </ItemGroup>
+
 </Project>

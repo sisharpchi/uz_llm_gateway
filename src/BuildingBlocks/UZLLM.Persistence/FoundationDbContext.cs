@@ -46,6 +46,14 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     internal DbSet<CatalogModelPriceEntity> CatalogModelPrices => Set<CatalogModelPriceEntity>();
 
+    internal DbSet<UsageRequestEntity> UsageRequests => Set<UsageRequestEntity>();
+
+    internal DbSet<UsageIdempotencyClaimEntity> UsageIdempotencyClaims => Set<UsageIdempotencyClaimEntity>();
+
+    internal DbSet<UsageAttemptEntity> UsageAttempts => Set<UsageAttemptEntity>();
+
+    internal DbSet<UsageEvidenceEntity> UsageEvidence => Set<UsageEvidenceEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
@@ -341,7 +349,108 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
             entity.Property(price => price.ExtraPricingJson).HasColumnName("extra_pricing_json").HasColumnType("jsonb");
             entity.Property(price => price.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(price => new { price.ProviderModelId, price.EffectiveFrom }).IsUnique();
+            entity.HasIndex(price => new { price.ProviderModelId, price.Id }).IsUnique();
             entity.HasOne(price => price.ProviderModel).WithMany(mapping => mapping.Prices).HasForeignKey(price => price.ProviderModelId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UsageRequestEntity>(entity =>
+        {
+            entity.ToTable("request", "usage", table =>
+            {
+                table.HasCheckConstraint("CK_usage_request_execution", "execution_state IN ('Prepared', 'Dispatched', 'Succeeded', 'Failed', 'Canceled', 'OutcomeUnknown')");
+                table.HasCheckConstraint("CK_usage_request_delivery", "delivery_state IN ('NotStarted', 'Partial', 'Completed', 'ClientDisconnected')");
+                table.HasCheckConstraint("CK_usage_request_financial", "financial_state IN ('PendingAdmission', 'Reserved', 'PendingEvidence', 'PendingSettlement', 'Settled', 'Released')");
+            });
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.Id).HasColumnName("id");
+            entity.Property(request => request.OrganizationId).HasColumnName("organization_id");
+            entity.Property(request => request.ProjectId).HasColumnName("project_id");
+            entity.Property(request => request.ApiKeyId).HasColumnName("api_key_id");
+            entity.Property(request => request.CanonicalModelId).HasColumnName("canonical_model_id");
+            entity.Property(request => request.StartedAt).HasColumnName("started_at");
+            entity.Property(request => request.CompletedAt).HasColumnName("completed_at");
+            entity.Property(request => request.ExecutionState).HasColumnName("execution_state").HasMaxLength(30);
+            entity.Property(request => request.DeliveryState).HasColumnName("delivery_state").HasMaxLength(30);
+            entity.Property(request => request.FinancialState).HasColumnName("financial_state").HasMaxLength(30);
+            entity.Property(request => request.IsStream).HasColumnName("is_stream");
+            entity.Property(request => request.Operation).HasColumnName("operation").HasMaxLength(80);
+            entity.Property(request => request.RouteStrategy).HasColumnName("route_strategy").HasMaxLength(80);
+            entity.Property(request => request.TraceId).HasColumnName("trace_id").HasMaxLength(128);
+            entity.Property(request => request.HttpStatus).HasColumnName("http_status");
+            entity.HasIndex(request => new { request.OrganizationId, request.StartedAt }).IsDescending(false, true);
+            entity.HasIndex(request => new { request.ProjectId, request.StartedAt }).IsDescending(false, true);
+            entity.HasIndex(request => new { request.ApiKeyId, request.StartedAt }).IsDescending(false, true);
+            entity.HasIndex(request => new { request.Id, request.OrganizationId, request.ApiKeyId }).IsUnique();
+            entity.HasOne(request => request.Organization).WithMany().HasForeignKey(request => request.OrganizationId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.Project).WithMany().HasForeignKey(request => new { request.OrganizationId, request.ProjectId }).HasPrincipalKey(project => new { project.OrganizationId, project.Id }).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.ApiKey).WithMany().HasForeignKey(request => new { request.ProjectId, request.ApiKeyId }).HasPrincipalKey(apiKey => new { apiKey.ProjectId, apiKey.Id }).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(request => request.CanonicalModel).WithMany().HasForeignKey(request => request.CanonicalModelId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UsageIdempotencyClaimEntity>(entity =>
+        {
+            entity.ToTable("idempotency_claim", "usage", table => table.HasCheckConstraint("CK_usage_idempotency_hashes", "octet_length(key_hash) = 32 AND octet_length(payload_hash) = 32"));
+            entity.HasKey(claim => new { claim.OrganizationId, claim.ApiKeyId, claim.Operation, claim.KeyHash });
+            entity.Property(claim => claim.OrganizationId).HasColumnName("organization_id");
+            entity.Property(claim => claim.ApiKeyId).HasColumnName("api_key_id");
+            entity.Property(claim => claim.Operation).HasColumnName("operation").HasMaxLength(80);
+            entity.Property(claim => claim.KeyHash).HasColumnName("key_hash");
+            entity.Property(claim => claim.PayloadHash).HasColumnName("payload_hash");
+            entity.Property(claim => claim.RequestId).HasColumnName("request_id");
+            entity.Property(claim => claim.ExpiresAt).HasColumnName("expires_at");
+            entity.HasIndex(claim => claim.ExpiresAt);
+            entity.HasOne(claim => claim.Request).WithMany().HasForeignKey(claim => new { claim.RequestId, claim.OrganizationId, claim.ApiKeyId }).HasPrincipalKey(request => new { request.Id, request.OrganizationId, request.ApiKeyId }).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UsageAttemptEntity>(entity =>
+        {
+            entity.ToTable("attempt", "usage", table => table.HasCheckConstraint("CK_usage_attempt_execution", "execution_state IN ('Prepared', 'Dispatched', 'Succeeded', 'Failed', 'Canceled', 'OutcomeUnknown')"));
+            entity.HasKey(attempt => attempt.Id);
+            entity.Property(attempt => attempt.Id).HasColumnName("id");
+            entity.Property(attempt => attempt.RequestId).HasColumnName("request_id");
+            entity.Property(attempt => attempt.Number).HasColumnName("number");
+            entity.Property(attempt => attempt.ProviderModelId).HasColumnName("provider_model_id");
+            entity.Property(attempt => attempt.StartedAt).HasColumnName("started_at");
+            entity.Property(attempt => attempt.CompletedAt).HasColumnName("completed_at");
+            entity.Property(attempt => attempt.ExecutionState).HasColumnName("execution_state").HasMaxLength(30);
+            entity.Property(attempt => attempt.ProviderRequestId).HasColumnName("provider_request_id").HasMaxLength(200);
+            entity.Property(attempt => attempt.ErrorCategory).HasColumnName("error_category").HasMaxLength(100);
+            entity.HasIndex(attempt => new { attempt.RequestId, attempt.Number }).IsUnique();
+            entity.HasIndex(attempt => new { attempt.Id, attempt.RequestId }).IsUnique();
+            entity.HasOne(attempt => attempt.Request).WithMany(request => request.Attempts).HasForeignKey(attempt => attempt.RequestId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(attempt => attempt.ProviderModel).WithMany().HasForeignKey(attempt => attempt.ProviderModelId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UsageEvidenceEntity>(entity =>
+        {
+            entity.ToTable("evidence", "usage", table =>
+            {
+                table.HasCheckConstraint("CK_usage_evidence_source", "source IN ('Provider', 'Estimated', 'Reconciled', 'Unknown')");
+                table.HasCheckConstraint("CK_usage_evidence_state", "(state = 'Unknown' AND source = 'Unknown' AND input_tokens IS NULL AND output_tokens IS NULL AND price_version_id IS NULL AND reconcile_after IS NOT NULL) OR (state = 'Verified' AND source IN ('Provider', 'Estimated', 'Reconciled') AND input_tokens >= 0 AND output_tokens >= 0 AND cached_input_tokens >= 0 AND cached_input_tokens <= input_tokens AND (reasoning_tokens IS NULL OR (reasoning_tokens >= 0 AND reasoning_tokens <= output_tokens)) AND price_version_id IS NOT NULL AND reconcile_after IS NULL)");
+            });
+            entity.HasKey(evidence => evidence.Id);
+            entity.Property(evidence => evidence.Id).HasColumnName("id");
+            entity.Property(evidence => evidence.RequestId).HasColumnName("request_id");
+            entity.Property(evidence => evidence.AttemptId).HasColumnName("attempt_id");
+            entity.Property(evidence => evidence.ProviderModelId).HasColumnName("provider_model_id");
+            entity.Property(evidence => evidence.State).HasColumnName("state").HasMaxLength(30);
+            entity.Property(evidence => evidence.Source).HasColumnName("source").HasMaxLength(30);
+            entity.Property(evidence => evidence.InputTokens).HasColumnName("input_tokens");
+            entity.Property(evidence => evidence.OutputTokens).HasColumnName("output_tokens");
+            entity.Property(evidence => evidence.CachedInputTokens).HasColumnName("cached_input_tokens");
+            entity.Property(evidence => evidence.ReasoningTokens).HasColumnName("reasoning_tokens");
+            entity.Property(evidence => evidence.PriceVersionId).HasColumnName("price_version_id");
+            entity.Property(evidence => evidence.ProviderRequestId).HasColumnName("provider_request_id").HasMaxLength(200);
+            entity.Property(evidence => evidence.CapturedAt).HasColumnName("captured_at");
+            entity.Property(evidence => evidence.ReconcileAfter).HasColumnName("reconcile_after");
+            entity.HasIndex(evidence => new { evidence.AttemptId, evidence.State }).IsUnique();
+            entity.HasIndex(evidence => new { evidence.RequestId, evidence.CapturedAt });
+            entity.HasOne(evidence => evidence.Request).WithMany().HasForeignKey(evidence => evidence.RequestId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(evidence => evidence.Attempt).WithMany().HasForeignKey(evidence => new { evidence.AttemptId, evidence.RequestId }).HasPrincipalKey(attempt => new { attempt.Id, attempt.RequestId }).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(evidence => evidence.PriceVersion).WithMany()
+                .HasForeignKey(evidence => new { evidence.ProviderModelId, evidence.PriceVersionId })
+                .HasPrincipalKey(price => new { price.ProviderModelId, price.Id })
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<OutboxMessageEntity>(entity =>

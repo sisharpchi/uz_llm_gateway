@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\..\src\Modules\Identity\UZLLM.Modules.Identity.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Organizations\UZLLM.Modules.Organizations.csproj" />
     <ProjectReference Include="..\..\..\src\Modules\Projects\UZLLM.Modules.Projects.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Usage\UZLLM.Modules.Usage.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
   </ItemGroup>
 

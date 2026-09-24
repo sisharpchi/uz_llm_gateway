@@ -266,7 +266,7 @@ payment FX snapshot. Historical values are never recomputed.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** Not implemented
+**Implementation status:** USAGE-001 evidence foundation implemented; settlement and exposure handling remain in BILLING-002
 
 Persist evidence before settlement. Reconcile unknown outcomes for a bounded
 window, charge verified usage, and absorb unresolved provider cost.
@@ -302,7 +302,7 @@ managed Redis. Actual provider guarantees are launch prerequisites.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Foundation-003 transaction baseline implemented
+**Implementation status:** Foundation-003 transaction baseline and USAGE-001 durable evidence/outbox implemented; financial finalization remains in BILLING-002
 
 Usage evidence is durable before financial finalization. Module contexts may
 share a PostgreSQL transaction for atomic financial effects.
