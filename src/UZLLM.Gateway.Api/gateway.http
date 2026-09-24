@@ -1,0 +1,42 @@
+@baseUrl = https://localhost:7057
+@apiKey = uzllm_live_replace_with_issued_key
+
+### List enabled models
+GET {{baseUrl}}/v1/models
+Authorization: Bearer {{apiKey}}
+
+### Non-streaming chat completion
+POST {{baseUrl}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+Idempotency-Key: 3f00af3b-b1af-4ae3-8d72-0d8a22bda093
+
+{
+  "model": "gpt-4o-mini",
+  "messages": [{ "role": "user", "content": "Hello" }],
+  "max_completion_tokens": 100,
+  "stream": false
+}
+
+### Streaming chat completion
+POST {{baseUrl}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [{ "role": "user", "content": "Hello" }],
+  "max_completion_tokens": 100,
+  "stream": true
+}
+
+### Explicit unsupported parameter error
+POST {{baseUrl}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "model": "gpt-4o-mini",
+  "messages": [{ "role": "user", "content": "Hello" }],
+  "n": 3
+}

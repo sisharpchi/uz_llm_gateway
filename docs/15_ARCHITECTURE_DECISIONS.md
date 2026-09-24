@@ -284,7 +284,7 @@ the remainder, and block new managed spending.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** Not implemented
+**Implementation status:** Implemented by USAGE-001/BILLING-002/GATEWAY-001
 
 Retain inference idempotency metadata for 24 hours and return the prior request
 ID on a conflict; do not retain completion bodies for replay.

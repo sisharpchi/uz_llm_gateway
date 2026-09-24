@@ -140,7 +140,8 @@ public sealed class FinancialService(
             if (mode == FinalizationMode.Reconciliation && now < context.Reservation.ExpiresAt)
                 return new FinalizationResult(FinalizationStatus.NotDue, null);
 
-            var dispatched = context.Attempts.Where(attempt => attempt.Execution != ExecutionState.Prepared).ToArray();
+            var dispatched = context.Attempts.Where(attempt => attempt.Execution is not
+                (ExecutionState.Prepared or ExecutionState.RejectedBeforeExecution)).ToArray();
             missingAttemptIds = dispatched.Where(attempt => !attempt.HasEvidence).Select(attempt => attempt.Id).ToList();
             if (missingAttemptIds.Count == 0)
             {

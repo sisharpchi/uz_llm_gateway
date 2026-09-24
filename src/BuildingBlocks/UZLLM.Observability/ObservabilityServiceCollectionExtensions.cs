@@ -95,7 +95,7 @@ public sealed class RequestCorrelationMiddleware(RequestDelegate next, ILogger<R
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var requestId = GetRequestId(context.Request.Headers[RequestIdHeaderName]);
+        var requestId = Guid.CreateVersion7().ToString("N");
         var traceId = Activity.Current?.TraceId.ToString() ?? ActivityTraceId.CreateRandom().ToString();
         var correlation = new CorrelationContext(requestId, traceId);
         context.Items[CorrelationContextItemName] = correlation;
@@ -106,11 +106,6 @@ public sealed class RequestCorrelationMiddleware(RequestDelegate next, ILogger<R
             await next(context);
         }
     }
-
-    private static string GetRequestId(string? requestedRequestId) =>
-        !string.IsNullOrWhiteSpace(requestedRequestId) && requestedRequestId.Length <= 128
-            ? requestedRequestId
-            : Guid.CreateVersion7().ToString("N");
 }
 
 public sealed record CorrelationContext(string RequestId, string TraceId)

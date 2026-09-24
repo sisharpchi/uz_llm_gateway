@@ -15,8 +15,15 @@ public static class ApiKeyServiceCollectionExtensions
 {
     public static IServiceCollection AddUzllmApiKeys(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddScoped<IApiKeyStore, PostgreSqlApiKeyStore>();
+        services.AddUzllmGatewayApiKeys(configuration);
         services.AddScoped<IApiKeyService, ApiKeyService>();
+        return services;
+    }
+
+    public static IServiceCollection AddUzllmGatewayApiKeys(this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddScoped<IApiKeyStore, PostgreSqlApiKeyStore>();
         services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
         services.AddSingleton<IApiKeySecretGenerator, GatewayApiKeySecretGenerator>();
         services.AddSingleton<IApiKeySecretFingerprint>(_ => HmacApiKeySecretFingerprint.FromConfiguration(configuration));

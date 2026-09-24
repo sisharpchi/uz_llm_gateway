@@ -64,6 +64,16 @@ Core compatibility first:
 
 Unsupported parameter behavior should be explicit.
 
+The P0 Gateway accepts the listed chat fields plus `max_completion_tokens` and
+`stream_options.include_usage`; it rejects unsupported top-level fields with
+`400 unsupported_parameter`. `model` may be canonical or `openai/<canonical>`.
+Only the OpenAI route exists until `PROVIDER-002`; an explicit provider route is
+never silently substituted. An omitted output limit uses the catalog model's
+maximum. For streaming, `data: [DONE]` follows a complete upstream stream;
+an interrupted stream emits a safe terminal error instead of replaying output.
+Missing provider usage leaves financial evidence unknown and the hold pending
+reconciliation rather than charging zero.
+
 ---
 
 ## 3. Gateway extensions
@@ -136,6 +146,14 @@ Useful status mapping:
 | 529 | optional overload semantics |
 
 Choose and document a stable policy.
+
+P0 policy: malformed or unsupported input is `400` (`413` for oversized JSON,
+`415` for non-JSON media type); balance/budget denial is `402`; idempotency
+replay is `409` with `X-Original-Request-Id`; rate/concurrency denial is
+`429`; unavailable Redis, PostgreSQL, pricing, or provider capacity is `503`;
+provider execution failure is `502` unless the provider verifies a context
+limit (`400`). Errors use the envelope above, not RFC 7807 Problem Details,
+to preserve OpenAI client compatibility.
 
 ---
 

@@ -2,17 +2,16 @@
 
 ## Project Structure & Module Organization
 
-This repository contains the UZLLM Gateway design pack and the Foundation-002
-buildable .NET baseline. The authoritative material is under `docs/`: read
+This repository contains the UZLLM Gateway design pack and a buildable modular
+.NET system. The authoritative material is under `docs/`: read
 `docs/00_README.md` first, then use the numbered documents as a progression
 from scope through architecture and delivery. Preserve the numeric prefixes
 when adding a document so the intended reading order remains clear.
 
-The planned implementation is a modular .NET solution: `src/` will contain a
-Gateway API, Management API, and Worker host, plus business modules
-and provider adapters. Each module keeps Domain, Application, Infrastructure,
-and Contracts. Planned tests live in `tests/Unit`,
-`tests/Integration`, `tests/Contract`, and `tests/Load`. The planned
+`src/` contains separate Gateway API, Management API, and Worker hosts,
+business modules, and an OpenAI provider adapter. Each module keeps Domain,
+Application, Infrastructure, and Contracts. Tests live in `tests/Unit`,
+`tests/Integration`, and `tests/Contract`; load tests are planned. The planned
 React/TypeScript workspace is
 `frontend/apps` and `frontend/packages`; see `docs/05_BACKEND_ARCHITECTURE_DOTNET.md`
 and `docs/12_FRONTEND_ARCHITECTURE.md` before creating these directories.

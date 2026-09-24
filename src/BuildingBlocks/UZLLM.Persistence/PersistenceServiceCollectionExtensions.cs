@@ -42,6 +42,9 @@ public static class PersistenceServiceCollectionExtensions
             // Redis ACLs should grant INFO only to the gateway runtime identity.
             var options = ConfigurationOptions.Parse(connectionString);
             options.AllowAdmin = true;
+            // Keep a disconnected multiplexer available so admission can fail closed
+            // with a controlled 503 instead of failing during endpoint construction.
+            options.AbortOnConnectFail = false;
             return ConnectionMultiplexer.Connect(options);
         });
 

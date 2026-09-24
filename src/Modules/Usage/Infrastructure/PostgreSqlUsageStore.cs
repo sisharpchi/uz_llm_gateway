@@ -54,6 +54,18 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
         return claim is null ? null : (claim.RequestId, claim.PayloadHash);
     }
 
+    public async Task<(Guid RequestId, byte[] PayloadHash)?> FindLiveClaimAsync(Guid organizationId,
+        Guid apiKeyId, string operation, byte[] keyHash, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+    {
+        var claim = await dbContext.Set<UsageIdempotencyClaimEntity>().AsNoTracking()
+            .Where(value => value.OrganizationId == organizationId && value.ApiKeyId == apiKeyId
+                && value.Operation == operation && value.KeyHash == keyHash && value.ExpiresAt > now)
+            .Select(value => new { value.RequestId, value.PayloadHash })
+            .SingleOrDefaultAsync(cancellationToken);
+        return claim is null ? null : (claim.RequestId, claim.PayloadHash);
+    }
+
     public async Task<UsageRequest?> FindRequestAsync(Guid requestId, CancellationToken cancellationToken = default) =>
         (await dbContext.Set<UsageRequestEntity>().AsNoTracking()
             .SingleOrDefaultAsync(request => request.Id == requestId, cancellationToken)) is { } request
@@ -191,6 +203,31 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
                 financial.ToString()), cancellationToken);
         return true;
     }
+
+    public async Task<bool> TryFinishAttemptAsync(Guid attemptId, ExecutionState next,
+        string? providerRequestId, string? errorCategory, DateTimeOffset completedAt,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Set<UsageAttemptEntity>()
+            .Where(attempt => attempt.Id == attemptId
+                && (attempt.ExecutionState == ExecutionState.Dispatched.ToString()
+                    || attempt.ExecutionState == ExecutionState.OutcomeUnknown.ToString()))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(attempt => attempt.ExecutionState, next.ToString())
+                .SetProperty(attempt => attempt.ProviderRequestId, providerRequestId)
+                .SetProperty(attempt => attempt.ErrorCategory, errorCategory)
+                .SetProperty(attempt => attempt.CompletedAt, completedAt), cancellationToken) == 1;
+
+    public async Task<bool> TryFinishRequestAsync(Guid requestId, ExecutionState execution,
+        DeliveryState delivery, int httpStatus, string routeStrategy, DateTimeOffset completedAt,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Set<UsageRequestEntity>()
+            .Where(request => request.Id == requestId && request.CompletedAt == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(request => request.ExecutionState, execution.ToString())
+                .SetProperty(request => request.DeliveryState, delivery.ToString())
+                .SetProperty(request => request.HttpStatus, httpStatus)
+                .SetProperty(request => request.RouteStrategy, routeStrategy)
+                .SetProperty(request => request.CompletedAt, completedAt), cancellationToken) == 1;
 
     public async Task<IReadOnlyList<UsageEvidence>> ListEvidenceAsync(Guid requestId,
         CancellationToken cancellationToken = default) =>

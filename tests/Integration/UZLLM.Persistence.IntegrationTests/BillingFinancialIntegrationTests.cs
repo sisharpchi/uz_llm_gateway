@@ -229,6 +229,33 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     }
 
     [Fact]
+    public async Task Verified_preexecution_rejection_releases_hold_without_usage_evidence()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var admitted = await financial.ReserveAsync(Admission(seed, 30_000));
+        var attempt = await usage.StartAttemptAsync(admitted.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+
+        Assert.True(await usage.FinishAttemptAsync(attempt.Id,
+            ExecutionState.RejectedBeforeExecution, "upstream-rejection", "RateLimited"));
+        var released = await financial.ReleaseUndispatchedAsync(admitted.Reservation!.Id);
+
+        Assert.Equal(FinalizationStatus.Released, released.Status);
+        Assert.Equal(0, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
+        Assert.Empty(await usage.ListEvidenceAsync(admitted.RequestId.Value));
+        var stored = await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Set<UsageAttemptEntity>().AsNoTracking().SingleAsync();
+        Assert.Equal("RejectedBeforeExecution", stored.ExecutionState);
+    }
+
+    [Fact]
     public async Task Reversal_preserves_active_holds_records_debt_and_blocks_spend_until_release_recovers_it()
     {
         await ResetAsync();
@@ -290,6 +317,33 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         var db = firstScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
         Assert.Equal(1, await db.Set<BillingReservationEntity>().CountAsync());
         Assert.Equal(1, await db.Set<UsageRequestEntity>().CountAsync());
+    }
+
+    [Fact]
+    public async Task Gateway_idempotency_precheck_distinguishes_live_duplicate_conflict_and_expiry()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var key = Guid.NewGuid().ToString("D");
+        var first = await financial.ReserveAsync(Admission(seed, 30_000, key, [1, 2]));
+        Assert.Equal(AdmissionStatus.Reserved, first.Status);
+
+        var duplicate = await usage.FindExistingClaimAsync(seed.OrganizationId, seed.ApiKeyId,
+            "chat.completions", key, SHA256.HashData([1, 2]));
+        var conflict = await usage.FindExistingClaimAsync(seed.OrganizationId, seed.ApiKeyId,
+            "chat.completions", key, SHA256.HashData([9]));
+        Assert.Equal(ClaimResultKind.Duplicate, duplicate!.Kind);
+        Assert.Equal(first.RequestId, duplicate.RequestId);
+        Assert.Equal(ClaimResultKind.PayloadConflict, conflict!.Kind);
+        clock.UtcNow = Start.AddHours(24).AddSeconds(1);
+        Assert.Null(await usage.FindExistingClaimAsync(seed.OrganizationId, seed.ApiKeyId,
+            "chat.completions", key, SHA256.HashData([1, 2])));
     }
 
     [Fact]

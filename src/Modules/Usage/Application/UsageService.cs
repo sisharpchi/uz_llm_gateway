@@ -69,6 +69,25 @@ public sealed class UsageService(
             ? ClaimResultKind.Duplicate : ClaimResultKind.PayloadConflict, original.RequestId);
     }
 
+    public async Task<ClaimResult?> FindExistingClaimAsync(Guid organizationId, Guid apiKeyId,
+        string operation, string idempotencyKey, byte[] payloadHash,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateId(organizationId, nameof(organizationId));
+        ValidateId(apiKeyId, nameof(apiKeyId));
+        if (!Guid.TryParse(idempotencyKey, out var key) || key == Guid.Empty
+            || payloadHash is not { Length: 32 })
+            throw new ArgumentException("A UUID idempotency key and SHA-256 payload hash are required.");
+        var keyHash = SHA256.HashData(Encoding.UTF8.GetBytes(key.ToString("D")));
+        var claim = await store.FindLiveClaimAsync(organizationId, apiKeyId,
+            ValidateText(operation, 80, nameof(operation)), keyHash,
+            timeProvider.GetUtcNow(), cancellationToken);
+        return claim is null ? null : new ClaimResult(
+            CryptographicOperations.FixedTimeEquals(claim.Value.PayloadHash, payloadHash)
+                ? ClaimResultKind.Duplicate : ClaimResultKind.PayloadConflict,
+            claim.Value.RequestId);
+    }
+
     public async Task<UsageAttempt> StartAttemptAsync(Guid requestId, Guid providerModelId, CancellationToken cancellationToken = default)
     {
         ValidateId(requestId, nameof(requestId));
@@ -86,6 +105,37 @@ public sealed class UsageService(
         await using var transaction = await transactions.BeginAsync(cancellationToken);
         var changed = await store.TryTransitionAttemptAsync(attemptId, ExecutionState.Prepared,
             ExecutionState.Dispatched, null, cancellationToken);
+        if (changed) await transaction.CommitAsync(cancellationToken);
+        return changed;
+    }
+
+    public async Task<bool> FinishAttemptAsync(Guid attemptId, ExecutionState next,
+        string? providerRequestId, string? errorCategory, CancellationToken cancellationToken = default)
+    {
+        ValidateId(attemptId, nameof(attemptId));
+        if (next is not (ExecutionState.Succeeded or ExecutionState.Failed
+            or ExecutionState.Canceled or ExecutionState.OutcomeUnknown
+            or ExecutionState.RejectedBeforeExecution))
+            throw new ArgumentException("A terminal attempt state is required.", nameof(next));
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        var changed = await store.TryFinishAttemptAsync(attemptId, next,
+            providerRequestId, errorCategory, timeProvider.GetUtcNow(), cancellationToken);
+        if (changed) await transaction.CommitAsync(cancellationToken);
+        return changed;
+    }
+
+    public async Task<bool> FinishRequestAsync(Guid requestId, ExecutionState execution,
+        DeliveryState delivery, int httpStatus, string routeStrategy,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateId(requestId, nameof(requestId));
+        if (execution is not (ExecutionState.Succeeded or ExecutionState.Failed
+            or ExecutionState.Canceled or ExecutionState.OutcomeUnknown)
+            || httpStatus is < 100 or > 599 || string.IsNullOrWhiteSpace(routeStrategy))
+            throw new ArgumentException("A terminal request state, route, and HTTP status are required.");
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        var changed = await store.TryFinishRequestAsync(requestId, execution, delivery,
+            httpStatus, routeStrategy, timeProvider.GetUtcNow(), cancellationToken);
         if (changed) await transaction.CommitAsync(cancellationToken);
         return changed;
     }

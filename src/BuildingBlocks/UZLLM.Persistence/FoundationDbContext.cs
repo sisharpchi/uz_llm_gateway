@@ -359,7 +359,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
         {
             entity.ToTable("request", "usage", table =>
             {
-                table.HasCheckConstraint("CK_usage_request_execution", "execution_state IN ('Prepared', 'Dispatched', 'Succeeded', 'Failed', 'Canceled', 'OutcomeUnknown')");
+                table.HasCheckConstraint("CK_usage_request_execution", "execution_state IN ('Prepared', 'Dispatched', 'Succeeded', 'Failed', 'Canceled', 'OutcomeUnknown', 'RejectedBeforeExecution')");
                 table.HasCheckConstraint("CK_usage_request_delivery", "delivery_state IN ('NotStarted', 'Partial', 'Completed', 'ClientDisconnected')");
                 table.HasCheckConstraint("CK_usage_request_financial", "financial_state IN ('PendingAdmission', 'Reserved', 'PendingEvidence', 'PendingSettlement', 'Settled', 'Released')");
             });
@@ -406,7 +406,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
         modelBuilder.Entity<UsageAttemptEntity>(entity =>
         {
-            entity.ToTable("attempt", "usage", table => table.HasCheckConstraint("CK_usage_attempt_execution", "execution_state IN ('Prepared', 'Dispatched', 'Succeeded', 'Failed', 'Canceled', 'OutcomeUnknown')"));
+            entity.ToTable("attempt", "usage", table => table.HasCheckConstraint("CK_usage_attempt_execution", "execution_state IN ('Prepared', 'Dispatched', 'Succeeded', 'Failed', 'Canceled', 'OutcomeUnknown', 'RejectedBeforeExecution')"));
             entity.HasKey(attempt => attempt.Id);
             entity.Property(attempt => attempt.Id).HasColumnName("id");
             entity.Property(attempt => attempt.RequestId).HasColumnName("request_id");

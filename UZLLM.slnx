@@ -53,6 +53,7 @@
   </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/Contract/">
+    <Project Path="tests/Contract/UZLLM.Gateway.ContractTests/UZLLM.Gateway.ContractTests.csproj" />
     <Project Path="tests/Contract/UZLLM.Provider.OpenAI.ContractTests/UZLLM.Provider.OpenAI.ContractTests.csproj" />
   </Folder>
   <Folder Name="/tests/Integration/">
