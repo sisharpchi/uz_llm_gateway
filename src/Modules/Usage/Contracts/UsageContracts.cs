@@ -57,6 +57,9 @@ public interface IUsageStore
 public interface IUsageService
 {
     Task<ClaimResult> PrepareAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default);
+    // The caller must own a PostgreSQL transaction and commit only after financial admission succeeds.
+    Task<ClaimResult?> TryPrepareInTransactionAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default);
+    Task<ClaimResult> ResolveDuplicateAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default);
     Task<UsageAttempt> StartAttemptAsync(Guid requestId, Guid providerModelId, CancellationToken cancellationToken = default);
     Task<bool> MarkDispatchedAsync(Guid attemptId, CancellationToken cancellationToken = default);
     Task<UsageEvidence?> RecordUnknownAsync(Guid requestId, Guid attemptId, CancellationToken cancellationToken = default);

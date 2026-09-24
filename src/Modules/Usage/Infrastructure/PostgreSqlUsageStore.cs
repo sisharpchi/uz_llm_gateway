@@ -72,6 +72,11 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
             $"UPDATE usage.request SET execution_state = execution_state WHERE id = {attempt.RequestId};",
             cancellationToken);
         if (locked != 1) throw new KeyNotFoundException("The usage request does not exist.");
+        var financial = await dbContext.Set<UsageRequestEntity>().AsNoTracking()
+            .Where(value => value.Id == attempt.RequestId).Select(value => value.FinancialState)
+            .SingleAsync(cancellationToken);
+        if (financial is "Settled" or "Released")
+            throw new InvalidOperationException("A finalized request cannot start another provider attempt.");
         var lastNumber = await dbContext.Set<UsageAttemptEntity>().AsNoTracking()
             .Where(value => value.RequestId == attempt.RequestId)
             .MaxAsync(value => (int?)value.Number, cancellationToken) ?? 0;
@@ -95,6 +100,20 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
     public async Task<bool> TryTransitionAttemptAsync(Guid attemptId, ExecutionState expected,
         ExecutionState next, DateTimeOffset? completedAt, CancellationToken cancellationToken = default)
     {
+        if (next == ExecutionState.Dispatched)
+        {
+            var requestIdForLock = await dbContext.Set<UsageAttemptEntity>().AsNoTracking()
+                .Where(attempt => attempt.Id == attemptId).Select(attempt => (Guid?)attempt.RequestId)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (requestIdForLock is null) return false;
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE usage.request SET execution_state = execution_state WHERE id = {requestIdForLock.Value};",
+                cancellationToken);
+            var financial = await dbContext.Set<UsageRequestEntity>().AsNoTracking()
+                .Where(value => value.Id == requestIdForLock.Value).Select(value => value.FinancialState)
+                .SingleAsync(cancellationToken);
+            if (financial is "Settled" or "Released") return false;
+        }
         var updated = await dbContext.Set<UsageAttemptEntity>()
             .Where(attempt => attempt.Id == attemptId && attempt.ExecutionState == expected.ToString())
             .ExecuteUpdateAsync(setters => setters
@@ -116,6 +135,10 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
     public async Task<bool> TryAppendEvidenceAsync(UsageEvidence evidence,
         FinancialState nextFinancialState, CancellationToken cancellationToken = default)
     {
+        // Finalization uses the same logical-request lock before reading evidence.
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE usage.request SET financial_state = financial_state WHERE id = {evidence.RequestId};",
+            cancellationToken);
         // Serialize evidence decisions for one provider attempt. Without this lock,
         // a late unknown outcome can regress an already verified request.
         var locked = await dbContext.Database.ExecuteSqlInterpolatedAsync(
@@ -161,7 +184,9 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
                 && !dbContext.Set<UsageEvidenceEntity>().Any(verified => verified.AttemptId == unknown.AttemptId
                     && verified.State == EvidenceState.Verified.ToString()), cancellationToken);
         var financial = hasUnresolvedUnknown ? FinancialState.PendingEvidence : nextFinancialState;
-        await dbContext.Set<UsageRequestEntity>().Where(request => request.Id == evidence.RequestId)
+        await dbContext.Set<UsageRequestEntity>().Where(request => request.Id == evidence.RequestId
+                && request.FinancialState != FinancialState.Settled.ToString()
+                && request.FinancialState != FinancialState.Released.ToString())
             .ExecuteUpdateAsync(setters => setters.SetProperty(request => request.FinancialState,
                 financial.ToString()), cancellationToken);
         return true;

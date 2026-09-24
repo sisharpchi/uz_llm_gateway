@@ -7,7 +7,8 @@ namespace UZLLM.Modules.Billing.Application;
 public sealed class WalletLedgerService(
     IWalletLedgerStore store,
     ITransactionCoordinator transactionCoordinator,
-    TimeProvider timeProvider) : IWalletLedgerService
+    TimeProvider timeProvider,
+    IFinancialStore? financialStore = null) : IWalletLedgerService
 {
     public Task<Wallet?> GetWalletAsync(Guid organizationId, CancellationToken cancellationToken = default) =>
         organizationId == Guid.Empty
@@ -37,6 +38,9 @@ public sealed class WalletLedgerService(
             return new LedgerPostingResult(status, null, null);
         }
 
+        if (entry.Type == LedgerEntryType.TopUp && financialStore is not null)
+            await financialStore.RecoverAvailableDebtAsync(entry.OrganizationId, entry.Id,
+                timeProvider.GetUtcNow(), cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new LedgerPostingResult(status, entry, await store.FindWalletAsync(entry.OrganizationId, cancellationToken));
     }

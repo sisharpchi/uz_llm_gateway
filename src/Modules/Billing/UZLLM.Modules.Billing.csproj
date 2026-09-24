@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
+    <ProjectReference Include="..\Usage\UZLLM.Modules.Usage.csproj" />
   </ItemGroup>
 
 </Project>

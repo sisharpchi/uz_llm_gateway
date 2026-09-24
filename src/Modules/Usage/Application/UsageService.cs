@@ -14,6 +14,17 @@ public sealed class UsageService(
 
     public async Task<ClaimResult> PrepareAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default)
     {
+        ClaimResult? created;
+        await using (var transaction = await transactions.BeginAsync(cancellationToken))
+        {
+            created = await TryPrepareInTransactionAsync(input, cancellationToken);
+            if (created is not null) await transaction.CommitAsync(cancellationToken);
+        }
+        return created ?? await ResolveDuplicateAsync(input, cancellationToken);
+    }
+
+    public async Task<ClaimResult?> TryPrepareInTransactionAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(input);
         ValidateId(input.OrganizationId, nameof(input.OrganizationId));
         ValidateId(input.ProjectId, nameof(input.ProjectId));
@@ -36,20 +47,23 @@ public sealed class UsageService(
             DeliveryState.NotStarted, FinancialState.PendingAdmission, input.IsStream,
             operation, null, traceId, null);
 
-        await using (var transaction = await transactions.BeginAsync(cancellationToken))
-        {
-            await store.InsertRequestAsync(request, cancellationToken);
-            if (keyHash is null || await store.TryClaimAsync(input.OrganizationId, input.ApiKeyId,
-                operation, keyHash, input.PayloadHash, request.Id, now.Add(IdempotencyWindow), now,
-                cancellationToken))
-            {
-                await transaction.CommitAsync(cancellationToken);
-                return new ClaimResult(ClaimResultKind.Created, request.Id);
-            }
-        }
+        await store.InsertRequestAsync(request, cancellationToken);
+        if (keyHash is null || await store.TryClaimAsync(input.OrganizationId, input.ApiKeyId,
+            operation, keyHash, input.PayloadHash, request.Id, now.Add(IdempotencyWindow), now,
+            cancellationToken))
+            return new ClaimResult(ClaimResultKind.Created, request.Id);
+        return null;
+    }
 
+    public async Task<ClaimResult> ResolveDuplicateAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (!Guid.TryParse(input.IdempotencyKey, out var key) || key == Guid.Empty)
+            throw new ArgumentException("A non-empty Idempotency-Key UUID is required.", nameof(input));
+        var operation = ValidateText(input.Operation, 80, nameof(input.Operation));
+        var keyHash = SHA256.HashData(Encoding.UTF8.GetBytes(key.ToString("D")));
         var original = await store.FindClaimAsync(input.OrganizationId, input.ApiKeyId,
-            operation, keyHash!, cancellationToken)
+            operation, keyHash, cancellationToken)
             ?? throw new InvalidOperationException("An idempotency conflict was observed without a durable claim.");
         return new ClaimResult(CryptographicOperations.FixedTimeEquals(original.PayloadHash, input.PayloadHash)
             ? ClaimResultKind.Duplicate : ClaimResultKind.PayloadConflict, original.RequestId);

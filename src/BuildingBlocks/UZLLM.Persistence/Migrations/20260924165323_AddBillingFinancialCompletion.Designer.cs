@@ -3,6 +3,7 @@ using System;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using UZLLM.Persistence;
@@ -12,9 +13,11 @@ using UZLLM.Persistence;
 namespace UZLLM.Persistence.Migrations
 {
     [DbContext(typeof(FoundationDbContext))]
-    partial class FoundationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260924165323_AddBillingFinancialCompletion")]
+    partial class AddBillingFinancialCompletion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -320,42 +323,6 @@ namespace UZLLM.Persistence.Migrations
                     b.ToTable("ledger_entry", "billing", t =>
                         {
                             t.HasCheckConstraint("CK_ledger_entry_direction", "(amount_micro_usd > 0 AND type IN ('TopUp', 'Refund', 'AdjustmentCredit', 'PromotionalCredit')) OR (amount_micro_usd < 0 AND type IN ('UsageCharge', 'AdjustmentDebit'))");
-                        });
-                });
-
-            modelBuilder.Entity("UZLLM.Persistence.BillingPlatformExposureEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("EvidenceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("evidence_id");
-
-                    b.Property<long>("ProviderCostMicroUsd")
-                        .HasColumnType("bigint")
-                        .HasColumnName("provider_cost_micro_usd");
-
-                    b.Property<Guid>("SettlementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("settlement_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EvidenceId")
-                        .IsUnique();
-
-                    b.HasIndex("SettlementId");
-
-                    b.ToTable("platform_exposure", "billing", t =>
-                        {
-                            t.HasCheckConstraint("CK_platform_exposure_non_negative", "provider_cost_micro_usd >= 0");
                         });
                 });
 
@@ -1730,21 +1697,6 @@ namespace UZLLM.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("UZLLM.Persistence.BillingPlatformExposureEntity", b =>
-                {
-                    b.HasOne("UZLLM.Persistence.UsageEvidenceEntity", null)
-                        .WithMany()
-                        .HasForeignKey("EvidenceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("UZLLM.Persistence.BillingSettlementEntity", null)
-                        .WithMany()
-                        .HasForeignKey("SettlementId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.BillingRecoveryDebtEntity", b =>

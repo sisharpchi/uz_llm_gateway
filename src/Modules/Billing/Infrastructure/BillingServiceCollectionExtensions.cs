@@ -10,8 +10,10 @@ public static class BillingServiceCollectionExtensions
     {
         services.AddScoped<IWalletLedgerStore, PostgreSqlWalletLedgerStore>();
         services.AddScoped<IPricingHistoryStore, PostgreSqlPricingHistoryStore>();
+        services.AddScoped<IFinancialStore, PostgreSqlFinancialStore>();
         services.AddScoped<IWalletLedgerService, WalletLedgerService>();
         services.AddScoped<IPricingHistoryService, PricingHistoryService>();
+        services.AddScoped<IFinancialService, FinancialService>();
         return services;
     }
 }

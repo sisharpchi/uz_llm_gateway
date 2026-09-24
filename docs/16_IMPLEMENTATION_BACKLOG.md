@@ -20,6 +20,7 @@ same-model failover precedes P1 cross-model fallback.
 | APIKEYS-001 | Completed |
 | CATALOG-001 | Completed |
 | USAGE-001 | Completed |
+| BILLING-002 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above.
 

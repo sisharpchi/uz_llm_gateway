@@ -1,11 +1,50 @@
 using UZLLM.Modules.Billing.Application;
 using UZLLM.Modules.Billing.Contracts;
+using UZLLM.Modules.Billing.Domain;
 using UZLLM.Persistence;
 
 namespace UZLLM.Billing.Tests;
 
 public sealed class BillingServicesTests
 {
+    [Fact]
+    public void Request_cost_rounds_once_and_does_not_double_count_cached_or_reasoning_tokens()
+    {
+        var at = new DateTimeOffset(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
+        var fee = new FeePolicyVersion(Guid.CreateVersion7(), "managed", 1_000,
+            new UsdMicroAmount(2), at, null, at);
+        var evidence = new[]
+        {
+            new PricedUsageEvidence(Guid.CreateVersion7(), Guid.CreateVersion7(), 2, 1,
+                1, 1, 500_000, 1_000_000, 100_000, "{}", at, at, null),
+            new PricedUsageEvidence(Guid.CreateVersion7(), Guid.CreateVersion7(), 1, 0,
+                0, null, 400_000, 0, null, "{}", at, at, null)
+        };
+
+        var cost = RequestCostCalculator.Calculate(evidence, fee, new UsdMicroAmount(10));
+
+        Assert.Equal(2, cost.ProviderCost.Value); // Exact sum: 0.5 + 0.1 + 1 + 0.4.
+        Assert.Equal(5, cost.UncappedCustomerCharge.Value); // Ceil(2 * 1.1 + 2).
+        Assert.Equal(5, cost.Charged.Value);
+        Assert.Equal(0, cost.PlatformExposure.Value);
+    }
+
+    [Fact]
+    public void Request_cost_rejects_stale_price_and_unknown_extra_pricing()
+    {
+        var at = new DateTimeOffset(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
+        var fee = new FeePolicyVersion(Guid.CreateVersion7(), "managed", 0,
+            UsdMicroAmount.Zero, at, null, at);
+        var item = new PricedUsageEvidence(Guid.CreateVersion7(), Guid.CreateVersion7(), 1, 0,
+            0, null, 1_000_000, 0, null, "{}", at, at.AddSeconds(1), null);
+
+        Assert.Throws<InvalidOperationException>(() => RequestCostCalculator.Calculate(
+            [item], fee, new UsdMicroAmount(10)));
+        Assert.Throws<NotSupportedException>(() => RequestCostCalculator.Calculate(
+            [item with { PriceEffectiveFrom = at, ExtraPricingJson = "{\"tool\":1}" }],
+            fee, new UsdMicroAmount(10)));
+    }
+
     [Fact]
     public void Money_types_reject_negative_or_zero_values_and_wallet_exposes_available_balance()
     {

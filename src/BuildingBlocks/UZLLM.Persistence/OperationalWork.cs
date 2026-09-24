@@ -105,7 +105,9 @@ public enum OperationalAlertKind
     PaymentCallbackFailure,
     ProviderOutage,
     ElevatedServerErrors,
-    OutboxBacklog
+    OutboxBacklog,
+    FinancialExposure,
+    RecoveryDebt
 }
 
 public sealed record OperationalAlert(
@@ -434,19 +436,42 @@ internal sealed class PostgreSqlLeasedJobStore(FoundationDbContext dbContext, Ti
     {
         PostgreSqlOutboxStore.ValidateNewWork(jobType, payload, maxAttempts);
         ArgumentException.ThrowIfNullOrWhiteSpace(deduplicationKey);
-
-        var id = Guid.CreateVersion7();
-        dbContext.LeasedJobs.Add(new LeasedJobEntity
+        var connection = dbContext.Database.GetDbConnection();
+        var shouldCloseConnection = connection.State != ConnectionState.Open;
+        if (shouldCloseConnection) await connection.OpenAsync(cancellationToken);
+        try
         {
-            Id = id,
-            JobType = jobType,
-            Payload = payload,
-            DeduplicationKey = deduplicationKey,
-            AvailableAt = availableAt,
-            MaxAttempts = maxAttempts
-        });
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return id;
+            var id = Guid.CreateVersion7();
+            await using (var insert = connection.CreateCommand())
+            {
+                insert.Transaction = dbContext.Database.CurrentTransaction?.GetDbTransaction();
+                insert.CommandText = """
+                    INSERT INTO ops.job
+                        (id, job_type, payload, deduplication_key, available_at, attempt_count, max_attempts)
+                    VALUES (@id, @job_type, CAST(@payload AS jsonb), @deduplication_key, @available_at, 0, @max_attempts)
+                    ON CONFLICT (job_type, deduplication_key) DO NOTHING
+                    RETURNING id;
+                    """;
+                insert.Parameters.Add(new NpgsqlParameter("id", id));
+                insert.Parameters.Add(new NpgsqlParameter("job_type", jobType));
+                insert.Parameters.Add(new NpgsqlParameter("payload", payload));
+                insert.Parameters.Add(new NpgsqlParameter("deduplication_key", deduplicationKey));
+                insert.Parameters.Add(new NpgsqlParameter("available_at", availableAt));
+                insert.Parameters.Add(new NpgsqlParameter("max_attempts", maxAttempts));
+                if (await insert.ExecuteScalarAsync(cancellationToken) is Guid inserted) return inserted;
+            }
+            await using var lookup = connection.CreateCommand();
+            lookup.Transaction = dbContext.Database.CurrentTransaction?.GetDbTransaction();
+            lookup.CommandText = "SELECT id FROM ops.job WHERE job_type = @job_type AND deduplication_key = @deduplication_key;";
+            lookup.Parameters.Add(new NpgsqlParameter("job_type", jobType));
+            lookup.Parameters.Add(new NpgsqlParameter("deduplication_key", deduplicationKey));
+            return await lookup.ExecuteScalarAsync(cancellationToken) is Guid existing
+                ? existing : throw new InvalidOperationException("A deduplicated job was not found.");
+        }
+        finally
+        {
+            if (shouldCloseConnection) await connection.CloseAsync();
+        }
     }
 
     public async Task<IReadOnlyList<LeasedJob>> ClaimAvailableAsync(

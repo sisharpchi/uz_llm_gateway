@@ -266,7 +266,7 @@ payment FX snapshot. Historical values are never recomputed.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** USAGE-001 evidence foundation implemented; settlement and exposure handling remain in BILLING-002
+**Implementation status:** BILLING-002 implements bounded reconciliation, settlement, and immutable late platform-exposure records
 
 Persist evidence before settlement. Reconcile unknown outcomes for a bounded
 window, charge verified usage, and absorb unresolved provider cost.
@@ -275,7 +275,7 @@ window, charge verified usage, and absorb unresolved provider cost.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** Not implemented
+**Implementation status:** BILLING-002 implements available-credit recovery, debt, and managed-spend hold
 
 Recover available credit, preserve active reservations, create recovery debt for
 the remainder, and block new managed spending.
@@ -302,7 +302,7 @@ managed Redis. Actual provider guarantees are launch prerequisites.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Foundation-003 transaction baseline and USAGE-001 durable evidence/outbox implemented; financial finalization remains in BILLING-002
+**Implementation status:** BILLING-002 implements atomic reservation/finalization on the shared PostgreSQL transaction coordinator
 
 Usage evidence is durable before financial finalization. Module contexts may
 share a PostgreSQL transaction for atomic financial effects.

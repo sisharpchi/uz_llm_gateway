@@ -9,6 +9,7 @@
     <ProjectReference Include="..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
     <ProjectReference Include="..\Modules\ApiKeys\UZLLM.Modules.ApiKeys.csproj" />
     <ProjectReference Include="..\Modules\Catalog\UZLLM.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Modules\Billing\UZLLM.Modules.Billing.csproj" />
     <ProjectReference Include="..\Modules\Usage\UZLLM.Modules.Usage.csproj" />
   </ItemGroup>
 

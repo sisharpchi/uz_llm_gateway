@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace UZLLM.Persistence;
 
-public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> options) : DbContext(options)
+public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbContext> options) : DbContext(options)
 {
     internal DbSet<OutboxMessageEntity> OutboxMessages => Set<OutboxMessageEntity>();
 
@@ -56,6 +56,7 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureFinancialCompletion(modelBuilder);
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
         {
             entity.ToTable("user", "iam");
