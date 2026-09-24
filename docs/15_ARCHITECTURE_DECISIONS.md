@@ -307,7 +307,7 @@ share a PostgreSQL transaction for atomic financial effects.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** IDENTITY-001 baseline implemented; immutable audit records complete in AUDIT-001
 
 Use secure server-backed management sessions and separately authorized,
 audited MFA-protected operator access.

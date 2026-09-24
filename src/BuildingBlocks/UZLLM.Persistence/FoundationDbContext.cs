@@ -12,8 +12,84 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     internal DbSet<OperationalAlertEntity> OperationalAlerts => Set<OperationalAlertEntity>();
 
+    internal DbSet<IdentityAccountEntity> IdentityAccounts => Set<IdentityAccountEntity>();
+
+    internal DbSet<IdentitySessionEntity> IdentitySessions => Set<IdentitySessionEntity>();
+
+    internal DbSet<IdentityChallengeEntity> IdentityChallenges => Set<IdentityChallengeEntity>();
+
+    internal DbSet<IdentityOperatorAccessEntity> IdentityOperatorAccesses => Set<IdentityOperatorAccessEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<IdentityAccountEntity>(entity =>
+        {
+            entity.ToTable("user", "iam");
+            entity.HasKey(account => account.Id);
+            entity.Property(account => account.Id).HasColumnName("id");
+            entity.Property(account => account.Email).HasColumnName("email").HasMaxLength(320);
+            entity.Property(account => account.PasswordHash).HasColumnName("password_hash");
+            entity.Property(account => account.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(account => account.EmailVerifiedAt).HasColumnName("email_verified_at");
+            entity.Property(account => account.CreatedAt).HasColumnName("created_at");
+            entity.Property(account => account.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(account => account.Email).IsUnique();
+        });
+
+        modelBuilder.Entity<IdentitySessionEntity>(entity =>
+        {
+            entity.ToTable("session", "iam");
+            entity.HasKey(session => session.Id);
+            entity.Property(session => session.Id).HasColumnName("id");
+            entity.Property(session => session.AccountId).HasColumnName("account_id");
+            entity.Property(session => session.SecretHash).HasColumnName("secret_hash");
+            entity.Property(session => session.CsrfHash).HasColumnName("csrf_hash");
+            entity.Property(session => session.CreatedAt).HasColumnName("created_at");
+            entity.Property(session => session.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(session => session.RevokedAt).HasColumnName("revoked_at");
+            entity.Property(session => session.MfaReauthenticatedAt).HasColumnName("mfa_reauthenticated_at");
+            entity.HasIndex(session => new { session.AccountId, session.ExpiresAt });
+            entity.HasOne(session => session.Account)
+                .WithMany(account => account.Sessions)
+                .HasForeignKey(session => session.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IdentityChallengeEntity>(entity =>
+        {
+            entity.ToTable("challenge", "iam");
+            entity.HasKey(challenge => challenge.Id);
+            entity.Property(challenge => challenge.Id).HasColumnName("id");
+            entity.Property(challenge => challenge.AccountId).HasColumnName("account_id");
+            entity.Property(challenge => challenge.Kind).HasColumnName("kind").HasMaxLength(50);
+            entity.Property(challenge => challenge.TokenHash).HasColumnName("token_hash");
+            entity.Property(challenge => challenge.CreatedAt).HasColumnName("created_at");
+            entity.Property(challenge => challenge.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(challenge => challenge.ConsumedAt).HasColumnName("consumed_at");
+            entity.HasIndex(challenge => new { challenge.Kind, challenge.TokenHash }).IsUnique();
+            entity.HasIndex(challenge => new { challenge.AccountId, challenge.Kind })
+                .HasFilter("consumed_at IS NULL")
+                .IsUnique();
+            entity.HasOne(challenge => challenge.Account)
+                .WithMany(account => account.Challenges)
+                .HasForeignKey(challenge => challenge.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IdentityOperatorAccessEntity>(entity =>
+        {
+            entity.ToTable("operator_access", "iam");
+            entity.HasKey(access => access.AccountId);
+            entity.Property(access => access.AccountId).HasColumnName("account_id");
+            entity.Property(access => access.IsActive).HasColumnName("is_active");
+            entity.Property(access => access.ProtectedTotpSecret).HasColumnName("protected_totp_secret");
+            entity.Property(access => access.MfaEnabledAt).HasColumnName("mfa_enabled_at");
+            entity.HasOne(access => access.Account)
+                .WithOne(account => account.OperatorAccess)
+                .HasForeignKey<IdentityOperatorAccessEntity>(access => access.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<OutboxMessageEntity>(entity =>
         {
             entity.ToTable("outbox", "ops");

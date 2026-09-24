@@ -5,6 +5,8 @@ using Npgsql;
 using StackExchange.Redis;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
+using UZLLM.Modules.Identity.Contracts;
+using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Persistence;
 
 namespace UZLLM.Persistence.IntegrationTests;
@@ -260,6 +262,46 @@ public sealed class PersistenceIntegrationTests(PersistenceIntegrationFixture fi
 
         Assert.Equal(1, alertCount);
         Assert.Equal(1, outboxCount);
+    }
+
+    [Fact]
+    public async Task Email_verification_challenge_is_consumed_once_when_database_stores_compete()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var now = DateTimeOffset.UtcNow;
+        var account = new IdentityAccount(
+            Guid.CreateVersion7(),
+            "identity-concurrency@example.uz",
+            "not-a-real-password-hash",
+            IdentityAccountStatus.Active,
+            null,
+            now,
+            now);
+        var tokenHash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("one-time-verification-token"));
+
+        await using (var writerProvider = fixture.CreateServiceProvider())
+        await using (var writerScope = writerProvider.CreateAsyncScope())
+        {
+            var writer = new PostgreSqlIdentityStore(writerScope.ServiceProvider.GetRequiredService<FoundationDbContext>());
+            Assert.True(await writer.TryCreateAccountAsync(account, tokenHash, now.AddHours(1)));
+        }
+
+        await using var firstProvider = fixture.CreateServiceProvider();
+        await using var firstScope = firstProvider.CreateAsyncScope();
+        await using var secondProvider = fixture.CreateServiceProvider();
+        await using var secondScope = secondProvider.CreateAsyncScope();
+        var firstStore = new PostgreSqlIdentityStore(firstScope.ServiceProvider.GetRequiredService<FoundationDbContext>());
+        var secondStore = new PostgreSqlIdentityStore(secondScope.ServiceProvider.GetRequiredService<FoundationDbContext>());
+
+        var outcomes = await Task.WhenAll(
+            firstStore.TryVerifyEmailAsync(tokenHash, now),
+            secondStore.TryVerifyEmailAsync(tokenHash, now));
+
+        Assert.Single(outcomes, outcome => outcome);
+        var verified = await firstStore.FindAccountByIdAsync(account.Id);
+        Assert.NotNull(verified);
+        Assert.True(verified.IsEmailVerified);
     }
 
     [Fact]

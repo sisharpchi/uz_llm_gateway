@@ -268,6 +268,25 @@ organization scope. Required P0 additions are organization/profile/settings,
 catalog detail, limits, payment status, usage time-series/breakdowns, request
 attempt detail, and operator provider/payment/ledger/incident endpoints.
 
+### Management identity endpoints [P0]
+
+```text
+POST /management/v1/auth/register
+POST /management/v1/auth/verify-email
+POST /management/v1/auth/login
+POST /management/v1/auth/logout
+GET  /management/v1/auth/session
+POST /management/v1/auth/recover
+POST /management/v1/auth/reset-password
+POST /management/v1/auth/operator/mfa/verify
+```
+
+Successful login issues an opaque server-backed `__Host-uzllm-session` cookie
+(`HttpOnly`, `Secure`, `SameSite=Strict`) and an equally strict readable CSRF
+cookie. State-changing authenticated browser endpoints require the matching
+`X-CSRF-Token` header. Verification and recovery tokens are one-time opaque
+secrets and must never be returned in HTTP responses or logs.
+
 Wallet responses distinguish `posted`, `reserved`, `available`, `recoveryDebt`,
 and `spendingHeld`. Request detail distinguishes execution, delivery, and
 financial outcomes plus attempts. Micro-unit amounts are decimal strings when

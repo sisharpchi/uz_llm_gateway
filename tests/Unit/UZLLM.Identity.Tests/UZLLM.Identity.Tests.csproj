@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,17 +7,13 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="Testcontainers.PostgreSql" />
-    <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Modules\Identity\UZLLM.Modules.Identity.csproj" />
-    <ProjectReference Include="..\..\..\src\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>
