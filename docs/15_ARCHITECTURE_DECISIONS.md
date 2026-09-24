@@ -120,9 +120,12 @@ Use cost reservation then settlement/release.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** Implemented by `APIKEYS-001`
 
-Gateway key full secret is shown once.
+Gateway key full secret is shown once. The gateway stores a unique public
+prefix and keyed HMAC fingerprint of the complete secret; authentication uses
+constant-time fingerprint comparison. Key status and expiry are enforced, and
+no recoverable key material is persisted.
 
 BYOK/provider credentials are different and must be encrypted because upstream execution needs plaintext.
 

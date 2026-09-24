@@ -16,6 +16,7 @@ public static class ProjectServiceCollectionExtensions
     {
         services.AddScoped<IProjectStore, PostgreSqlProjectStore>();
         services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IProjectAccessService, ProjectAccessService>();
         return services;
     }
 

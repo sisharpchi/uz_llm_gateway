@@ -23,6 +23,8 @@ public interface IProjectStore
 
     Task<Project?> FindAsync(Guid organizationId, Guid projectId, CancellationToken cancellationToken = default);
 
+    Task<Project?> FindByIdAsync(Guid projectId, CancellationToken cancellationToken = default);
+
     Task<bool> ArchiveAsync(
         Guid organizationId,
         Guid projectId,
@@ -54,4 +56,9 @@ public interface IProjectService
         Guid organizationId,
         Guid projectId,
         CancellationToken cancellationToken = default);
+}
+
+public interface IProjectAccessService
+{
+    Task<Project?> GetOwnedAsync(Guid accountId, Guid projectId, CancellationToken cancellationToken = default);
 }

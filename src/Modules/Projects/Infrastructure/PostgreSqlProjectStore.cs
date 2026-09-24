@@ -37,6 +37,13 @@ public sealed class PostgreSqlProjectStore(FoundationDbContext dbContext) : IPro
             ? ToContract(project)
             : null;
 
+    public async Task<Project?> FindByIdAsync(Guid projectId, CancellationToken cancellationToken = default) =>
+        (await dbContext.Set<ProjectEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(project => project.Id == projectId, cancellationToken)) is { } project
+            ? ToContract(project)
+            : null;
+
     public async Task<bool> ArchiveAsync(
         Guid organizationId,
         Guid projectId,

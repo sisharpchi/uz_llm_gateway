@@ -246,6 +246,9 @@ internal sealed class InMemoryProjectStore : IProjectStore
                 ? project
                 : null);
 
+    public Task<Project?> FindByIdAsync(Guid projectId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(projects.GetValueOrDefault(projectId));
+
     public Task<bool> ArchiveAsync(Guid organizationId, Guid projectId, DateTimeOffset archivedAt, CancellationToken cancellationToken = default)
     {
         if (projects.GetValueOrDefault(projectId) is not { OrganizationId: var projectOrganizationId, Status: ProjectStatus.Active } project

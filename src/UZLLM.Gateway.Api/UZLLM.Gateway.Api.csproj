@@ -7,6 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BuildingBlocks\UZLLM.Observability\UZLLM.Observability.csproj" />
     <ProjectReference Include="..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
+    <ProjectReference Include="..\Modules\ApiKeys\UZLLM.Modules.ApiKeys.csproj" />
   </ItemGroup>
 
 </Project>

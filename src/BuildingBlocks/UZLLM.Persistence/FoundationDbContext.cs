@@ -28,6 +28,8 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     internal DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
 
+    internal DbSet<GatewayApiKeyEntity> GatewayApiKeys => Set<GatewayApiKeyEntity>();
+
     internal DbSet<BillingWalletEntity> BillingWallets => Set<BillingWalletEntity>();
 
     internal DbSet<BillingLedgerEntryEntity> BillingLedgerEntries => Set<BillingLedgerEntryEntity>();
@@ -153,6 +155,25 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
                 .WithMany(organization => organization.Projects)
                 .HasForeignKey(project => project.OrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<GatewayApiKeyEntity>(entity =>
+        {
+            entity.ToTable("api_key", "gateway", table => table.HasCheckConstraint("CK_api_key_status", "status IN ('Active', 'Disabled')"));
+            entity.HasKey(apiKey => apiKey.Id);
+            entity.Property(apiKey => apiKey.Id).HasColumnName("id");
+            entity.Property(apiKey => apiKey.ProjectId).HasColumnName("project_id");
+            entity.Property(apiKey => apiKey.Name).HasColumnName("name").HasMaxLength(120);
+            entity.Property(apiKey => apiKey.Prefix).HasColumnName("key_prefix").HasMaxLength(12);
+            entity.Property(apiKey => apiKey.SecretFingerprint).HasColumnName("secret_fingerprint");
+            entity.Property(apiKey => apiKey.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(apiKey => apiKey.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(apiKey => apiKey.CreatedByAccountId).HasColumnName("created_by");
+            entity.Property(apiKey => apiKey.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(apiKey => apiKey.Prefix).IsUnique();
+            entity.HasIndex(apiKey => new { apiKey.ProjectId, apiKey.CreatedAt }).IsDescending(false, true);
+            entity.HasOne(apiKey => apiKey.Project).WithMany().HasForeignKey(apiKey => apiKey.ProjectId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(apiKey => apiKey.CreatedByAccount).WithMany().HasForeignKey(apiKey => apiKey.CreatedByAccountId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AuditEventEntity>(entity =>

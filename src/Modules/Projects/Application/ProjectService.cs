@@ -92,3 +92,23 @@ public sealed class ProjectService(
         return normalized;
     }
 }
+
+public sealed class ProjectAccessService(IProjectStore store, IOrganizationAuthorizationService organizationAuthorization) : IProjectAccessService
+{
+    public async Task<Project?> GetOwnedAsync(Guid accountId, Guid projectId, CancellationToken cancellationToken = default)
+    {
+        if (accountId == Guid.Empty || projectId == Guid.Empty)
+        {
+            throw new TenantAccessDeniedException();
+        }
+
+        var project = await store.FindByIdAsync(projectId, cancellationToken);
+        if (project is null)
+        {
+            return null;
+        }
+
+        await organizationAuthorization.EnsureOwnerAsync(accountId, project.OrganizationId, cancellationToken);
+        return project;
+    }
+}

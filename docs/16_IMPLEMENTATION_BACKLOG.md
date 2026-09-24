@@ -17,6 +17,7 @@ same-model failover precedes P1 cross-model fallback.
 | ORGS-001 | Completed |
 | AUDIT-001 | Completed |
 | BILLING-001 | Completed |
+| APIKEYS-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above.
 
@@ -27,6 +28,9 @@ ledger prerequisites without prematurely implementing reservation behavior.
 `FR-078` is accepted by `PAYMENT-001`: a payment amount and the credit it
 created cannot be recorded before the payment aggregate exists. `BILLING-001`
 provides the immutable FX-rate snapshot foundation for that later transaction.
+
+`FR-023` is accepted by `BILLING-002`: a key hard-spend gate requires the
+usage, reservation, and settlement state that follows this credential task.
 
 ## P0 task register
 
@@ -40,10 +44,10 @@ provides the immutable FX-rate snapshot foundation for that later transaction.
 | ORGS-001 | Organizations, members, tenant authorization, projects | IDENTITY-001 | FR-003, FR-010–012 | SEC-001 |
 | AUDIT-001 | Append-only audit trail | ORGS-001 | NFR-045 | Commit/rollback audit tests |
 | BILLING-001 | Money types, wallet, immutable ledger, fee/pricing versions | ORGS-001 | FR-070–071, FR-079; ADR-019 foundation | Wallet/ledger immutability and historical fee/FX version tests |
-| APIKEYS-001 | Show-once keys, auth, status, expiry | ORGS-001 | FR-020–025 | Secret/revocation tests |
+| APIKEYS-001 | Show-once keys, auth, status, expiry | ORGS-001 | FR-020–022, FR-025 | Secret/revocation tests |
 | CATALOG-001 | Models, mappings, capabilities, price history | FOUNDATION-003 | FR-030–034 | Effective-price tests |
 | USAGE-001 | Logical requests, attempts, evidence, idempotency | APIKEYS-001, CATALOG-001 | FR-090, FR-130–132 | IDEM-001, FIN-005–006 |
-| BILLING-002 | Atomic reservation, budgets, settlement, debt | BILLING-001, USAGE-001 | FR-075–077, FR-081, FR-133 | FIN-001–006, PAY-003 |
+| BILLING-002 | Atomic reservation, budgets, settlement, debt | BILLING-001, USAGE-001 | FR-023, FR-075–077, FR-081, FR-133 | FIN-001–006, PAY-003 |
 | LIMITS-001 | Distributed RPM/concurrency and recovery behavior | APIKEYS-001, OPS-001 | FR-103–106, NFR-066 | OPS-001 |
 | PROVIDER-001 | Normalized provider contracts and OpenAI adapter | CATALOG-001, USAGE-001 | FR-050–054 | Contract/error fixtures |
 | GATEWAY-001 | Models/chat, admission, SSE, finalization | BILLING-002, LIMITS-001, PROVIDER-001 | FR-040–047 | SSE-001–002, OPS-002 |

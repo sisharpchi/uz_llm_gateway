@@ -6,4 +6,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
+    <ProjectReference Include="..\Audit\UZLLM.Modules.Audit.csproj" />
+    <ProjectReference Include="..\Projects\UZLLM.Modules.Projects.csproj" />
+  </ItemGroup>
+
 </Project>

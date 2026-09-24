@@ -53,6 +53,7 @@
     <Project Path="tests/Integration/UZLLM.Persistence.IntegrationTests/UZLLM.Persistence.IntegrationTests.csproj" />
   </Folder>
   <Folder Name="/tests/Unit/">
+    <Project Path="tests/Unit/UZLLM.ApiKeys.Tests/UZLLM.ApiKeys.Tests.csproj" />
     <Project Path="tests/Unit/UZLLM.Architecture.Tests/UZLLM.Architecture.Tests.csproj" />
     <Project Path="tests/Unit/UZLLM.Audit.Tests/UZLLM.Audit.Tests.csproj" />
     <Project Path="tests/Unit/UZLLM.Billing.Tests/UZLLM.Billing.Tests.csproj" />
