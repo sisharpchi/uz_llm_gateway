@@ -228,7 +228,7 @@ UI supports Uzbek/Russian/English through i18n.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** OPS-001 infrastructure baseline implemented
 
 Examples:
 - payment completed;

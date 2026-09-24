@@ -7,11 +7,13 @@
 ## Implementation status
 
 The Foundation baseline provides a buildable .NET 10 solution, three deployable
-hosts, bounded module assemblies, PostgreSQL/Redis access, a version-controlled
-foundation-schema migration, a migration-only host, local Compose environment,
-CI validation, and architecture/integration tests. No business capability,
-provider integration, or public endpoint is implemented until its dedicated
-backlog task is complete.
+hosts, bounded module assemblies, PostgreSQL/Redis access, version-controlled
+schema migrations, a migration-only host, local Compose environment, CI
+validation, and architecture/integration tests. OPS-001 adds redacted structured
+logging, OpenTelemetry instrumentation, liveness/readiness endpoints, and
+PostgreSQL outbox, consumer-inbox, and leased-job infrastructure. No business
+capability, provider integration, or public inference endpoint is implemented
+until its dedicated backlog task is complete.
 
 The sellable MVP requires OpenAI and Anthropic integrations plus Payme and
 CLICK top-ups. It uses USD-denominated credits purchased in UZS with immutable

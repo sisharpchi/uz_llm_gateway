@@ -54,5 +54,7 @@
   </Folder>
   <Folder Name="/tests/Unit/">
     <Project Path="tests/Unit/UZLLM.Architecture.Tests/UZLLM.Architecture.Tests.csproj" />
+    <Project Path="tests/Unit/UZLLM.Observability.Tests/UZLLM.Observability.Tests.csproj" />
+    <Project Path="tests/Unit/UZLLM.Worker.Tests/UZLLM.Worker.Tests.csproj" />
   </Folder>
 </Solution>

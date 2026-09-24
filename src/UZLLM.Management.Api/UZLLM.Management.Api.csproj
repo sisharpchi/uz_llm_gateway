@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\UZLLM.Observability\UZLLM.Observability.csproj" />
     <ProjectReference Include="..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
   </ItemGroup>
 

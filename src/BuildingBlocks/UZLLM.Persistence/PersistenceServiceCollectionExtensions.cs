@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using StackExchange.Redis;
 
 namespace UZLLM.Persistence;
@@ -16,6 +17,11 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IDatabaseMigrator, DatabaseMigrator>();
         services.AddScoped<ITransactionCoordinator, TransactionCoordinator>();
         services.AddScoped<IRuntimeDatabasePermissionVerifier, RuntimeDatabasePermissionVerifier>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IOutboxStore, PostgreSqlOutboxStore>();
+        services.AddScoped<IConsumerInboxStore, PostgreSqlConsumerInboxStore>();
+        services.AddScoped<ILeasedJobStore, PostgreSqlLeasedJobStore>();
+        services.AddScoped<IOperationalAlertPublisher, PostgreSqlOperationalAlertPublisher>();
 
         return services;
     }
