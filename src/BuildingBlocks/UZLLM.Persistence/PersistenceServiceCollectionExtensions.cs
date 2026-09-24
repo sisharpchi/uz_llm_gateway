@@ -38,7 +38,11 @@ public static class PersistenceServiceCollectionExtensions
                 throw new InvalidOperationException("ConnectionStrings:Redis must be configured before Redis is used.");
             }
 
-            return ConnectionMultiplexer.Connect(connectionString);
+            // The admission limiter reads INFO SERVER run_id to detect Redis restarts.
+            // Redis ACLs should grant INFO only to the gateway runtime identity.
+            var options = ConfigurationOptions.Parse(connectionString);
+            options.AllowAdmin = true;
+            return ConnectionMultiplexer.Connect(options);
         });
 
         return services;

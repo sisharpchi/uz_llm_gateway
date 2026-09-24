@@ -211,13 +211,17 @@ Prevent one provider hanging all gateway connections.
 
 ## 11. Redis failure behavior
 
-Decide explicitly.
+New managed inference fails closed when distributed admission is unavailable;
+there is no per-node fallback. A Redis instance change starts a recovery window
+equal to the maximum configured concurrency lease. Until it elapses, new managed
+requests remain closed while already reserved work may finish and settle through
+PostgreSQL. A cold, empty Redis instance follows the same window.
 
-Possible policy:
-- if distributed rate limiter unavailable, production inference can fail closed for unknown/high-risk traffic;
-- existing authenticated paid traffic may use a carefully bounded local fallback only if financial safety remains intact.
-
-Never let Redis outage corrupt wallet accounting.
+The limiter reads Redis `INFO SERVER` `run_id` on admission, so the gateway Redis
+identity must have permission for that command. Keep `Limits:MaxLeaseSeconds`
+(default 900) at least as long as the maximum upstream generation lifetime and
+do not lower it while old leases may still be active. Redis never owns wallet
+accounting.
 
 ---
 

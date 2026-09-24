@@ -20,6 +20,15 @@ public static class ApiKeyServiceCollectionExtensions
         services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
         services.AddSingleton<IApiKeySecretGenerator, GatewayApiKeySecretGenerator>();
         services.AddSingleton<IApiKeySecretFingerprint>(_ => HmacApiKeySecretFingerprint.FromConfiguration(configuration));
+        var maxLeaseSeconds = configuration.GetValue<int?>("Limits:MaxLeaseSeconds") ?? 900;
+        if (maxLeaseSeconds is < 1 or > 3600)
+            throw new InvalidOperationException("Limits:MaxLeaseSeconds must be between 1 and 3600.");
+        services.AddSingleton(new LimitRecoveryOptions(TimeSpan.FromSeconds(maxLeaseSeconds)));
+        services.AddSingleton<IRedisEpochSource, RedisServerEpochSource>();
+        services.AddSingleton<RedisAdmissionLimiter>();
+        services.AddSingleton<IDistributedAdmissionLimiter>(provider => provider.GetRequiredService<RedisAdmissionLimiter>());
+        services.AddSingleton<IProviderQuotaProtection>(provider => provider.GetRequiredService<RedisAdmissionLimiter>());
+        services.AddSingleton<IRequestConstraintValidator, RequestConstraintValidator>();
         return services;
     }
 

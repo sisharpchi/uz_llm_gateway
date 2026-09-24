@@ -21,6 +21,7 @@ same-model failover precedes P1 cross-model fallback.
 | CATALOG-001 | Completed |
 | USAGE-001 | Completed |
 | BILLING-002 | Completed |
+| LIMITS-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above.
 
