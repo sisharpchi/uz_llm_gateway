@@ -1,0 +1,6 @@
+<Project>
+  <Target Name="ValidateTargetFramework" BeforeTargets="CoreCompile">
+    <Error Condition="'$(TargetFramework)' != 'net10.0'"
+           Text="All UZLLM projects must target net10.0. Found $(TargetFramework) in $(MSBuildProjectFullPath)." />
+  </Target>
+</Project>

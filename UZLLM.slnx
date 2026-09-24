@@ -1,0 +1,58 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/UZLLM.Gateway.Api/UZLLM.Gateway.Api.csproj" />
+    <Project Path="src/UZLLM.Management.Api/UZLLM.Management.Api.csproj" />
+    <Project Path="src/UZLLM.Migrator/UZLLM.Migrator.csproj" />
+    <Project Path="src/UZLLM.Worker/UZLLM.Worker.csproj" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/UZLLM.Observability/UZLLM.Observability.csproj" />
+    <Project Path="src/BuildingBlocks/UZLLM.Persistence/UZLLM.Persistence.csproj" />
+    <Project Path="src/BuildingBlocks/UZLLM.Security/UZLLM.Security.csproj" />
+    <Project Path="src/BuildingBlocks/UZLLM.SharedKernel/UZLLM.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/ApiKeys/">
+    <Project Path="src/Modules/ApiKeys/UZLLM.Modules.ApiKeys.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Audit/">
+    <Project Path="src/Modules/Audit/UZLLM.Modules.Audit.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Billing/">
+    <Project Path="src/Modules/Billing/UZLLM.Modules.Billing.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Catalog/">
+    <Project Path="src/Modules/Catalog/UZLLM.Modules.Catalog.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/UZLLM.Modules.Identity.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Notifications/">
+    <Project Path="src/Modules/Notifications/UZLLM.Modules.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Organizations/">
+    <Project Path="src/Modules/Organizations/UZLLM.Modules.Organizations.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Payments/">
+    <Project Path="src/Modules/Payments/UZLLM.Modules.Payments.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Projects/">
+    <Project Path="src/Modules/Projects/UZLLM.Modules.Projects.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Providers/">
+    <Project Path="src/Modules/Providers/UZLLM.Modules.Providers.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Routing/">
+    <Project Path="src/Modules/Routing/UZLLM.Modules.Routing.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Usage/">
+    <Project Path="src/Modules/Usage/UZLLM.Modules.Usage.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Integration/">
+    <Project Path="tests/Integration/UZLLM.Persistence.IntegrationTests/UZLLM.Persistence.IntegrationTests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Unit/">
+    <Project Path="tests/Unit/UZLLM.Architecture.Tests/UZLLM.Architecture.Tests.csproj" />
+  </Folder>
+</Solution>

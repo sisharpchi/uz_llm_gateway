@@ -1,0 +1,279 @@
+# API Contracts
+
+## 1. API groups
+
+### Public inference API
+Base:
+
+```text
+https://api.example.uz/v1
+```
+
+### Management API
+Base:
+
+```text
+https://api.example.uz/management/v1
+```
+
+### Payment callbacks
+Provider-specific:
+
+```text
+https://api.example.uz/payments/payme/callback
+https://api.example.uz/payments/click/callback
+```
+
+---
+
+## 2. Chat completions [P0]
+
+```http
+POST /v1/chat/completions
+Authorization: Bearer uzllm_xxx
+Content-Type: application/json
+```
+
+Example:
+
+```json
+{
+  "model": "openai/gpt-x",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello"
+    }
+  ],
+  "temperature": 0.7,
+  "stream": true
+}
+```
+
+Core compatibility first:
+- model
+- messages
+- temperature
+- top_p
+- max_tokens / compatible output limit
+- stream
+- stop
+- tools
+- tool_choice
+- response_format where provider supports it
+
+Unsupported parameter behavior should be explicit.
+
+---
+
+## 3. Gateway extensions
+
+Prefer namespace-like extension to reduce collision risk:
+
+```json
+{
+  "model": "model-x",
+  "messages": [],
+  "uzllm": {
+    "routing": "price",
+    "allowed_providers": ["provider-a", "provider-b"],
+    "fallback_models": ["model-y"],
+    "max_cost_usd": 0.05
+  }
+}
+```
+
+P0 can omit most extensions and use project defaults.
+
+---
+
+## 4. Models
+
+```http
+GET /v1/models
+```
+
+Normalized response includes:
+- id;
+- display name;
+- pricing summary;
+- context length;
+- capabilities.
+
+Detailed management model catalog may be richer than public OpenAI-compatible response.
+
+---
+
+## 5. Error shape
+
+Example:
+
+```json
+{
+  "error": {
+    "message": "Insufficient balance",
+    "type": "billing_error",
+    "code": "insufficient_balance",
+    "param": null
+  }
+}
+```
+
+Useful status mapping:
+
+| HTTP | Meaning |
+|---|---|
+| 400 | invalid request |
+| 401 | missing/invalid API key |
+| 402 | insufficient balance / budget policy if chosen |
+| 403 | key/project/model/provider forbidden |
+| 404 | unknown model/resource |
+| 409 | idempotency/state conflict |
+| 429 | rate/concurrency limit |
+| 500 | unexpected gateway failure |
+| 502 | upstream/provider failure |
+| 503 | gateway dependency unavailable |
+| 529 | optional overload semantics |
+
+Choose and document a stable policy.
+
+---
+
+## 6. Response metadata
+
+Do not break OpenAI clients unnecessarily.
+
+Useful headers:
+
+```text
+x-request-id
+x-uzllm-provider
+x-uzllm-model
+x-uzllm-cache
+```
+
+Detailed routing/cost metadata may be opt-in.
+
+---
+
+## 7. Management APIs
+
+### Projects
+
+```text
+GET    /management/v1/projects
+POST   /management/v1/projects
+GET    /management/v1/projects/{id}
+PATCH  /management/v1/projects/{id}
+POST   /management/v1/projects/{id}/archive
+```
+
+### API Keys
+
+```text
+GET    /projects/{projectId}/api-keys
+POST   /projects/{projectId}/api-keys
+PATCH  /api-keys/{id}
+POST   /api-keys/{id}/rotate
+POST   /api-keys/{id}/disable
+DELETE /api-keys/{id}
+```
+
+### Usage
+
+```text
+GET /usage/summary
+GET /usage/activity
+GET /usage/requests/{requestId}
+GET /usage/by-model
+GET /usage/by-provider
+GET /usage/by-api-key
+```
+
+### Wallet
+
+```text
+GET  /billing/wallet
+GET  /billing/ledger
+POST /billing/topups
+GET  /billing/payments
+```
+
+### BYOK
+
+```text
+GET    /provider-keys
+POST   /provider-keys
+PATCH  /provider-keys/{id}
+POST   /provider-keys/{id}/disable
+DELETE /provider-keys/{id}
+```
+
+---
+
+## 8. Pagination
+
+Prefer cursor pagination for high-volume activity logs.
+
+Example:
+
+```text
+GET /usage/activity?limit=50&cursor=...
+```
+
+Simple offset pagination is acceptable for low-volume management tables.
+
+---
+
+## 9. Idempotency header
+
+For supported operations:
+
+```text
+Idempotency-Key: <uuid>
+```
+
+Especially useful for:
+- top-up intent;
+- manual financial operations;
+- future management automation.
+
+---
+
+## 10. Versioning
+
+### Inference
+Preserve `/v1` OpenAI-compatible namespace.
+
+### Management
+Use explicit version path or version header.
+
+Breaking inference changes are especially costly because customer applications depend on compatibility.
+
+---
+
+## 11. Scoped management contracts
+
+Customer management resources use:
+
+```text
+/management/v1/organizations/{organizationId}/projects
+/management/v1/organizations/{organizationId}/billing/wallet
+/management/v1/organizations/{organizationId}/usage/activity
+```
+
+Authentication uses `/management/v1/auth/...`; operator resources use
+`/management/v1/admin/...`. Every resource is checked against the path’s
+organization scope. Required P0 additions are organization/profile/settings,
+catalog detail, limits, payment status, usage time-series/breakdowns, request
+attempt detail, and operator provider/payment/ledger/incident endpoints.
+
+Wallet responses distinguish `posted`, `reserved`, `available`, `recoveryDebt`,
+and `spendingHeld`. Request detail distinguishes execution, delivery, and
+financial outcomes plus attempts. Micro-unit amounts are decimal strings when
+they may exceed JavaScript safe integers. Aggregate responses include `dataAsOf`.
+
+For supported inference requests, `Idempotency-Key` is scoped to organization,
+key identity, and operation for 24 hours. A repeat returns `409` with the
+original request ID; mismatched request content also conflicts. The API stores
+no completion body for replay. Gateway extensions belong under `uzllm`.

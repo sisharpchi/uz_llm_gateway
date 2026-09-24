@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore UZLLM.slnx
+      - name: Build
+        run: dotnet build UZLLM.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test UZLLM.slnx --configuration Release --no-build
+      - name: Check whitespace
+        run: git diff --check
