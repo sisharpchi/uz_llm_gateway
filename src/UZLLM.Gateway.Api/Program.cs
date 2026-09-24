@@ -4,6 +4,8 @@ using UZLLM.Modules.ApiKeys.Infrastructure;
 using UZLLM.Modules.Catalog.Infrastructure;
 using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Usage.Infrastructure;
+using UZLLM.Modules.Providers.Infrastructure;
+using UZLLM.Provider.OpenAI;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddUzllmPersistence(builder.Configuration);
@@ -14,6 +16,8 @@ builder.Services.AddUzllmApiKeys(builder.Configuration);
 builder.Services.AddUzllmCatalog();
 builder.Services.AddUzllmUsage();
 builder.Services.AddUzllmBilling();
+builder.Services.AddUzllmProviders();
+builder.Services.AddUzllmOpenAiAdapter(builder.Configuration);
 var app = builder.Build();
 
 app.UseUzllmRequestCorrelation();

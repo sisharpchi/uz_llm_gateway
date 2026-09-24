@@ -59,6 +59,14 @@ Requirements:
 - audit create/update/delete;
 - never return full secret after creation.
 
+The P0 platform credential store uses AES-GCM envelope encryption bound to the
+credential and provider IDs. Configure `ProviderSecrets:ActiveKeyVersion` and
+`ProviderSecrets:Keys:<version>` (base64-encoded 32-byte KEKs) through a secret
+manager or protected environment configuration, never repository settings. Keep
+old key versions available for decryption during rotation; deleting one before
+rewrapping its credentials makes those credentials unusable. Gateway API keys
+are separate and remain non-recoverable.
+
 ---
 
 ## 4. Authorization

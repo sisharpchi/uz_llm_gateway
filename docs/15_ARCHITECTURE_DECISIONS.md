@@ -148,7 +148,7 @@ Every usage record must be tied to the price used for billing.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** Implemented for OpenAI; additional adapters remain planned
 
 No provider SDK types in Domain/Application modules.
 

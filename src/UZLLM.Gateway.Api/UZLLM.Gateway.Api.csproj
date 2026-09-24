@@ -11,6 +11,8 @@
     <ProjectReference Include="..\Modules\Catalog\UZLLM.Modules.Catalog.csproj" />
     <ProjectReference Include="..\Modules\Billing\UZLLM.Modules.Billing.csproj" />
     <ProjectReference Include="..\Modules\Usage\UZLLM.Modules.Usage.csproj" />
+    <ProjectReference Include="..\Modules\Providers\UZLLM.Modules.Providers.csproj" />
+    <ProjectReference Include="..\ProviderAdapters\UZLLM.Provider.OpenAI\UZLLM.Provider.OpenAI.csproj" />
   </ItemGroup>
 
 </Project>

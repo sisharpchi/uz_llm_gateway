@@ -57,6 +57,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ConfigureFinancialCompletion(modelBuilder);
+        ConfigureProviderCredentials(modelBuilder);
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
         {
             entity.ToTable("user", "iam");
