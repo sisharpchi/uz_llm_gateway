@@ -9,8 +9,8 @@ providers, and tenant-scoped usage visibility.
 This repository now contains the initial .NET solution, module boundaries,
 version-controlled foundation schema migrations, PostgreSQL/Redis access, and
 local development dependencies. The Management API includes the initial
-session-protected organization and project lifecycle; the public Gateway API is
-not implemented yet.
+session-protected organization and project lifecycle, with append-only audit
+records for project archival; the public Gateway API is not implemented yet.
 
 ## Local development
 

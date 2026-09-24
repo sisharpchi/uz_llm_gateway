@@ -14,9 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Modules\Audit\UZLLM.Modules.Audit.csproj" />
-    <ProjectReference Include="..\..\..\src\Modules\Organizations\UZLLM.Modules.Organizations.csproj" />
-    <ProjectReference Include="..\..\..\src\Modules\Projects\UZLLM.Modules.Projects.csproj" />
-    <ProjectReference Include="..\..\..\src\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

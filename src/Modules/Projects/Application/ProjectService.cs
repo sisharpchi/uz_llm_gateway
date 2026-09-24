@@ -1,11 +1,15 @@
+using UZLLM.Modules.Audit.Contracts;
 using UZLLM.Modules.Organizations.Contracts;
 using UZLLM.Modules.Projects.Contracts;
+using UZLLM.Persistence;
 
 namespace UZLLM.Modules.Projects.Application;
 
 public sealed class ProjectService(
     IProjectStore store,
     IOrganizationAuthorizationService organizationAuthorization,
+    IAuditTrail auditTrail,
+    ITransactionCoordinator transactionCoordinator,
     TimeProvider timeProvider) : IProjectService
 {
     public async Task<Project> CreateAsync(
@@ -57,7 +61,24 @@ public sealed class ProjectService(
         CancellationToken cancellationToken = default)
     {
         await organizationAuthorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
-        return await store.ArchiveAsync(organizationId, projectId, timeProvider.GetUtcNow(), cancellationToken);
+        await using var transaction = await transactionCoordinator.BeginAsync(cancellationToken);
+        var archivedAt = timeProvider.GetUtcNow();
+        var archived = await store.ArchiveAsync(organizationId, projectId, archivedAt, cancellationToken);
+        if (!archived)
+        {
+            return false;
+        }
+
+        await auditTrail.RecordAsync(new AuditEventInput(
+            organizationId,
+            accountId,
+            "project.archived",
+            "project",
+            projectId,
+            null,
+            "{}"), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 
     private static string NormalizeName(string name)

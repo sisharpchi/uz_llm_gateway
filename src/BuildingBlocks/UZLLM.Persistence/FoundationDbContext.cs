@@ -26,6 +26,8 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     internal DbSet<ProjectEntity> Projects => Set<ProjectEntity>();
 
+    internal DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
@@ -142,6 +144,31 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
             entity.HasOne(project => project.Organization)
                 .WithMany(organization => organization.Projects)
                 .HasForeignKey(project => project.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditEventEntity>(entity =>
+        {
+            entity.ToTable("audit_event", "audit");
+            entity.HasKey(auditEvent => auditEvent.Id);
+            entity.Property(auditEvent => auditEvent.Id).HasColumnName("id");
+            entity.Property(auditEvent => auditEvent.OrganizationId).HasColumnName("organization_id");
+            entity.Property(auditEvent => auditEvent.ActorAccountId).HasColumnName("account_id");
+            entity.Property(auditEvent => auditEvent.Action).HasColumnName("action").HasMaxLength(200);
+            entity.Property(auditEvent => auditEvent.ResourceType).HasColumnName("resource_type").HasMaxLength(100);
+            entity.Property(auditEvent => auditEvent.ResourceId).HasColumnName("resource_id");
+            entity.Property(auditEvent => auditEvent.IpAddress).HasColumnName("ip").HasColumnType("inet");
+            entity.Property(auditEvent => auditEvent.MetadataJson).HasColumnName("metadata_json").HasColumnType("jsonb");
+            entity.Property(auditEvent => auditEvent.OccurredAt).HasColumnName("occurred_at");
+            entity.HasIndex(auditEvent => new { auditEvent.OrganizationId, auditEvent.OccurredAt }).IsDescending(false, true);
+            entity.HasIndex(auditEvent => new { auditEvent.ActorAccountId, auditEvent.OccurredAt }).IsDescending(false, true);
+            entity.HasOne(auditEvent => auditEvent.Organization)
+                .WithMany()
+                .HasForeignKey(auditEvent => auditEvent.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(auditEvent => auditEvent.ActorAccount)
+                .WithMany()
+                .HasForeignKey(auditEvent => auditEvent.ActorAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

@@ -54,6 +54,7 @@
   </Folder>
   <Folder Name="/tests/Unit/">
     <Project Path="tests/Unit/UZLLM.Architecture.Tests/UZLLM.Architecture.Tests.csproj" />
+    <Project Path="tests/Unit/UZLLM.Audit.Tests/UZLLM.Audit.Tests.csproj" />
     <Project Path="tests/Unit/UZLLM.Identity.Tests/UZLLM.Identity.Tests.csproj" />
     <Project Path="tests/Unit/UZLLM.Observability.Tests/UZLLM.Observability.Tests.csproj" />
     <Project Path="tests/Unit/UZLLM.Organizations.Tests/UZLLM.Organizations.Tests.csproj" />

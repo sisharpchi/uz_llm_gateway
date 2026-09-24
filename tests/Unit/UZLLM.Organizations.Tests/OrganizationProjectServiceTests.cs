@@ -1,7 +1,9 @@
+using UZLLM.Modules.Audit.Contracts;
 using UZLLM.Modules.Organizations.Application;
 using UZLLM.Modules.Organizations.Contracts;
 using UZLLM.Modules.Projects.Application;
 using UZLLM.Modules.Projects.Contracts;
+using UZLLM.Persistence;
 
 namespace UZLLM.Organizations.Tests;
 
@@ -111,6 +113,9 @@ public sealed class OrganizationProjectServiceTests
         Assert.NotNull(archived);
         Assert.Equal(ProjectStatus.Archived, archived.Status);
         Assert.NotNull(archived.ArchivedAt);
+        var auditEvent = Assert.Single(fixture.AuditTrail.Events);
+        Assert.Equal("project.archived", auditEvent.Action);
+        Assert.Equal(project.Id, auditEvent.ResourceId);
     }
 
     [Fact]
@@ -169,11 +174,18 @@ internal sealed class OrganizationProjectFixture
 
     public IProjectService Projects { get; }
 
+    public RecordingAuditTrail AuditTrail { get; } = new();
+
     public OrganizationProjectFixture()
     {
         var clock = new FixedTimeProvider(new DateTimeOffset(2026, 9, 24, 12, 0, 0, TimeSpan.Zero));
         Organizations = new OrganizationService(OrganizationStore, clock);
-        Projects = new ProjectService(ProjectStore, new OrganizationAuthorizationService(OrganizationStore), clock);
+        Projects = new ProjectService(
+            ProjectStore,
+            new OrganizationAuthorizationService(OrganizationStore),
+            AuditTrail,
+            new NoopTransactionCoordinator(),
+            clock);
     }
 }
 
@@ -245,4 +257,38 @@ internal sealed class InMemoryProjectStore : IProjectStore
         projects[projectId] = project with { Status = ProjectStatus.Archived, ArchivedAt = archivedAt };
         return Task.FromResult(true);
     }
+}
+
+internal sealed class RecordingAuditTrail : IAuditTrail
+{
+    public List<AuditEvent> Events { get; } = [];
+
+    public Task<AuditEvent> RecordAsync(AuditEventInput input, CancellationToken cancellationToken = default)
+    {
+        var auditEvent = new AuditEvent(
+            Guid.CreateVersion7(),
+            input.OrganizationId,
+            input.ActorAccountId,
+            input.Action,
+            input.ResourceType,
+            input.ResourceId,
+            input.IpAddress,
+            input.MetadataJson ?? "{}",
+            DateTimeOffset.UtcNow);
+        Events.Add(auditEvent);
+        return Task.FromResult(auditEvent);
+    }
+}
+
+internal sealed class NoopTransactionCoordinator : ITransactionCoordinator
+{
+    public Task<ITransactionScope> BeginAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<ITransactionScope>(new NoopTransactionScope());
+}
+
+internal sealed class NoopTransactionScope : ITransactionScope
+{
+    public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

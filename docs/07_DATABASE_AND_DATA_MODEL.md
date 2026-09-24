@@ -286,13 +286,17 @@ Keep separate so metadata retention can differ from prompt/response retention.
 ### `audit.audit_event`
 - id
 - organization_id
-- user_id
+- account_id (FK to `iam.user.id`)
 - action
 - resource_type
 - resource_id
 - ip
 - metadata_json
 - occurred_at
+
+Audit rows are append-only: the runtime database role cannot update or delete
+them. The table has tenant and actor foreign keys plus a descending
+`(organization_id, occurred_at)` index for scoped investigation.
 
 Examples:
 - api_key.created
