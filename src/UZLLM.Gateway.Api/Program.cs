@@ -1,6 +1,7 @@
 using UZLLM.Observability;
 using UZLLM.Persistence;
 using UZLLM.Modules.ApiKeys.Infrastructure;
+using UZLLM.Modules.Catalog.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddUzllmPersistence(builder.Configuration);
@@ -8,6 +9,7 @@ builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmObservability(builder.Configuration, "UZLLM.Gateway.Api");
 builder.Services.AddUzllmReadinessChecks();
 builder.Services.AddUzllmApiKeys(builder.Configuration);
+builder.Services.AddUzllmCatalog();
 var app = builder.Build();
 
 app.UseUzllmRequestCorrelation();

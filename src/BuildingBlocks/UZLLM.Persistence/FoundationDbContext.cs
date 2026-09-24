@@ -38,6 +38,14 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     internal DbSet<BillingFxRateSnapshotEntity> BillingFxRateSnapshots => Set<BillingFxRateSnapshotEntity>();
 
+    internal DbSet<CatalogProviderEntity> CatalogProviders => Set<CatalogProviderEntity>();
+
+    internal DbSet<CatalogModelEntity> CatalogModels => Set<CatalogModelEntity>();
+
+    internal DbSet<CatalogProviderModelEntity> CatalogProviderModels => Set<CatalogProviderModelEntity>();
+
+    internal DbSet<CatalogModelPriceEntity> CatalogModelPrices => Set<CatalogModelPriceEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
@@ -264,6 +272,76 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
             entity.Property(snapshot => snapshot.UzsTiyinPerUsd).HasColumnName("uzs_tiyin_per_usd").HasPrecision(20, 8);
             entity.Property(snapshot => snapshot.ObservedAt).HasColumnName("observed_at");
             entity.HasIndex(snapshot => new { snapshot.Source, snapshot.ObservedAt });
+        });
+
+        modelBuilder.Entity<CatalogProviderEntity>(entity =>
+        {
+            entity.ToTable("provider", "catalog", table => table.HasCheckConstraint("CK_catalog_provider_status", "status IN ('Active', 'Disabled')"));
+            entity.HasKey(provider => provider.Id);
+            entity.Property(provider => provider.Id).HasColumnName("id");
+            entity.Property(provider => provider.Code).HasColumnName("code").HasMaxLength(200);
+            entity.Property(provider => provider.Name).HasColumnName("name").HasMaxLength(120);
+            entity.Property(provider => provider.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(provider => provider.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(provider => provider.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<CatalogModelEntity>(entity =>
+        {
+            entity.ToTable("model", "catalog", table =>
+            {
+                table.HasCheckConstraint("CK_catalog_model_limits", "context_length > 0 AND max_output_tokens > 0 AND max_output_tokens <= context_length");
+                table.HasCheckConstraint("CK_catalog_model_status", "status IN ('Active', 'Disabled')");
+            });
+            entity.HasKey(model => model.Id);
+            entity.Property(model => model.Id).HasColumnName("id");
+            entity.Property(model => model.CanonicalCode).HasColumnName("canonical_code").HasMaxLength(200);
+            entity.Property(model => model.DisplayName).HasColumnName("display_name").HasMaxLength(200);
+            entity.Property(model => model.ContextLength).HasColumnName("context_length");
+            entity.Property(model => model.MaxOutputTokens).HasColumnName("max_output_tokens");
+            entity.Property(model => model.CapabilitiesJson).HasColumnName("capabilities_json").HasColumnType("jsonb");
+            entity.Property(model => model.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(model => model.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(model => model.CanonicalCode).IsUnique();
+        });
+
+        modelBuilder.Entity<CatalogProviderModelEntity>(entity =>
+        {
+            entity.ToTable("provider_model", "catalog", table => table.HasCheckConstraint("CK_catalog_provider_model_status", "status IN ('Active', 'Disabled')"));
+            entity.HasKey(mapping => mapping.Id);
+            entity.Property(mapping => mapping.Id).HasColumnName("id");
+            entity.Property(mapping => mapping.ProviderId).HasColumnName("provider_id");
+            entity.Property(mapping => mapping.ModelId).HasColumnName("model_id");
+            entity.Property(mapping => mapping.UpstreamModelCode).HasColumnName("upstream_model_code").HasMaxLength(300);
+            entity.Property(mapping => mapping.EndpointReference).HasColumnName("endpoint_reference").HasMaxLength(500);
+            entity.Property(mapping => mapping.Status).HasColumnName("status").HasMaxLength(30);
+            entity.Property(mapping => mapping.CapabilityOverridesJson).HasColumnName("capabilities_override_json").HasColumnType("jsonb");
+            entity.Property(mapping => mapping.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(mapping => new { mapping.ProviderId, mapping.ModelId }).IsUnique();
+            entity.HasIndex(mapping => new { mapping.ProviderId, mapping.UpstreamModelCode }).IsUnique();
+            entity.HasOne(mapping => mapping.Provider).WithMany(provider => provider.ProviderModels).HasForeignKey(mapping => mapping.ProviderId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(mapping => mapping.Model).WithMany(model => model.ProviderModels).HasForeignKey(mapping => mapping.ModelId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CatalogModelPriceEntity>(entity =>
+        {
+            entity.ToTable("model_price", "catalog", table =>
+            {
+                table.HasCheckConstraint("CK_catalog_model_price_range", "effective_to IS NULL OR effective_to > effective_from");
+                table.HasCheckConstraint("CK_catalog_model_price_values", "input_price_micro_usd_per_million >= 0 AND output_price_micro_usd_per_million >= 0 AND (cached_input_price_micro_usd_per_million IS NULL OR cached_input_price_micro_usd_per_million >= 0)");
+            });
+            entity.HasKey(price => price.Id);
+            entity.Property(price => price.Id).HasColumnName("id");
+            entity.Property(price => price.ProviderModelId).HasColumnName("provider_model_id");
+            entity.Property(price => price.EffectiveFrom).HasColumnName("effective_from");
+            entity.Property(price => price.EffectiveTo).HasColumnName("effective_to");
+            entity.Property(price => price.InputPriceMicroUsdPerMillion).HasColumnName("input_price_micro_usd_per_million");
+            entity.Property(price => price.OutputPriceMicroUsdPerMillion).HasColumnName("output_price_micro_usd_per_million");
+            entity.Property(price => price.CachedInputPriceMicroUsdPerMillion).HasColumnName("cached_input_price_micro_usd_per_million");
+            entity.Property(price => price.ExtraPricingJson).HasColumnName("extra_pricing_json").HasColumnType("jsonb");
+            entity.Property(price => price.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(price => new { price.ProviderModelId, price.EffectiveFrom }).IsUnique();
+            entity.HasOne(price => price.ProviderModel).WithMany(mapping => mapping.Prices).HasForeignKey(price => price.ProviderModelId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<OutboxMessageEntity>(entity =>

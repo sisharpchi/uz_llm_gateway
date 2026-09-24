@@ -4,6 +4,7 @@ using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Audit.Infrastructure;
 using UZLLM.Modules.ApiKeys.Infrastructure;
 using UZLLM.Modules.Billing.Infrastructure;
+using UZLLM.Modules.Catalog.Infrastructure;
 using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Projects.Infrastructure;
 
@@ -16,6 +17,7 @@ builder.Services.AddUzllmIdentity();
 builder.Services.AddUzllmAudit();
 builder.Services.AddUzllmApiKeys(builder.Configuration);
 builder.Services.AddUzllmBilling();
+builder.Services.AddUzllmCatalog();
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmProjects();
 var app = builder.Build();

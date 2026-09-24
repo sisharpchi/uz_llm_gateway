@@ -135,9 +135,10 @@ BYOK/provider credentials are different and must be encrypted because upstream e
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** Catalog-001 foundation implemented
 
-Never overwrite old price without history.
+Never overwrite old price without history. Provider-mapping price versions use
+half-open effective intervals and PostgreSQL rejects overlapping intervals.
 
 Every usage record must be tied to the price used for billing.
 
