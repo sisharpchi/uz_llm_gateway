@@ -16,8 +16,17 @@ same-model failover precedes P1 cross-model fallback.
 | IDENTITY-001 | Completed |
 | ORGS-001 | Completed |
 | AUDIT-001 | Completed |
+| BILLING-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above.
+
+`FIN-001` through `FIN-004` are accepted by `BILLING-002`, where reservations,
+API-key caps, and settlement exist. `BILLING-001` establishes their wallet and
+ledger prerequisites without prematurely implementing reservation behavior.
+
+`FR-078` is accepted by `PAYMENT-001`: a payment amount and the credit it
+created cannot be recorded before the payment aggregate exists. `BILLING-001`
+provides the immutable FX-rate snapshot foundation for that later transaction.
 
 ## P0 task register
 
@@ -30,7 +39,7 @@ All remaining task-register entries are `Planned` unless listed above.
 | IDENTITY-001 | Accounts, sessions, verification, recovery, operators | FOUNDATION-003 | FR-001–004, FR-135 | Session, CSRF, MFA tests |
 | ORGS-001 | Organizations, members, tenant authorization, projects | IDENTITY-001 | FR-003, FR-010–012 | SEC-001 |
 | AUDIT-001 | Append-only audit trail | ORGS-001 | NFR-045 | Commit/rollback audit tests |
-| BILLING-001 | Money types, wallet, immutable ledger, fee/pricing versions | ORGS-001 | FR-070–071, FR-078–079 | FIN-001–004 |
+| BILLING-001 | Money types, wallet, immutable ledger, fee/pricing versions | ORGS-001 | FR-070–071, FR-079; ADR-019 foundation | Wallet/ledger immutability and historical fee/FX version tests |
 | APIKEYS-001 | Show-once keys, auth, status, expiry | ORGS-001 | FR-020–025 | Secret/revocation tests |
 | CATALOG-001 | Models, mappings, capabilities, price history | FOUNDATION-003 | FR-030–034 | Effective-price tests |
 | USAGE-001 | Logical requests, attempts, evidence, idempotency | APIKEYS-001, CATALOG-001 | FR-090, FR-130–132 | IDEM-001, FIN-005–006 |
@@ -38,7 +47,7 @@ All remaining task-register entries are `Planned` unless listed above.
 | LIMITS-001 | Distributed RPM/concurrency and recovery behavior | APIKEYS-001, OPS-001 | FR-103–106, NFR-066 | OPS-001 |
 | PROVIDER-001 | Normalized provider contracts and OpenAI adapter | CATALOG-001, USAGE-001 | FR-050–054 | Contract/error fixtures |
 | GATEWAY-001 | Models/chat, admission, SSE, finalization | BILLING-002, LIMITS-001, PROVIDER-001 | FR-040–047 | SSE-001–002, OPS-002 |
-| PAYMENT-001 | FX quotes, intents, Payme, CLICK, reversals/reconciliation | BILLING-002, OPS-001 | FR-072–074, FR-081 | PAY-001–003 |
+| PAYMENT-001 | FX quotes, intents, Payme, CLICK, reversals/reconciliation | BILLING-002, OPS-001 | FR-072–074, FR-078, FR-081 | PAY-001–003 |
 | FRONTEND-001 | Customer/admin shells, onboarding, keys, billing | IDENTITY-001, PAYMENT-001 | FR-001–003, FR-020–021 | Browser tenant/secret tests |
 | PROVIDER-002 | Anthropic adapter and same-model health/failover | PROVIDER-001, GATEWAY-001 | FR-062, FR-067, FR-134 | Bounded fallback fixtures |
 | USAGE-002 | Activity, request detail, rollups, basic analytics | USAGE-001, BILLING-002 | FR-092–094 | Cursor, totals, isolation tests |

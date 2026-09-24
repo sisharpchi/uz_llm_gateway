@@ -28,6 +28,14 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
 
     internal DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
 
+    internal DbSet<BillingWalletEntity> BillingWallets => Set<BillingWalletEntity>();
+
+    internal DbSet<BillingLedgerEntryEntity> BillingLedgerEntries => Set<BillingLedgerEntryEntity>();
+
+    internal DbSet<BillingFeePolicyVersionEntity> BillingFeePolicyVersions => Set<BillingFeePolicyVersionEntity>();
+
+    internal DbSet<BillingFxRateSnapshotEntity> BillingFxRateSnapshots => Set<BillingFxRateSnapshotEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
@@ -170,6 +178,71 @@ public sealed class FoundationDbContext(DbContextOptions<FoundationDbContext> op
                 .WithMany()
                 .HasForeignKey(auditEvent => auditEvent.ActorAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BillingWalletEntity>(entity =>
+        {
+            entity.ToTable("wallet", "billing", table => table.HasCheckConstraint("CK_wallet_non_negative", "posted_balance_micro_usd >= reserved_balance_micro_usd AND reserved_balance_micro_usd >= 0"));
+            entity.HasKey(wallet => wallet.OrganizationId);
+            entity.Property(wallet => wallet.OrganizationId).HasColumnName("organization_id");
+            entity.Property(wallet => wallet.PostedBalanceMicroUsd).HasColumnName("posted_balance_micro_usd");
+            entity.Property(wallet => wallet.ReservedBalanceMicroUsd).HasColumnName("reserved_balance_micro_usd");
+            entity.Property(wallet => wallet.Version).HasColumnName("version");
+            entity.HasOne(wallet => wallet.Organization)
+                .WithMany()
+                .HasForeignKey(wallet => wallet.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BillingLedgerEntryEntity>(entity =>
+        {
+            entity.ToTable("ledger_entry", "billing", table => table.HasCheckConstraint(
+                "CK_ledger_entry_direction",
+                "(amount_micro_usd > 0 AND type IN ('TopUp', 'Refund', 'AdjustmentCredit', 'PromotionalCredit')) OR (amount_micro_usd < 0 AND type IN ('UsageCharge', 'AdjustmentDebit'))"));
+            entity.HasKey(entry => entry.Id);
+            entity.Property(entry => entry.Id).HasColumnName("id");
+            entity.Property(entry => entry.OrganizationId).HasColumnName("organization_id");
+            entity.Property(entry => entry.Type).HasColumnName("type").HasMaxLength(30);
+            entity.Property(entry => entry.AmountMicroUsd).HasColumnName("amount_micro_usd");
+            entity.Property(entry => entry.ReferenceType).HasColumnName("reference_type").HasMaxLength(100);
+            entity.Property(entry => entry.ReferenceId).HasColumnName("reference_id");
+            entity.Property(entry => entry.MetadataJson).HasColumnName("metadata_json").HasColumnType("jsonb");
+            entity.Property(entry => entry.OccurredAt).HasColumnName("occurred_at");
+            entity.HasIndex(entry => new { entry.OrganizationId, entry.Type, entry.ReferenceType, entry.ReferenceId }).IsUnique();
+            entity.HasIndex(entry => new { entry.OrganizationId, entry.OccurredAt }).IsDescending(false, true);
+            entity.HasOne(entry => entry.Organization)
+                .WithMany()
+                .HasForeignKey(entry => entry.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BillingFeePolicyVersionEntity>(entity =>
+        {
+            entity.ToTable("fee_policy_version", "billing", table =>
+            {
+                table.HasCheckConstraint("CK_fee_policy_version_range", "effective_to IS NULL OR effective_to > effective_from");
+                table.HasCheckConstraint("CK_fee_policy_version_values", "markup_basis_points BETWEEN 0 AND 100000 AND fixed_fee_micro_usd >= 0");
+            });
+            entity.HasKey(version => version.Id);
+            entity.Property(version => version.Id).HasColumnName("id");
+            entity.Property(version => version.PolicyCode).HasColumnName("policy_code").HasMaxLength(100);
+            entity.Property(version => version.MarkupBasisPoints).HasColumnName("markup_basis_points");
+            entity.Property(version => version.FixedFeeMicroUsd).HasColumnName("fixed_fee_micro_usd");
+            entity.Property(version => version.EffectiveFrom).HasColumnName("effective_from");
+            entity.Property(version => version.EffectiveTo).HasColumnName("effective_to");
+            entity.Property(version => version.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(version => new { version.PolicyCode, version.EffectiveFrom }).IsUnique();
+        });
+
+        modelBuilder.Entity<BillingFxRateSnapshotEntity>(entity =>
+        {
+            entity.ToTable("fx_rate_snapshot", "billing", table => table.HasCheckConstraint("CK_fx_rate_snapshot_positive", "uzs_tiyin_per_usd > 0"));
+            entity.HasKey(snapshot => snapshot.Id);
+            entity.Property(snapshot => snapshot.Id).HasColumnName("id");
+            entity.Property(snapshot => snapshot.Source).HasColumnName("source").HasMaxLength(100);
+            entity.Property(snapshot => snapshot.UzsTiyinPerUsd).HasColumnName("uzs_tiyin_per_usd").HasPrecision(20, 8);
+            entity.Property(snapshot => snapshot.ObservedAt).HasColumnName("observed_at");
+            entity.HasIndex(snapshot => new { snapshot.Source, snapshot.ObservedAt });
         });
 
         modelBuilder.Entity<OutboxMessageEntity>(entity =>

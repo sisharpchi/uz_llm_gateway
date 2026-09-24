@@ -96,7 +96,7 @@ Redis is never authoritative for:
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** BILLING-001 foundation implemented
 
 Do not correct financial history by editing rows.
 
@@ -253,7 +253,7 @@ do not make models interchangeable; P0 failover remains same-model only.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** Not implemented
+**Implementation status:** BILLING-001 wallet and FX-history foundation implemented; payment-linked snapshots remain in PAYMENT-001
 
 Customers pay UZS and receive USD-denominated credits from a frozen quote and
 payment FX snapshot. Historical values are never recomputed.
