@@ -12,6 +12,7 @@ using UZLLM.Modules.Usage.Infrastructure;
 using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Management.Api;
 using UZLLM.Management.Api.Administration;
+using UZLLM.Management.Api.Budgets;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
@@ -31,6 +32,7 @@ builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmProjects();
 builder.Services.AddUzllmPayments(builder.Configuration);
 builder.Services.AddUzllmAdministration();
+builder.Services.AddScoped<IBudgetManagementService, BudgetManagementService>();
 var app = builder.Build();
 
 app.UseUzllmRequestCorrelation();
@@ -43,4 +45,5 @@ app.MapUzllmApiKeyEndpoints();
 app.MapUzllmPaymentEndpoints();
 app.MapUzllmUsageReadEndpoints();
 app.MapUzllmAdminEndpoints();
+app.MapUzllmBudgetEndpoints();
 app.Run();

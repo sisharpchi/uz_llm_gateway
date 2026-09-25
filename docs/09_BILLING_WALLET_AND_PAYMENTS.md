@@ -266,6 +266,15 @@ made in the transaction. TX-05 captures and releases in one transaction; there
 is no independent “release remainder” retry. A lost commit acknowledgement is
 recovered by reading the unique operation identity before retrying.
 
+For a recurring budget, TX-02 creates/holds the bucket for the request's UTC
+admission day, Monday-based week, or calendar month. All applicable project
+and key policies must pass in the same transaction. TX-05 always updates the
+bucket identified by the reservation, even after a window rolls over; it does
+not spend the new window for an earlier request. Installing a new policy while
+matching reservations are active is rejected instead of silently omitting
+those holds. Existing policy limits may be lowered below spent-plus-held to
+block future admissions, without invalidating existing reservations.
+
 For a dispatched request, expiration is a review trigger, not permission to
 release money. Persist evidence before settlement. Reconcile unknown evidence
 for 24 hours after its deadline; charge verified usage, release the balance, and

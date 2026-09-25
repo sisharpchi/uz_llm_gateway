@@ -559,6 +559,11 @@ public sealed class GatewayExecutionTests
         { Releases++; return Task.FromResult(new FinalizationResult(FinalizationStatus.Released, null)); }
         public Task<FinalizationResult> ReconcileAsync(Guid reservationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId, UsdMicroAmount limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
+            UZLLM.Modules.Billing.Domain.BudgetPeriod period, UsdMicroAmount limit,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<BudgetPolicy>> ListBudgetsAsync(Guid organizationId, Guid projectId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ReversalResult> ApplyConfirmedReversalAsync(Guid organizationId, Guid externalReferenceId, UsdMicroAmount amount, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<FinancialWalletState?> GetWalletStateAsync(Guid organizationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Guid?> FindReservationIdAsync(Guid requestId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

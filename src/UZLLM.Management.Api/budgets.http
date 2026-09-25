@@ -1,0 +1,33 @@
+@baseUrl = https://localhost:7150
+@projectId = 00000000-0000-0000-0000-000000000001
+@apiKeyId = 00000000-0000-0000-0000-000000000002
+@session = replace-with-session-cookie
+@csrf = replace-with-csrf-token
+
+### Current project and key budget windows
+GET {{baseUrl}}/management/v1/projects/{{projectId}}/budgets
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+
+### Set a monthly project cap in USD micro-units
+PUT {{baseUrl}}/management/v1/projects/{{projectId}}/budgets/Monthly
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{"limitMicroUsd": 5000000, "apiKeyId": null}
+
+### Set a daily API-key cap within the same project
+PUT {{baseUrl}}/management/v1/projects/{{projectId}}/budgets/Daily
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{"limitMicroUsd": 100000, "apiKeyId": "{{apiKeyId}}"}
+
+### Invalid period is rejected
+PUT {{baseUrl}}/management/v1/projects/{{projectId}}/budgets/Yearly
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{"limitMicroUsd": 100000, "apiKeyId": null}

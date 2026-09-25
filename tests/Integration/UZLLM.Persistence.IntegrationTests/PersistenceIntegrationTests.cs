@@ -380,6 +380,17 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // This fixture owns a disposable database. Clear recurring financial
+        // history before exercising Down; production downgrade deliberately
+        // refuses to collapse populated windows into the old single bucket.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('billing.budget_policy') IS NOT NULL THEN
+                    TRUNCATE TABLE billing.reservation_budget, billing.budget_bucket, billing.budget_policy;
+                  END IF;
+                END $$;
+                """);
         var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
         await migrator.MigrateAsync("0");
     }

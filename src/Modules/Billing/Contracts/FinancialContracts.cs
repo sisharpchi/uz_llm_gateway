@@ -1,4 +1,5 @@
 using UZLLM.Modules.Usage.Contracts;
+using UZLLM.Modules.Billing.Domain;
 
 namespace UZLLM.Modules.Billing.Contracts;
 
@@ -31,7 +32,8 @@ public sealed record FinalizationResult(FinalizationStatus Status, Settlement? S
 
 public sealed record BudgetPolicy(
     Guid Id, Guid OrganizationId, Guid ProjectId, Guid? ApiKeyId,
-    UsdMicroAmount Limit, UsdMicroAmount Captured, UsdMicroAmount Reserved);
+    BudgetPeriod Period, BudgetWindow Window, UsdMicroAmount Limit,
+    UsdMicroAmount Captured, UsdMicroAmount Reserved);
 
 public sealed record ReversalResult(
     Guid Id, Guid OrganizationId, Guid ExternalReferenceId, UsdMicroAmount Amount,
@@ -69,6 +71,10 @@ public interface IFinancialStore
         bool unresolvedUsage, DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
         UsdMicroAmount limit, DateTimeOffset now, CancellationToken cancellationToken = default);
+    Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
+        BudgetPeriod period, UsdMicroAmount limit, DateTimeOffset now, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<BudgetPolicy>> ListBudgetsAsync(Guid organizationId, Guid projectId,
+        DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<ReversalResult> ApplyConfirmedReversalAsync(Guid organizationId, Guid externalReferenceId,
         UsdMicroAmount amount, DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<FinancialWalletState?> FindWalletStateAsync(Guid organizationId, CancellationToken cancellationToken = default);
@@ -86,6 +92,10 @@ public interface IFinancialService
     Task<FinalizationResult> ReconcileAsync(Guid reservationId, CancellationToken cancellationToken = default);
     Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
         UsdMicroAmount limit, CancellationToken cancellationToken = default);
+    Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
+        BudgetPeriod period, UsdMicroAmount limit, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<BudgetPolicy>> ListBudgetsAsync(Guid organizationId, Guid projectId,
+        CancellationToken cancellationToken = default);
     Task<ReversalResult> ApplyConfirmedReversalAsync(Guid organizationId, Guid externalReferenceId,
         UsdMicroAmount amount, CancellationToken cancellationToken = default);
     Task<FinancialWalletState?> GetWalletStateAsync(Guid organizationId, CancellationToken cancellationToken = default);

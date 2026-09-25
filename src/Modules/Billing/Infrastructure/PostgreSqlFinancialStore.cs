@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using UZLLM.Modules.Billing.Contracts;
+using UZLLM.Modules.Billing.Domain;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Persistence;
 
@@ -53,14 +54,21 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             .Where(value => value.OrganizationId == reservation.OrganizationId
                 && value.ProjectId == reservation.ProjectId
                 && (value.ApiKeyId == null || value.ApiKeyId == reservation.ApiKeyId))
-            .OrderBy(value => value.ApiKeyId == null ? 0 : 1).ThenBy(value => value.Id)
+            .OrderBy(value => value.ApiKeyId == null ? 0 : 1)
+            .ThenBy(value => value.Period).ThenBy(value => value.Id)
             .ToListAsync(cancellationToken);
         foreach (var policy in policies)
         {
+            var window = BudgetWindow.For(Enum.Parse<BudgetPeriod>(policy.Period), reservation.CreatedAt);
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO billing.budget_bucket (policy_id, window_start, captured_micro_usd, reserved_micro_usd)
+                VALUES ({policy.Id}, {window.Start}, 0, 0)
+                ON CONFLICT (policy_id, window_start) DO NOTHING;
+                """, cancellationToken);
             var updated = await db.Database.ExecuteSqlInterpolatedAsync($"""
                 UPDATE billing.budget_bucket AS bucket
                 SET reserved_micro_usd = bucket.reserved_micro_usd + {reservation.Amount.Value}
-                WHERE bucket.policy_id = {policy.Id}
+                WHERE bucket.policy_id = {policy.Id} AND bucket.window_start = {window.Start}
                   AND bucket.captured_micro_usd + bucket.reserved_micro_usd + {reservation.Amount.Value} <= {policy.LimitMicroUsd};
                 """, cancellationToken);
             if (updated != 1)
@@ -80,6 +88,7 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             db.Set<BillingReservationBudgetEntity>().Add(new BillingReservationBudgetEntity
             {
                 ReservationId = reservation.Id, PolicyId = policy.Id,
+                WindowStart = BudgetWindow.For(Enum.Parse<BudgetPeriod>(policy.Period), reservation.CreatedAt).Start,
                 AmountMicroUsd = reservation.Amount.Value
             });
         await db.SaveChangesAsync(cancellationToken);
@@ -195,7 +204,8 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             updated = await db.Database.ExecuteSqlInterpolatedAsync($"""
                 UPDATE billing.budget_bucket SET reserved_micro_usd = reserved_micro_usd - {hold.AmountMicroUsd},
                     captured_micro_usd = captured_micro_usd + {charge.Charged.Value}
-                WHERE policy_id = {hold.PolicyId} AND reserved_micro_usd >= {hold.AmountMicroUsd};
+                WHERE policy_id = {hold.PolicyId} AND window_start = {hold.WindowStart}
+                  AND reserved_micro_usd >= {hold.AmountMicroUsd};
                 """, cancellationToken);
             if (updated != 1) throw new InvalidOperationException("Budget reservation and settlement are inconsistent.");
         }
@@ -234,9 +244,14 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
         return settlement;
     }
 
+    public Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
+        UsdMicroAmount limit, DateTimeOffset now, CancellationToken cancellationToken = default) =>
+        SetBudgetAsync(organizationId, projectId, apiKeyId, BudgetPeriod.Lifetime, limit, now, cancellationToken);
+
     public async Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
-        UsdMicroAmount limit, DateTimeOffset now, CancellationToken cancellationToken = default)
+        BudgetPeriod period, UsdMicroAmount limit, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
+        var window = BudgetWindow.For(period, now);
         if (await db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE billing.wallet SET version = version WHERE organization_id = {organizationId};",
             cancellationToken) != 1) return null;
@@ -246,7 +261,8 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             .AnyAsync(value => value.Id == apiKeyId && value.ProjectId == projectId, cancellationToken);
         if (!validProject || !validKey) return null;
         var existing = await db.Set<BillingBudgetPolicyEntity>().AsNoTracking()
-            .SingleOrDefaultAsync(value => value.ProjectId == projectId && value.ApiKeyId == apiKeyId,
+            .SingleOrDefaultAsync(value => value.ProjectId == projectId && value.ApiKeyId == apiKeyId
+                && value.Period == period.ToString(),
                 cancellationToken);
         if (existing is null)
         {
@@ -262,28 +278,57 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
                     reservation => reservation.Id, (settlement, reservation) => new { settlement, reservation })
                 .Where(value => value.reservation.ProjectId == projectId
                     && (apiKeyId == null || value.reservation.ApiKeyId == apiKeyId))
+                .Where(value => value.reservation.CreatedAt >= window.Start
+                    && (window.End == null || value.reservation.CreatedAt < window.End))
                 .SumAsync(value => (long?)value.settlement.ChargedMicroUsd, cancellationToken) ?? 0;
             var policy = new BillingBudgetPolicyEntity
             {
                 Id = Guid.CreateVersion7(), OrganizationId = organizationId, ProjectId = projectId,
-                ApiKeyId = apiKeyId, LimitMicroUsd = limit.Value, CreatedAt = now, UpdatedAt = now
+                ApiKeyId = apiKeyId, Period = period.ToString(), LimitMicroUsd = limit.Value,
+                CreatedAt = now, UpdatedAt = now
             };
             db.Set<BillingBudgetPolicyEntity>().Add(policy);
             db.Set<BillingBudgetBucketEntity>().Add(new BillingBudgetBucketEntity
             {
-                PolicyId = policy.Id, CapturedMicroUsd = captured
+                PolicyId = policy.Id, WindowStart = window.Start, CapturedMicroUsd = captured
             });
             await db.SaveChangesAsync(cancellationToken);
-            return new BudgetPolicy(policy.Id, organizationId, projectId, apiKeyId, limit,
+            return new BudgetPolicy(policy.Id, organizationId, projectId, apiKeyId, period, window, limit,
                 new UsdMicroAmount(captured), UsdMicroAmount.Zero);
         }
         var bucket = await db.Set<BillingBudgetBucketEntity>().AsNoTracking()
-            .SingleAsync(value => value.PolicyId == existing.Id, cancellationToken);
+            .SingleOrDefaultAsync(value => value.PolicyId == existing.Id && value.WindowStart == window.Start,
+                cancellationToken);
         await db.Set<BillingBudgetPolicyEntity>().Where(value => value.Id == existing.Id)
             .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.LimitMicroUsd, limit.Value)
                 .SetProperty(value => value.UpdatedAt, now), cancellationToken);
-        return new BudgetPolicy(existing.Id, organizationId, projectId, apiKeyId, limit,
-            new UsdMicroAmount(bucket.CapturedMicroUsd), new UsdMicroAmount(bucket.ReservedMicroUsd));
+        return new BudgetPolicy(existing.Id, organizationId, projectId, apiKeyId, period, window, limit,
+            new UsdMicroAmount(bucket?.CapturedMicroUsd ?? 0), new UsdMicroAmount(bucket?.ReservedMicroUsd ?? 0));
+    }
+
+    public async Task<IReadOnlyList<BudgetPolicy>> ListBudgetsAsync(Guid organizationId, Guid projectId,
+        DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        var policies = await db.Set<BillingBudgetPolicyEntity>().AsNoTracking()
+            .Where(value => value.OrganizationId == organizationId && value.ProjectId == projectId)
+            .OrderBy(value => value.ApiKeyId).ThenBy(value => value.Period)
+            .ToListAsync(cancellationToken);
+        var ids = policies.Select(value => value.Id).ToArray();
+        var currentStarts = policies.Select(value => BudgetWindow.For(
+            Enum.Parse<BudgetPeriod>(value.Period), now).Start).Distinct().ToArray();
+        var buckets = await db.Set<BillingBudgetBucketEntity>().AsNoTracking()
+            .Where(value => ids.Contains(value.PolicyId) && currentStarts.Contains(value.WindowStart))
+            .ToListAsync(cancellationToken);
+        return policies.Select(policy =>
+        {
+            var period = Enum.Parse<BudgetPeriod>(policy.Period);
+            var window = BudgetWindow.For(period, now);
+            var bucket = buckets.SingleOrDefault(value => value.PolicyId == policy.Id
+                && value.WindowStart == window.Start);
+            return new BudgetPolicy(policy.Id, organizationId, projectId, policy.ApiKeyId, period, window,
+                new UsdMicroAmount(policy.LimitMicroUsd), new UsdMicroAmount(bucket?.CapturedMicroUsd ?? 0),
+                new UsdMicroAmount(bucket?.ReservedMicroUsd ?? 0));
+        }).ToArray();
     }
 
     public async Task<ReversalResult> ApplyConfirmedReversalAsync(Guid organizationId, Guid externalReferenceId,

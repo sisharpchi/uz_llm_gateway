@@ -63,16 +63,25 @@ public sealed class FinancialService(
         FinishAsync(reservationId, FinalizationMode.Reconciliation, cancellationToken);
 
     public async Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
-        UsdMicroAmount limit, CancellationToken cancellationToken = default)
+        UsdMicroAmount limit, CancellationToken cancellationToken = default) =>
+        await SetBudgetAsync(organizationId, projectId, apiKeyId, BudgetPeriod.Lifetime, limit, cancellationToken);
+
+    public async Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
+        BudgetPeriod period, UsdMicroAmount limit, CancellationToken cancellationToken = default)
     {
         if (organizationId == Guid.Empty || projectId == Guid.Empty || apiKeyId == Guid.Empty)
             throw new ArgumentException("Valid organization, project, and optional key IDs are required.");
+        if (!Enum.IsDefined(period)) throw new ArgumentOutOfRangeException(nameof(period));
         await using var transaction = await transactions.BeginAsync(cancellationToken);
         var policy = await store.SetBudgetAsync(organizationId, projectId, apiKeyId,
-            limit, timeProvider.GetUtcNow(), cancellationToken);
+            period, limit, timeProvider.GetUtcNow(), cancellationToken);
         if (policy is not null) await transaction.CommitAsync(cancellationToken);
         return policy;
     }
+
+    public Task<IReadOnlyList<BudgetPolicy>> ListBudgetsAsync(Guid organizationId, Guid projectId,
+        CancellationToken cancellationToken = default) =>
+        store.ListBudgetsAsync(organizationId, projectId, timeProvider.GetUtcNow(), cancellationToken);
 
     public async Task<ReversalResult> ApplyConfirmedReversalAsync(Guid organizationId, Guid externalReferenceId,
         UsdMicroAmount amount, CancellationToken cancellationToken = default)

@@ -38,17 +38,22 @@ public sealed partial class FoundationDbContext
 
         modelBuilder.Entity<BillingBudgetPolicyEntity>(entity =>
         {
-            entity.ToTable("budget_policy", "billing", table => table.HasCheckConstraint("CK_budget_policy_limit", "limit_micro_usd >= 0"));
+            entity.ToTable("budget_policy", "billing", table =>
+            {
+                table.HasCheckConstraint("CK_budget_policy_limit", "limit_micro_usd >= 0");
+                table.HasCheckConstraint("CK_budget_policy_period", "period IN ('Lifetime', 'Daily', 'Weekly', 'Monthly')");
+            });
             entity.HasKey(value => value.Id);
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.OrganizationId).HasColumnName("organization_id");
             entity.Property(value => value.ProjectId).HasColumnName("project_id");
             entity.Property(value => value.ApiKeyId).HasColumnName("api_key_id");
             entity.Property(value => value.LimitMicroUsd).HasColumnName("limit_micro_usd");
+            entity.Property(value => value.Period).HasColumnName("period").HasMaxLength(16).HasDefaultValue("Lifetime");
             entity.Property(value => value.CreatedAt).HasColumnName("created_at");
             entity.Property(value => value.UpdatedAt).HasColumnName("updated_at");
-            entity.HasIndex(value => value.ProjectId).IsUnique().HasFilter("api_key_id IS NULL");
-            entity.HasIndex(value => value.ApiKeyId).IsUnique().HasFilter("api_key_id IS NOT NULL");
+            entity.HasIndex(value => new { value.ProjectId, value.Period }).IsUnique().HasFilter("api_key_id IS NULL");
+            entity.HasIndex(value => new { value.ApiKeyId, value.Period }).IsUnique().HasFilter("api_key_id IS NOT NULL");
             entity.HasOne<ProjectEntity>().WithMany().HasForeignKey(value => new { value.OrganizationId, value.ProjectId })
                 .HasPrincipalKey(value => new { value.OrganizationId, value.Id }).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<GatewayApiKeyEntity>().WithMany().HasForeignKey(value => new { value.ProjectId, value.ApiKeyId })
@@ -58,11 +63,12 @@ public sealed partial class FoundationDbContext
         modelBuilder.Entity<BillingBudgetBucketEntity>(entity =>
         {
             entity.ToTable("budget_bucket", "billing", table => table.HasCheckConstraint("CK_budget_bucket_non_negative", "captured_micro_usd >= 0 AND reserved_micro_usd >= 0"));
-            entity.HasKey(value => value.PolicyId);
+            entity.HasKey(value => new { value.PolicyId, value.WindowStart });
             entity.Property(value => value.PolicyId).HasColumnName("policy_id");
+            entity.Property(value => value.WindowStart).HasColumnName("window_start").HasDefaultValue(DateTimeOffset.UnixEpoch);
             entity.Property(value => value.CapturedMicroUsd).HasColumnName("captured_micro_usd");
             entity.Property(value => value.ReservedMicroUsd).HasColumnName("reserved_micro_usd");
-            entity.HasOne<BillingBudgetPolicyEntity>().WithOne().HasForeignKey<BillingBudgetBucketEntity>(value => value.PolicyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<BillingBudgetPolicyEntity>().WithMany().HasForeignKey(value => value.PolicyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<BillingReservationBudgetEntity>(entity =>
@@ -71,9 +77,12 @@ public sealed partial class FoundationDbContext
             entity.HasKey(value => new { value.ReservationId, value.PolicyId });
             entity.Property(value => value.ReservationId).HasColumnName("reservation_id");
             entity.Property(value => value.PolicyId).HasColumnName("policy_id");
+            entity.Property(value => value.WindowStart).HasColumnName("window_start").HasDefaultValue(DateTimeOffset.UnixEpoch);
             entity.Property(value => value.AmountMicroUsd).HasColumnName("amount_micro_usd");
             entity.HasOne<BillingReservationEntity>().WithMany().HasForeignKey(value => value.ReservationId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<BillingBudgetPolicyEntity>().WithMany().HasForeignKey(value => value.PolicyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<BillingBudgetBucketEntity>().WithMany()
+                .HasForeignKey(value => new { value.PolicyId, value.WindowStart })
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<BillingSettlementEntity>(entity =>

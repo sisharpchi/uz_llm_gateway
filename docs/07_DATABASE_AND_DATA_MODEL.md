@@ -378,3 +378,11 @@ stable operation-first, wallet-before-budget order. Runtime roles may append
 ledger/audit/evidence records but not update or delete them. Keep financial
 history unpartitioned; request, attempt, performance, callback, and audit
 telemetry become monthly partition candidates only after measured volume.
+
+Recurring budgets use `billing.budget_policy.period` (`Lifetime`, `Daily`,
+`Weekly`, `Monthly`) and `billing.budget_bucket(policy_id, window_start)` as a
+composite key. The UTC window is half-open; weeks begin Monday. Each
+`billing.reservation_budget` stores the admission-time `window_start` and has
+a composite FK to that exact bucket. Settlement never moves an old hold into
+the then-current window. A populated recurring history cannot be downgraded
+to the former single-bucket schema.

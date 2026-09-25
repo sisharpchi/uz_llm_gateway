@@ -23,6 +23,7 @@ public sealed class BillingBudgetPolicyEntity
     public Guid ProjectId { get; set; }
     public Guid? ApiKeyId { get; set; }
     public long LimitMicroUsd { get; set; }
+    public string Period { get; set; } = "Lifetime";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
@@ -30,6 +31,7 @@ public sealed class BillingBudgetPolicyEntity
 public sealed class BillingBudgetBucketEntity
 {
     public Guid PolicyId { get; set; }
+    public DateTimeOffset WindowStart { get; set; } = DateTimeOffset.UnixEpoch;
     public long CapturedMicroUsd { get; set; }
     public long ReservedMicroUsd { get; set; }
 }
@@ -38,6 +40,7 @@ public sealed class BillingReservationBudgetEntity
 {
     public Guid ReservationId { get; set; }
     public Guid PolicyId { get; set; }
+    public DateTimeOffset WindowStart { get; set; } = DateTimeOffset.UnixEpoch;
     public long AmountMicroUsd { get; set; }
 }
 

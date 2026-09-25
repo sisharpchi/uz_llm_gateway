@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using UZLLM.Modules.Billing.Application;
 using UZLLM.Modules.Billing.Contracts;
+using UZLLM.Modules.Billing.Domain;
 using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Usage.Application;
 using UZLLM.Modules.Usage.Contracts;
@@ -78,6 +79,207 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
             null, new UsdMicroAmount(10_000));
         Assert.Null(projectPolicy); // New caps cannot silently omit active holds.
         Assert.Equal(20_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
+    }
+
+    [Fact]
+    public async Task Concurrent_admission_holds_every_applicable_window_without_overspend()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 2_000_000);
+        await using (var setup = fixture.CreateServiceProvider())
+        await using (var scope = setup.CreateAsyncScope())
+        {
+            var financial = Financial(scope.ServiceProvider, new MutableFinancialClock(Start));
+            Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+                null, BudgetPeriod.Daily, new UsdMicroAmount(1_000_000)));
+            Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+                seed.ApiKeyId, BudgetPeriod.Weekly, new UsdMicroAmount(900_000)));
+        }
+
+        var providers = new List<ServiceProvider>();
+        var scopes = new List<AsyncServiceScope>();
+        try
+        {
+            for (var i = 0; i < 50; i++)
+            {
+                var provider = fixture.CreateServiceProvider();
+                providers.Add(provider);
+                scopes.Add(provider.CreateAsyncScope());
+            }
+            var results = await Task.WhenAll(scopes.Select((scope, index) =>
+                Financial(scope.ServiceProvider, new MutableFinancialClock(Start))
+                    .ReserveAsync(Admission(seed, 30_000, payload: [checked((byte)index)]))));
+            Assert.Equal(30, results.Count(value => value.Status == AdmissionStatus.Reserved));
+            Assert.Equal(20, results.Count(value => value.Status == AdmissionStatus.ApiKeyBudgetExceeded));
+
+            await using var verifier = fixture.CreateServiceProvider();
+            await using var verifierScope = verifier.CreateAsyncScope();
+            var financial = Financial(verifierScope.ServiceProvider, new MutableFinancialClock(Start));
+            var budgets = await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId);
+            Assert.Equal(900_000, budgets.Single(value => value.Period == BudgetPeriod.Daily).Reserved.Value);
+            Assert.Equal(900_000, budgets.Single(value => value.Period == BudgetPeriod.Weekly).Reserved.Value);
+            Assert.Equal(900_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
+        }
+        finally
+        {
+            foreach (var scope in scopes) await scope.DisposeAsync();
+            foreach (var provider in providers) await provider.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Late_settlement_updates_admission_day_not_current_day()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 200_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, BudgetPeriod.Daily, new UsdMicroAmount(30_000)));
+
+        clock.UtcNow = Start.AddDays(1).AddSeconds(-1);
+        var old = await financial.ReserveAsync(Admission(seed, 30_000, payload: [3]) with
+        { ExpiresAt = clock.UtcNow.AddHours(2) });
+        Assert.Equal(AdmissionStatus.Reserved, old.Status);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var attempt = await usage.StartAttemptAsync(old.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(old.RequestId.Value,
+            attempt.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, null)));
+
+        clock.UtcNow = Start.AddDays(1).AddMinutes(1);
+        var next = await financial.ReserveAsync(Admission(seed, 30_000, payload: [4]) with
+        { ExpiresAt = clock.UtcNow.AddHours(2) });
+        Assert.Equal(AdmissionStatus.Reserved, next.Status);
+        Assert.Equal(FinalizationStatus.Settled, (await financial.FinalizeAsync(old.Reservation!.Id)).Status);
+        Assert.Equal(FinalizationStatus.AlreadyFinalized, (await financial.FinalizeAsync(old.Reservation.Id)).Status);
+
+        var current = (await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId)).Single();
+        Assert.Equal(Start.AddDays(1), current.Window.Start);
+        Assert.Equal(30_000, current.Reserved.Value);
+        Assert.Equal(0, current.Captured.Value);
+        var oldBucket = await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Set<BillingBudgetBucketEntity>().AsNoTracking()
+            .SingleAsync(value => value.PolicyId == current.Id && value.WindowStart == Start);
+        Assert.Equal(10_000, oldBucket.CapturedMicroUsd);
+        Assert.Equal(0, oldBucket.ReservedMicroUsd);
+    }
+
+    [Fact]
+    public async Task Every_project_and_key_window_is_a_hard_gate_and_releases_with_the_reservation()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 200_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var financial = Financial(scope.ServiceProvider, new MutableFinancialClock(Start));
+        foreach (var period in new[] { BudgetPeriod.Lifetime, BudgetPeriod.Monthly })
+            Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+                null, period, new UsdMicroAmount(20_000)));
+        foreach (var period in new[] { BudgetPeriod.Daily, BudgetPeriod.Weekly })
+            Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+                seed.ApiKeyId, period, new UsdMicroAmount(20_000)));
+
+        var hold = await financial.ReserveAsync(Admission(seed, 20_000, payload: [10]));
+        Assert.Equal(AdmissionStatus.Reserved, hold.Status);
+        Assert.Equal(AdmissionStatus.ProjectBudgetExceeded,
+            (await financial.ReserveAsync(Admission(seed, 1, payload: [11]))).Status);
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, BudgetPeriod.Lifetime, new UsdMicroAmount(21_000)));
+        Assert.Equal(AdmissionStatus.ProjectBudgetExceeded,
+            (await financial.ReserveAsync(Admission(seed, 1, payload: [12]))).Status);
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, BudgetPeriod.Monthly, new UsdMicroAmount(21_000)));
+        Assert.Equal(AdmissionStatus.ApiKeyBudgetExceeded,
+            (await financial.ReserveAsync(Admission(seed, 1, payload: [13]))).Status);
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            seed.ApiKeyId, BudgetPeriod.Daily, new UsdMicroAmount(21_000)));
+        Assert.Equal(AdmissionStatus.ApiKeyBudgetExceeded,
+            (await financial.ReserveAsync(Admission(seed, 1, payload: [14]))).Status);
+
+        var budgets = await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId);
+        Assert.Equal(4, budgets.Count);
+        Assert.All(budgets, value => Assert.Equal(20_000, value.Reserved.Value));
+        Assert.Equal(FinalizationStatus.Released,
+            (await financial.ReleaseUndispatchedAsync(hold.Reservation!.Id)).Status);
+        Assert.All(await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId),
+            value => Assert.Equal(0, value.Reserved.Value));
+    }
+
+    [Fact]
+    public async Task New_daily_policy_includes_existing_captured_spend_and_rejects_active_holds()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var first = await financial.ReserveAsync(Admission(seed, 30_000, payload: [15]));
+        Assert.Equal(AdmissionStatus.Reserved, first.Status);
+        var attempt = await usage.StartAttemptAsync(first.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(first.RequestId.Value,
+            attempt.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, null)));
+        Assert.Equal(FinalizationStatus.Settled, (await financial.FinalizeAsync(first.Reservation!.Id)).Status);
+
+        var daily = await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, BudgetPeriod.Daily, new UsdMicroAmount(15_000));
+        Assert.NotNull(daily);
+        Assert.Equal(10_000, daily.Captured.Value);
+        Assert.Equal(AdmissionStatus.ProjectBudgetExceeded,
+            (await financial.ReserveAsync(Admission(seed, 5_001, payload: [16]))).Status);
+        var held = await financial.ReserveAsync(Admission(seed, 5_000, payload: [17]));
+        Assert.Equal(AdmissionStatus.Reserved, held.Status);
+        Assert.Null(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, BudgetPeriod.Weekly, new UsdMicroAmount(25_000)));
+        Assert.Equal(5_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
+    }
+
+    [Fact]
+    public async Task Migration_roundtrip_preserves_existing_lifetime_policy_and_reservation_hold()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        Guid reservationId;
+        await using (var before = fixture.CreateServiceProvider())
+        await using (var scope = before.CreateAsyncScope())
+        {
+            var financial = Financial(scope.ServiceProvider, new MutableFinancialClock(Start));
+            Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+                null, new UsdMicroAmount(30_000)));
+            var hold = await financial.ReserveAsync(Admission(seed, 30_000));
+            Assert.Equal(AdmissionStatus.Reserved, hold.Status);
+            reservationId = hold.Reservation!.Id;
+        }
+
+        await using (var migrationProvider = fixture.CreateServiceProvider())
+        await using (var migrationScope = migrationProvider.CreateAsyncScope())
+        {
+            var migrator = migrationScope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
+            await migrator.MigrateAsync("20260925135939_AddOperatorControls");
+            await migrator.MigrateAsync();
+        }
+
+        await using var after = fixture.CreateServiceProvider();
+        await using var afterScope = after.CreateAsyncScope();
+        var resumed = Financial(afterScope.ServiceProvider, new MutableFinancialClock(Start));
+        var policy = (await resumed.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId)).Single();
+        Assert.Equal(BudgetPeriod.Lifetime, policy.Period);
+        Assert.Equal(DateTimeOffset.UnixEpoch, policy.Window.Start);
+        Assert.Equal(30_000, policy.Reserved.Value);
+        Assert.Equal(FinalizationStatus.Released,
+            (await resumed.ReleaseUndispatchedAsync(reservationId)).Status);
+        Assert.Equal(0, (await resumed.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId))
+            .Single().Reserved.Value);
     }
 
     [Fact]

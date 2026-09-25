@@ -253,6 +253,22 @@ POST /billing/topups
 GET  /billing/payments
 ```
 
+### Budgets
+
+```text
+GET /management/v1/projects/{projectId}/budgets
+PUT /management/v1/projects/{projectId}/budgets/{period}
+```
+
+`period` is `Lifetime`, `Daily`, `Weekly`, or `Monthly` (UTC). PUT takes
+`limitMicroUsd` (non-negative integer) and optional `apiKeyId`; omitting the
+key sets the project cap. The response includes the current half-open
+`windowStart`/`windowEnd`, captured spend and active holds. All applicable
+project/key policies gate admission atomically. A newly installed policy is
+rejected with `409` while matching reservations remain active; invalid scope
+is `404`, and cross-tenant access is `403`. Writes require the management
+session and CSRF token.
+
 ### BYOK
 
 ```text
