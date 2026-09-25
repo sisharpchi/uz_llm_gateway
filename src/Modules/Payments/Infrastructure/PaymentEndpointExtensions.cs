@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using System.Globalization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -22,10 +23,12 @@ public static class PaymentEndpointExtensions
         {
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
             if (!Enum.TryParse<PaymentProvider>(request.Provider, true, out var provider)
-                || !Enum.IsDefined(provider) || request.AmountTiyin <= 0)
+                || !Enum.IsDefined(provider)
+                || !long.TryParse(request.AmountTiyin, NumberStyles.None, CultureInfo.InvariantCulture,
+                    out var amountTiyin) || amountTiyin <= 0)
                 return Results.BadRequest(new { error = "invalid_provider_or_amount" });
-            try { return Results.Ok(await payments.CreateQuoteAsync(accountId, organizationId,
-                provider, new UzsTiyinAmount(request.AmountTiyin), token)); }
+            try { return Results.Ok(Quote(await payments.CreateQuoteAsync(accountId, organizationId,
+                provider, new UzsTiyinAmount(amountTiyin), token))); }
             catch (TenantAccessDeniedException) { return Results.Forbid(); }
             catch (ArgumentException) { return Results.BadRequest(new { error = "invalid_amount" }); }
             catch (InvalidOperationException) { return Results.Problem("Payment quote is unavailable.", statusCode: 503); }
@@ -40,8 +43,9 @@ public static class PaymentEndpointExtensions
             try
             {
                 var result = await payments.CreateIntentAsync(accountId, organizationId, request.QuoteId, key, token);
-                return result.Duplicate ? Results.Ok(result) : Results.Created(
-                    $"/management/v1/organizations/{organizationId}/billing/topups/{result.Intent.Id}", result);
+                var body = new { intent = Intent(result.Intent), result.Duplicate, result.CheckoutUrl };
+                return result.Duplicate ? Results.Ok(body) : Results.Created(
+                    $"/management/v1/organizations/{organizationId}/billing/topups/{result.Intent.Id}", body);
             }
             catch (TenantAccessDeniedException) { return Results.Forbid(); }
             catch (KeyNotFoundException) { return Results.NotFound(); }
@@ -53,7 +57,7 @@ public static class PaymentEndpointExtensions
             IPaymentService payments, CancellationToken token) =>
         {
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
-            try { return Results.Ok(await payments.ListIntentsAsync(accountId, organizationId, token)); }
+            try { return Results.Ok((await payments.ListIntentsAsync(accountId, organizationId, token)).Select(Intent)); }
             catch (TenantAccessDeniedException) { return Results.Forbid(); }
         });
 
@@ -62,7 +66,7 @@ public static class PaymentEndpointExtensions
         {
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
             try { return await payments.GetIntentAsync(accountId, organizationId, intentId, token) is { } intent
-                ? Results.Ok(intent) : Results.NotFound(); }
+                ? Results.Ok(Intent(intent)) : Results.NotFound(); }
             catch (TenantAccessDeniedException) { return Results.Forbid(); }
         });
 
@@ -74,7 +78,11 @@ public static class PaymentEndpointExtensions
             {
                 await authorization.EnsureOwnerAsync(accountId, organizationId, token);
                 return await wallet.GetWalletAsync(organizationId, token) is { } value
-                    ? Results.Ok(value) : Results.NotFound();
+                    ? Results.Ok(new { value.OrganizationId,
+                        postedBalanceMicroUsd = value.PostedBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        reservedBalanceMicroUsd = value.ReservedBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        availableBalanceMicroUsd = value.AvailableBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        value.Version }) : Results.NotFound();
             }
             catch (TenantAccessDeniedException) { return Results.Forbid(); }
         });
@@ -123,6 +131,29 @@ public static class PaymentEndpointExtensions
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private sealed record QuoteRequest(string Provider, long AmountTiyin);
+    private static object Quote(PaymentQuote value) => new
+    {
+        value.Id, value.OrganizationId, provider = value.Provider.ToString(),
+        amountTiyin = value.Amount.Value.ToString(CultureInfo.InvariantCulture),
+        feeTiyin = value.Fee.Value.ToString(CultureInfo.InvariantCulture),
+        creditMicroUsd = value.Credit.Value.ToString(CultureInfo.InvariantCulture),
+        value.FxSnapshotId,
+        uzsTiyinPerUsd = value.UzsTiyinPerUsd.ToString(CultureInfo.InvariantCulture),
+        value.CreatedAt, value.ExpiresAt
+    };
+
+    private static object Intent(PaymentIntent value) => new
+    {
+        value.Id, value.OrganizationId, provider = value.Provider.ToString(),
+        value.QuoteId, status = value.Status.ToString(),
+        amountTiyin = value.Amount.Value.ToString(CultureInfo.InvariantCulture),
+        feeTiyin = value.Fee.Value.ToString(CultureInfo.InvariantCulture),
+        creditMicroUsd = value.Credit.Value.ToString(CultureInfo.InvariantCulture),
+        value.FxSnapshotId,
+        uzsTiyinPerUsd = value.UzsTiyinPerUsd.ToString(CultureInfo.InvariantCulture),
+        value.ExternalTransactionId, value.CreatedAt, value.BoundAt, value.PaidAt, value.CanceledAt
+    };
+
+    private sealed record QuoteRequest(string Provider, string AmountTiyin);
     private sealed record TopUpRequest(Guid QuoteId);
 }

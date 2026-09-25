@@ -27,14 +27,16 @@ https://api.example.uz/payments/click/callback
 ### P0 top-up control plane
 
 An authenticated organization owner uses `POST /management/v1/organizations/{organizationId}/billing/quotes`
-with `{ "provider": "Payme|Click", "amountTiyin": 100000 }`, then
+with `{ "provider": "Payme", "amountTiyin": "100000" }`, then
 `POST /management/v1/organizations/{organizationId}/billing/topups` with
 `{ "quoteId": "..." }` and an `Idempotency-Key` header. Both writes require the
 management session and CSRF header. The latter returns an intent and provider
 checkout URL; the key may be replayed only for the same quote. `GET` endpoints
 for `/billing/topups`, `/billing/topups/{intentId}`, and `/billing/wallet` are
-owner-scoped. Amounts are integer UZS tiyin; wallet credits are integer USD
-micro-units using the quote's immutable FX snapshot.
+owner-scoped. Top-up amount input, quote/intent amounts, FX rate, and wallet
+USD micro-units are JSON decimal strings; the server parses them as fixed-
+precision values using the quote's immutable FX snapshot. This prevents
+JavaScript number precision loss in the browser.
 
 Payme calls `/payments/payme/callback` with its Merchant API JSON-RPC body and
 `Authorization: Basic` credential (`Paycom:<merchant key>`). Implemented methods:

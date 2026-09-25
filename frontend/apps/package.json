@@ -1,0 +1,10 @@
+{
+  "name": "@uzllm/apps",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["dashboard", "admin"],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test:e2e": "npm run test:e2e --workspace @uzllm/dashboard"
+  }
+}

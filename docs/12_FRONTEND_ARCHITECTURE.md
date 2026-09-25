@@ -260,3 +260,13 @@ P0 exposes only the managed-credit flow; BYOK, advanced routing, alerts, team,
 and payload retention controls remain hidden until their backend tasks complete.
 FOUNDATION-002 will narrow the current `packages` ignore rule before workspace
 source is added.
+
+FRONTEND-001 keeps the existing root `frontend/` mock prototype
+untouched. The production dashboard and operator shell are npm workspaces
+under `frontend/apps/`, with a shared typed client in
+`frontend/packages/api-client/`. This client is maintained against the current
+Management API endpoints until that API publishes an OpenAPI document; it is
+not generated yet. Browser queries include tenant scope, and the show-once key
+secret lives only in a dialog-local state variable. Privileged operator controls
+remain absent until ADMIN-001. Build and browser test commands are in
+`frontend/apps/README.md`.
