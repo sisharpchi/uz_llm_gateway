@@ -8,6 +8,7 @@ using UZLLM.Modules.Catalog.Infrastructure;
 using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Projects.Infrastructure;
 using UZLLM.Modules.Payments.Infrastructure;
+using UZLLM.Modules.Usage.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddUzllmPersistence(builder.Configuration);
@@ -18,6 +19,7 @@ builder.Services.AddUzllmIdentity();
 builder.Services.AddUzllmAudit();
 builder.Services.AddUzllmApiKeys(builder.Configuration);
 builder.Services.AddUzllmBilling();
+builder.Services.AddUzllmUsage();
 builder.Services.AddUzllmCatalog();
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmProjects();
