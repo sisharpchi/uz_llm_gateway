@@ -346,6 +346,40 @@ and `spendingHeld`. Request detail distinguishes execution, delivery, and
 financial outcomes plus attempts. Micro-unit amounts are decimal strings when
 they may exceed JavaScript safe integers. Aggregate responses include `dataAsOf`.
 
+### Usage reads implemented by USAGE-002
+
+All routes below are under `/management/v1/organizations/{organizationId}/usage`
+and require an authenticated organization owner:
+
+```text
+GET /activity?from=<UTC>&to=<UTC>&limit=50&cursor=<opaque>
+GET /requests/{requestId}
+GET /summary?from=<UTC>&to=<UTC>
+GET /timeseries?from=<UTC>&to=<UTC>
+GET /by-model?from=<UTC>&to=<UTC>
+GET /by-provider?from=<UTC>&to=<UTC>
+GET /by-api-key?from=<UTC>&to=<UTC>
+GET /by-project?from=<UTC>&to=<UTC>
+```
+
+List and aggregate routes accept `projectId`, `apiKeyId`, `modelId`,
+`providerId`, `status` (execution state), `isStream`, and `requestId` filters.
+The UTC window is `[from, to)`, defaults to the last 30 days, and is capped at
+90 days. Activity uses newest-first `(startedAt, requestId)` keyset pagination;
+`limit` is 1–100 and `nextCursor` is opaque. A cross-tenant request detail is
+`404`; unauthorized organization access is `403`. Invalid filters return `400`.
+
+Responses contain `dataAsOf`. `summary` counts logical requests once and
+includes `requestCount`, `completedCount`, `errorCount`, `pendingCount`,
+`inputTokens`, `outputTokens`, `chargedMicroUsd`, `errorRatePercent`,
+`topModels`, and `topProviders`. `timeseries` groups by UTC day. Breakdowns
+contain up to 100 groups. Only verified usage evidence contributes token totals;
+only posted settlements contribute customer charges. Activity/detail token and
+charge values remain nullable when unknown or unsettled. Detail exposes safe
+attempt and evidence metadata, never prompt/response bodies or credentials.
+These reads aggregate directly from authoritative rows over the bounded window;
+no gateway hot-path rollup write is required.
+
 For supported inference requests, `Idempotency-Key` is scoped to organization,
 key identity, and operation for 24 hours. A repeat returns `409` with the
 original request ID; mismatched request content also conflicts. The API stores

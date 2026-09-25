@@ -27,6 +27,7 @@ same-model failover precedes P1 cross-model fallback.
 | PAYMENT-001 | Completed |
 | FRONTEND-001 | Completed |
 | PROVIDER-002 | Completed |
+| USAGE-002 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `PAYMENT-001`, public Payme documentation and official CLICK protocol examples
@@ -77,6 +78,12 @@ usage, reservation, and settlement state that follows this credential task.
 | USAGE-002 | Activity, request detail, rollups, basic analytics | USAGE-001, BILLING-002 | FR-090 read model, FR-092–094 | Cursor, totals, isolation tests |
 | ADMIN-001 | Provider/pricing/payment/ledger/incident controls | AUDIT-001, PAYMENT-001 | FR-120–126 | Operator authorization tests |
 | OPS-002 | Two-node deployment, TLS, secrets, backup/restore, release gates | ADMIN-001, PROVIDER-002 | NFR-001–084 | Recovery and load drills |
+
+Frontend UI/UX note for subsequent frontend work: inspect the existing root
+`frontend/` mockup before implementation. Keep its recognizable dark,
+minimalist visual direction, but improve visual hierarchy, responsive behavior,
+accessibility, and interaction polish beyond the mockup. The production apps
+remain under `frontend/apps`; mock data must not enter the live product.
 
 ## Later tasks
 

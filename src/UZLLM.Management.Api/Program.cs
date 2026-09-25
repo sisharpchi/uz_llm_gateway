@@ -9,6 +9,7 @@ using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Projects.Infrastructure;
 using UZLLM.Modules.Payments.Infrastructure;
 using UZLLM.Modules.Usage.Infrastructure;
+using UZLLM.Management.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddUzllmPersistence(builder.Configuration);
@@ -34,4 +35,5 @@ app.MapUzllmOrganizationEndpoints();
 app.MapUzllmProjectEndpoints();
 app.MapUzllmApiKeyEndpoints();
 app.MapUzllmPaymentEndpoints();
+app.MapUzllmUsageReadEndpoints();
 app.Run();

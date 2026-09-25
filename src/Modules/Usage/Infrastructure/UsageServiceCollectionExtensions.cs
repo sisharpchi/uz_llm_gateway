@@ -10,6 +10,8 @@ public static class UsageServiceCollectionExtensions
     {
         services.AddScoped<IUsageStore, PostgreSqlUsageStore>();
         services.AddScoped<IUsageService, UsageService>();
+        services.AddScoped<IUsageReadStore, PostgreSqlUsageReadStore>();
+        services.AddScoped<IUsageReadService, UsageReadService>();
         return services;
     }
 }
