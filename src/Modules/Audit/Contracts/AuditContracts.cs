@@ -1,7 +1,7 @@
 namespace UZLLM.Modules.Audit.Contracts;
 
 public sealed record AuditEventInput(
-    Guid OrganizationId,
+    Guid? OrganizationId,
     Guid ActorAccountId,
     string Action,
     string ResourceType,
@@ -11,7 +11,7 @@ public sealed record AuditEventInput(
 
 public sealed record AuditEvent(
     Guid Id,
-    Guid OrganizationId,
+    Guid? OrganizationId,
     Guid ActorAccountId,
     string Action,
     string ResourceType,

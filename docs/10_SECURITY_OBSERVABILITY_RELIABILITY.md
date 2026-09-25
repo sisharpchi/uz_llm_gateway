@@ -94,6 +94,14 @@ ReadOnly
 
 Never trust project ID from browser without ownership/membership check.
 
+Operator routes require an active operator grant and a TOTP verification within
+the last 15 minutes. First-time enrollment requires the operator's password and
+cannot replace an existing secret through the browser. Mutations also require
+session-bound CSRF proof, a reason of 8–500 characters, and an append-only audit
+event in the same database transaction as the configuration change. The
+operator UI never receives platform credential ciphertext or plaintext. Granting
+the first operator role is an out-of-band privileged provisioning step.
+
 ---
 
 ## 5. Payment webhook security

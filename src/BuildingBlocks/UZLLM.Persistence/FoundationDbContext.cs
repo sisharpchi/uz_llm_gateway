@@ -64,6 +64,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigurePlatformControls(modelBuilder);
         ConfigureFinancialCompletion(modelBuilder);
         ConfigureProviderCredentials(modelBuilder);
         ConfigurePayments(modelBuilder);

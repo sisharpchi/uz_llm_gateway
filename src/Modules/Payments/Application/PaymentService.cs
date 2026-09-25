@@ -14,6 +14,7 @@ public sealed class PaymentService(
     IWalletLedgerStore ledger, IFinancialStore financial,
     ITransactionCoordinator transactions, ILeasedJobStore jobs,
     IOutboxStore outbox, IOperationalAlertPublisher alerts,
+    IPlatformControlStore platformControls,
     PaymentConfiguration configuration, TimeProvider clock) : IPaymentService
 {
     private static readonly TimeSpan QuoteLifetime = TimeSpan.FromMinutes(30);
@@ -26,6 +27,8 @@ public sealed class PaymentService(
         if (!Enum.IsDefined(provider))
             throw new ArgumentOutOfRangeException(nameof(provider));
         await authorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
+        if (!await platformControls.IsEnabledAsync(PlatformFeature.TopUps, cancellationToken))
+            throw new InvalidOperationException("Top-ups are temporarily unavailable.");
         var now = clock.GetUtcNow();
         var fx = await store.FindLatestFxAsync(now, cancellationToken)
             ?? throw new InvalidOperationException("No operator-published FX snapshot is available.");
@@ -61,6 +64,8 @@ public sealed class PaymentService(
                 throw new InvalidOperationException("The idempotency key belongs to another quote.");
             return new PaymentCreateIntentResult(existing, true, BuildCheckoutUrl(existing));
         }
+        if (!await platformControls.IsEnabledAsync(PlatformFeature.TopUps, cancellationToken))
+            throw new InvalidOperationException("Top-ups are temporarily unavailable.");
         if (clock.GetUtcNow() >= quote.ExpiresAt)
             throw new InvalidOperationException("The quote has expired.");
         var scope = configuration.MerchantScope(quote.Provider);

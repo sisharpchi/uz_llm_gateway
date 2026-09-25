@@ -418,10 +418,19 @@ Reconciliation/status.
 Read-only inspection + controlled adjustment workflow.
 
 ### Incidents
-Disable provider/model, maintenance notice.
+Disable provider/model/mapping/credential, pause managed admission or new top-ups.
+Current P0 switches do not publish a customer-facing maintenance notice;
+that presentation remains follow-up work.
 
 ### Audit
 Sensitive action trail.
+
+The P0 console lives in `frontend/apps/admin` and uses the Management API,
+not the root `frontend/` design mockup's sample data. Account/organization
+search, provider/mapping/credential controls, future-effective price history,
+payment evidence, read-only ledger, incident switches, and audit are live.
+Manual ledger adjustment/refund and independent merchant-state lookup remain
+later work; the Payments page must label callback evidence honestly.
 
 ---
 

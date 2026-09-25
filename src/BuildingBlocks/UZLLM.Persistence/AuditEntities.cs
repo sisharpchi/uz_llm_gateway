@@ -6,7 +6,7 @@ public sealed class AuditEventEntity
 {
     public Guid Id { get; set; }
 
-    public Guid OrganizationId { get; set; }
+    public Guid? OrganizationId { get; set; }
 
     public Guid ActorAccountId { get; set; }
 
@@ -22,7 +22,7 @@ public sealed class AuditEventEntity
 
     public DateTimeOffset OccurredAt { get; set; }
 
-    public OrganizationEntity Organization { get; set; } = null!;
+    public OrganizationEntity? Organization { get; set; }
 
     public IdentityAccountEntity ActorAccount { get; set; } = null!;
 }

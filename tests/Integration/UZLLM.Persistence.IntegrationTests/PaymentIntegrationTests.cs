@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using UZLLM.Management.Api.Administration;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Organizations.Application;
@@ -21,6 +22,36 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
 {
     private static readonly PaymentConfiguration Config = new(100, 0, "payme-test-merchant",
         "payme-test-key", "click-test-merchant", "click-test-service", "click-test-secret");
+
+    [Fact]
+    public async Task Top_up_incident_pause_blocks_new_checkout_but_not_verified_callback_finalization()
+    {
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var service = Service(scope.ServiceProvider);
+        var controls = scope.ServiceProvider.GetRequiredService<IPlatformControlStore>();
+        var quote = await service.CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Payme, new UzsTiyinAmount(100_000));
+        var intent = (await service.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            quote.Id, "incident-checkout")).Intent;
+        Assert.True(await controls.SetEnabledAsync(PlatformFeature.TopUps, false, DateTimeOffset.UtcNow));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateQuoteAsync(
+            seed.AccountId, seed.OrganizationId, PaymentProvider.Payme, new UzsTiyinAmount(100_000)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateIntentAsync(
+            seed.AccountId, seed.OrganizationId, quote.Id, "incident-new-intent"));
+        var replay = await service.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            quote.Id, "incident-checkout");
+        Assert.True(replay.Duplicate);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes("incident-callback"));
+        Assert.Equal(PaymentCommandStatus.Accepted, (await service.PrepareAsync(PaymentProvider.Payme,
+            intent.Id, "incident-tx", intent.Amount, 1000, "incident:create", hash)).Status);
+        Assert.Equal(PaymentCommandStatus.Accepted, (await service.CompleteAsync(PaymentProvider.Payme,
+            "incident-tx", null, null, "incident:perform", hash)).Status);
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>().CountAsync(value =>
+            value.ReferenceType == "payment_intent" && value.ReferenceId == intent.Id && value.Type == "TopUp"));
+    }
 
     [Fact]
     public async Task PAY_001_three_Payme_Perform_callbacks_credit_wallet_once()
@@ -58,6 +89,12 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
         Assert.Equal(PaymentStatus.Paid, (await service.GetIntentAsync(seed.AccountId,
             seed.OrganizationId, result.Intent.Id))!.Status);
         Assert.Equal(1, await db.Set<PaymentIntentEntity>().CountAsync(item => item.Id == result.Intent.Id));
+        var operatorView = Assert.Single(await new PostgreSqlAdminReadStore(db).ListPaymentsAsync(
+            seed.OrganizationId, 50, default));
+        Assert.Equal("Paid", operatorView.LocalStatus);
+        Assert.Equal("VerifiedCallbackSeen", operatorView.ProviderObservation);
+        Assert.True(operatorView.HasCredit);
+        Assert.False(operatorView.HasReversal);
     }
 
     [Fact]
@@ -115,6 +152,8 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
             item.ExternalReferenceId == intent.Id));
         Assert.Equal(1, await db.Set<BillingRecoveryDebtEntity>().CountAsync(item =>
             item.OrganizationId == seed.OrganizationId));
+        Assert.True(Assert.Single(await new PostgreSqlAdminReadStore(db).ListPaymentsAsync(
+            seed.OrganizationId, 50, default)).HasReversal);
     }
 
     [Fact]
@@ -386,7 +425,8 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
             services.GetRequiredService<ITransactionCoordinator>(),
             services.GetRequiredService<ILeasedJobStore>(),
             services.GetRequiredService<IOutboxStore>(),
-            services.GetRequiredService<IOperationalAlertPublisher>(), Config, TimeProvider.System);
+            services.GetRequiredService<IOperationalAlertPublisher>(),
+            services.GetRequiredService<IPlatformControlStore>(), Config, TimeProvider.System);
     }
 
     // CLICK official Shop API examples use this exact concatenation, with the Prepare ID

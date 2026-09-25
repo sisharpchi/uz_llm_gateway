@@ -6,6 +6,7 @@ using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Routing.Contracts;
 using UZLLM.Modules.Usage.Contracts;
+using UZLLM.Persistence;
 
 namespace UZLLM.Gateway.Api.Inference;
 
@@ -22,6 +23,7 @@ public sealed class InferenceGateway(
     IFinancialService finance, IUsageService usage,
     IProviderAdapterSelector adapters, IProviderHealthService health,
     ICompletionWriterFactory writerFactory,
+    IPlatformControlStore platformControls,
     GatewayOptions options, TimeProvider clock, ILogger<InferenceGateway> logger) : IInferenceGateway
 {
     public async Task ListModelsAsync(HttpContext context, CancellationToken cancellationToken)
@@ -96,6 +98,12 @@ public sealed class InferenceGateway(
             {
                 await WriteErrorAsync(context, new(403, "project_unavailable", "permission_error",
                     "Project is unavailable."), cancellationToken);
+                return;
+            }
+            if (!await platformControls.IsEnabledAsync(PlatformFeature.ManagedTraffic, cancellationToken))
+            {
+                await WriteErrorAsync(context, new(503, "managed_traffic_paused", "server_error",
+                    "Managed traffic is temporarily unavailable."), cancellationToken);
                 return;
             }
             if (!context.Request.HasJsonContentType())

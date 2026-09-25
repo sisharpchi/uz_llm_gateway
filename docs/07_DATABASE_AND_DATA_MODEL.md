@@ -285,7 +285,7 @@ Keep separate so metadata retention can differ from prompt/response retention.
 
 ### `audit.audit_event`
 - id
-- organization_id
+- organization_id (nullable only for global operator actions)
 - account_id (FK to `iam.user.id`)
 - action
 - resource_type
@@ -295,8 +295,12 @@ Keep separate so metadata retention can differ from prompt/response retention.
 - occurred_at
 
 Audit rows are append-only: the runtime database role cannot update or delete
-them. The table has tenant and actor foreign keys plus a descending
-`(organization_id, occurred_at)` index for scoped investigation.
+them. Tenant actions retain an organization FK; global operator actions have
+`organization_id = NULL` and retain the actor FK. The descending
+`(organization_id, occurred_at)` index supports scoped investigation. The
+`ops.platform_control` table holds authoritative `ManagedTraffic` and `TopUps`
+switches, seeded enabled by migration. A missing row or database failure fails
+new admission closed; neither switch cancels in-flight settlement or callbacks.
 
 Examples:
 - api_key.created

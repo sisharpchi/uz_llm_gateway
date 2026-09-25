@@ -21,6 +21,16 @@ export interface UsageBreakdown { dimension: string; from: string; to: string; d
 export interface UsageAttemptDetail { attemptId: Id; number: number; providerModelId: Id; providerCode: string; startedAt: string; completedAt: string | null; executionState: string; providerRequestId: string | null; errorCategory: string | null }
 export interface UsageEvidenceDetail { evidenceId: Id; attemptId: Id; state: string; source: string; inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; reasoningTokens: number | null; capturedAt: string; reconcileAfter: string | null }
 export interface UsageRequestDetail { request: UsageActivityItem; traceId: string | null; routeStrategy: string | null; providerCostMicroUsd: DecimalString | null; chargedMicroUsd: DecimalString | null; platformExposureMicroUsd: DecimalString | null; unresolvedUsage: boolean | null; attempts: UsageAttemptDetail[]; evidence: UsageEvidenceDetail[] }
+export interface AdminAccount { id: Id; email: string; status: string; emailVerified: boolean; isOperator: boolean; createdAt: string }
+export interface AdminOrganization { id: Id; name: string; status: string; postedBalanceMicroUsd: DecimalString | null; reservedBalanceMicroUsd: DecimalString | null; createdAt: string }
+export interface AdminMapping { id: Id; providerId: Id; modelId: Id; modelCode: string; modelStatus: string; upstreamModelCode: string; status: string }
+export interface AdminCredential { id: Id; providerId: Id; status: string; keyVersion: string; createdAt: string }
+export interface AdminProvider { id: Id; code: string; name: string; status: string; mappings: AdminMapping[]; credentials: AdminCredential[] }
+export interface AdminPrice { id: Id; providerModelId: Id; effectiveFrom: string; effectiveTo: string | null; inputPriceMicroUsdPerMillion: DecimalString; outputPriceMicroUsdPerMillion: DecimalString; cachedInputPriceMicroUsdPerMillion: DecimalString | null }
+export interface AdminLedgerEntry { id: Id; organizationId: Id; type: string; amountMicroUsd: DecimalString; referenceType: string; referenceId: Id; occurredAt: string }
+export interface AdminPayment { id: Id; organizationId: Id; provider: string; localStatus: string; providerObservation: string; amountTiyin: DecimalString; creditMicroUsd: DecimalString; externalTransactionId: string | null; hasCredit: boolean; hasReversal: boolean; reconciliationReason: string | null; reconciliationStatus: string | null; callbackCount: number; createdAt: string }
+export interface AdminControl { feature: 'ManagedTraffic' | 'TopUps'; enabled: boolean; updatedAt: string }
+export interface AdminAudit { id: Id; organizationId: Id | null; actorAccountId: Id; action: string; resourceType: string; resourceId: Id | null; occurredAt: string }
 
 export class ApiError extends Error {
   constructor(readonly status: number) { super(`Request failed (${status})`); }
@@ -55,6 +65,23 @@ export const management = {
   verifyEmail: (token: string) => request<void>('/auth/verify-email', { method: 'POST', body: json({ token }) }),
   login: (email: string, password: string) => request<void>('/auth/login', { method: 'POST', body: json({ email, password }) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  operatorAccess: () => request<{ recentMfa: boolean }>('/admin/access'),
+  enrollOperatorMfa: (password: string) => request<{ sharedSecret: string }>('/auth/operator/mfa/enroll', { method: 'POST', body: json({ password }) }),
+  verifyOperatorMfa: (code: string) => request<void>('/auth/operator/mfa/verify', { method: 'POST', body: json({ code }) }),
+  adminAccounts: (query: string) => request<AdminAccount[]>(`/admin/accounts?query=${encodeURIComponent(query)}`),
+  adminOrganizations: (query: string) => request<AdminOrganization[]>(`/admin/organizations?query=${encodeURIComponent(query)}`),
+  adminProviders: () => request<AdminProvider[]>('/admin/providers'),
+  adminPrices: (mappingId: Id) => request<AdminPrice[]>(`/admin/mappings/${encodeURIComponent(mappingId)}/prices`),
+  adminLedger: (organizationId: Id) => request<AdminLedgerEntry[]>(`/admin/organizations/${encodeURIComponent(organizationId)}/ledger`),
+  adminPayments: (organizationId?: Id) => request<AdminPayment[]>(`/admin/payments${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ''}`),
+  adminAudit: () => request<AdminAudit[]>('/admin/audit'),
+  adminControls: () => request<AdminControl[]>('/admin/controls'),
+  adminCreateProvider: (code: string, name: string, reason: string) => request<{ id: Id }>('/admin/providers', { method: 'POST', body: json({ code, name, reason }) }),
+  adminCreateModel: (code: string, name: string, contextLength: number, maxOutputTokens: number, capabilities: string[], reason: string) => request<{ id: Id }>('/admin/models', { method: 'POST', body: json({ code, name, contextLength, maxOutputTokens, capabilities, reason }) }),
+  adminCreateMapping: (providerId: Id, modelId: Id, upstreamModelCode: string, reason: string) => request<{ id: Id }>('/admin/mappings', { method: 'POST', body: json({ providerId, modelId, upstreamModelCode, endpointReference: null, reason }) }),
+  adminCreateCredential: (providerId: Id, secret: string, reason: string) => request<{ id: Id }>('/admin/credentials', { method: 'POST', body: json({ providerId, secret, reason }) }),
+  adminSchedulePrice: (providerModelId: Id, effectiveFrom: string, inputPriceMicroUsdPerMillion: number, outputPriceMicroUsdPerMillion: number, reason: string) => request<{ id: Id }>('/admin/prices', { method: 'POST', body: json({ providerModelId, effectiveFrom, inputPriceMicroUsdPerMillion, outputPriceMicroUsdPerMillion, cachedInputPriceMicroUsdPerMillion: null, reason }) }),
+  adminSetStatus: (kind: 'providers' | 'models' | 'mappings' | 'credentials' | 'controls', id: Id, enabled: boolean, reason: string) => request<void>(`/admin/${kind}/${encodeURIComponent(id)}`, { method: 'PATCH', body: json({ enabled, reason }) }),
   organizations: () => request<Organization[]>('/organizations'),
   createOrganization: (name: string) => request<Organization>('/organizations', { method: 'POST', body: json({ name }) }),
   projects: (organizationId: Id) => request<Project[]>(`/organizations/${organizationId}/projects`),

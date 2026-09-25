@@ -333,6 +333,7 @@ GET  /management/v1/auth/session
 POST /management/v1/auth/recover
 POST /management/v1/auth/reset-password
 POST /management/v1/auth/operator/mfa/verify
+POST /management/v1/auth/operator/mfa/enroll
 ```
 
 Successful login issues an opaque server-backed `__Host-uzllm-session` cookie
@@ -340,6 +341,38 @@ Successful login issues an opaque server-backed `__Host-uzllm-session` cookie
 cookie. State-changing authenticated browser endpoints require the matching
 `X-CSRF-Token` header. Verification and recovery tokens are one-time opaque
 secrets and must never be returned in HTTP responses or logs.
+
+### Operator endpoints implemented by ADMIN-001
+
+All routes use `/management/v1/admin` and require an active operator grant.
+Except `/access`, they also require recent (15-minute) MFA verification.
+Mutations additionally require `X-CSRF-Token` and a mandatory `reason`
+(8–500 characters).
+
+```text
+GET   /access
+GET   /accounts?query=<email-fragment>
+GET   /organizations?query=<name-fragment>
+GET   /providers
+GET   /mappings/{id}/prices
+GET   /organizations/{id}/ledger?limit=50
+GET   /payments?organizationId=<optional>&limit=50
+GET   /audit?limit=50
+GET   /controls
+POST  /providers | /models | /mappings | /credentials | /prices
+PATCH /providers/{id} | /models/{id} | /mappings/{id}
+PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
+```
+
+`PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
+Prices must be future-effective; scheduling closes the current interval in the
+same transaction and never rewrites its rate values. Ledger is read-only.
+Payment `providerObservation` is `VerifiedCallbackSeen` or `Unverified`: it
+reports local verified callback evidence, not independent merchant status.
+Reconciliation cases and credit/reversal flags are shown separately. A
+paused `TopUps` control rejects new quotes/intents but verified callbacks and
+settlement continue; `ManagedTraffic` rejects new managed inference before
+reservation/dispatch. Initial operator grant is out-of-band.
 
 Wallet responses distinguish `posted`, `reserved`, `available`, `recoveryDebt`,
 and `spendingHeld`. Request detail distinguishes execution, delivery, and

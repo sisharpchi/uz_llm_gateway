@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\..\src\Modules\Providers\UZLLM.Modules.Providers.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
     <ProjectReference Include="..\..\..\src\UZLLM.Gateway.Api\UZLLM.Gateway.Api.csproj" />
+    <ProjectReference Include="..\..\..\src\UZLLM.Management.Api\UZLLM.Management.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -9,7 +9,8 @@ public sealed class AuditTrail(IAuditEventStore store, TimeProvider timeProvider
     public async Task<AuditEvent> RecordAsync(AuditEventInput input, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
-        ValidateIdentifier(input.OrganizationId, nameof(input.OrganizationId));
+        if (input.OrganizationId is { } organizationId)
+            ValidateIdentifier(organizationId, nameof(input.OrganizationId));
         ValidateIdentifier(input.ActorAccountId, nameof(input.ActorAccountId));
         ValidateText(input.Action, 200, nameof(input.Action));
         ValidateText(input.ResourceType, 100, nameof(input.ResourceType));

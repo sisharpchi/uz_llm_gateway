@@ -9,7 +9,9 @@ using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Projects.Infrastructure;
 using UZLLM.Modules.Payments.Infrastructure;
 using UZLLM.Modules.Usage.Infrastructure;
+using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Management.Api;
+using UZLLM.Management.Api.Administration;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddUzllmPersistence(builder.Configuration);
@@ -22,9 +24,11 @@ builder.Services.AddUzllmApiKeys(builder.Configuration);
 builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmUsage();
 builder.Services.AddUzllmCatalog();
+builder.Services.AddUzllmProviders(builder.Configuration);
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmProjects();
 builder.Services.AddUzllmPayments(builder.Configuration);
+builder.Services.AddUzllmAdministration();
 var app = builder.Build();
 
 app.UseUzllmRequestCorrelation();
@@ -36,4 +40,5 @@ app.MapUzllmProjectEndpoints();
 app.MapUzllmApiKeyEndpoints();
 app.MapUzllmPaymentEndpoints();
 app.MapUzllmUsageReadEndpoints();
+app.MapUzllmAdminEndpoints();
 app.Run();

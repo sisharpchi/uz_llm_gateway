@@ -136,14 +136,23 @@ public sealed class IdentityService(
     public async Task<OperatorMfaEnrollment> EnrollOperatorMfaAsync(Guid accountId, CancellationToken cancellationToken = default)
     {
         var access = await store.FindOperatorAccessAsync(accountId, cancellationToken);
-        if (access is not { IsActive: true })
+        if (access is not { IsActive: true, MfaEnabledAt: null })
         {
-            throw new InvalidOperationException("Only an active operator may enroll MFA.");
+            throw new InvalidOperationException("Only an active operator without existing MFA may enroll.");
         }
 
         var sharedSecret = totpAuthenticator.CreateSharedSecret();
         await store.SetOperatorMfaAsync(accountId, secretProtector.Protect(sharedSecret), timeProvider.GetUtcNow(), cancellationToken);
         return new OperatorMfaEnrollment(sharedSecret);
+    }
+
+    public async Task<bool> VerifyOperatorPasswordAsync(Guid accountId, string password,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await store.FindAccountByIdAsync(accountId, cancellationToken);
+        return account is { Status: IdentityAccountStatus.Active }
+            && (await store.FindOperatorAccessAsync(accountId, cancellationToken)) is { IsActive: true }
+            && passwordHasher.Verify(password, account.PasswordHash);
     }
 
     public async Task<bool> VerifyOperatorMfaAsync(string sessionToken, string code, CancellationToken cancellationToken = default)

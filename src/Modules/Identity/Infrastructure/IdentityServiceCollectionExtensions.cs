@@ -137,6 +137,23 @@ public static class IdentityServiceCollectionExtensions
                 : Results.Unauthorized())
             .RequireIdentityCsrf();
 
+        auth.MapPost("/operator/mfa/enroll", async (OperatorMfaEnrollmentRequest request,
+            HttpContext context, IIdentityService identityService, CancellationToken cancellationToken) =>
+        {
+            if (context.User.FindFirst("uzllm:operator")?.Value != "true"
+                || !Guid.TryParse(context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var actor)
+                || !await identityService.VerifyOperatorPasswordAsync(actor, request.Password, cancellationToken))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            try
+            {
+                return Results.Ok(await identityService.EnrollOperatorMfaAsync(actor, cancellationToken));
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.Conflict();
+            }
+        }).RequireIdentityCsrf();
+
         return endpoints;
     }
 
@@ -179,6 +196,8 @@ public static class IdentityServiceCollectionExtensions
     private sealed record ResetPasswordRequest(string Token, string NewPassword);
 
     private sealed record TotpRequest(string Code);
+
+    private sealed record OperatorMfaEnrollmentRequest(string Password);
 
     private sealed record SessionResponse(Guid AccountId, string Email, bool EmailVerified, bool IsOperator);
 }

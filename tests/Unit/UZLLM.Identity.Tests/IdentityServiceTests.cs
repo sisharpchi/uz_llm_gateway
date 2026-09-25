@@ -129,4 +129,17 @@ public sealed class IdentityServiceTests
         fixture.Clock.Advance(TimeSpan.FromMinutes(16));
         Assert.False(await fixture.Service.HasRecentOperatorReauthenticationAsync(session.SessionToken));
     }
+
+    [Fact]
+    public async Task Operator_Mfa_enrollment_requires_password_and_cannot_replace_an_existing_secret()
+    {
+        var fixture = new IdentityFixture();
+        var registration = await fixture.RegisterAndVerifyAsync();
+        Assert.False(await fixture.Service.VerifyOperatorPasswordAsync(registration.AccountId, "correct horse battery staple"));
+        await fixture.Service.GrantOperatorAccessAsync(registration.AccountId);
+        Assert.False(await fixture.Service.VerifyOperatorPasswordAsync(registration.AccountId, "wrong password"));
+        Assert.True(await fixture.Service.VerifyOperatorPasswordAsync(registration.AccountId, "correct horse battery staple"));
+        _ = await fixture.Service.EnrollOperatorMfaAsync(registration.AccountId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.EnrollOperatorMfaAsync(registration.AccountId));
+    }
 }

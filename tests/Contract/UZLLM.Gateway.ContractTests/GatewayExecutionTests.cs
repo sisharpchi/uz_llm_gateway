@@ -11,6 +11,7 @@ using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Routing.Contracts;
 using UZLLM.Modules.Usage.Contracts;
+using UZLLM.Persistence;
 
 namespace UZLLM.Gateway.ContractTests;
 
@@ -101,6 +102,19 @@ public sealed class GatewayExecutionTests
         Assert.Equal(503, fixture.Context.Response.StatusCode);
         Assert.Equal(0, fixture.Adapter.CompleteCalls);
         Assert.Equal(1, fixture.Limiter.Releases);
+    }
+
+    [Fact]
+    public async Task Managed_traffic_incident_switch_rejects_before_reservation_or_dispatch()
+    {
+        var fixture = new Scenario();
+        fixture.PlatformControls.Enabled = false;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(503, fixture.Context.Response.StatusCode);
+        Assert.Equal(0, fixture.Finance.Reserves);
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
     }
 
     [Fact]
@@ -379,6 +393,7 @@ public sealed class GatewayExecutionTests
         public readonly FakeAdapter Adapter = new("openai");
         public readonly FakeAdapter AnthropicAdapter = new("anthropic");
         public readonly FakeHealth Health;
+        public readonly FakePlatformControls PlatformControls = new();
         public readonly FakeWriter Writer = new();
         private readonly CancellationTokenSource abort = new();
         public readonly FakeReadStore Reads;
@@ -429,7 +444,7 @@ public sealed class GatewayExecutionTests
             gateway = new InferenceGateway(new FakeAuthenticator(apiKeyId, projectId), Reads,
                 catalog, Limiter, new FakeQuota(), new RequestConstraintValidator(), Finance,
                 Usage, new FakeAdapterSelector(Adapter, AnthropicAdapter), Health,
-                new FakeWriterFactory(Writer),
+                new FakeWriterFactory(Writer), PlatformControls,
                 new GatewayOptions("default", 1_048_576, TimeSpan.FromMinutes(2),
                     TimeSpan.FromMinutes(15), new LimitPolicy(60, 600, 8, 64, TimeSpan.FromMinutes(15))),
                 TimeProvider.System, NullLogger<InferenceGateway>.Instance);
@@ -663,5 +678,16 @@ public sealed class GatewayExecutionTests
         { StreamFinished = true; Started = true; return Task.CompletedTask; }
         public Task WriteStreamErrorAsync(string message, string code, CancellationToken cancellationToken)
         { Errors++; return Task.CompletedTask; }
+    }
+
+    private sealed class FakePlatformControls : IPlatformControlStore
+    {
+        public bool Enabled = true;
+        public Task<bool> IsEnabledAsync(PlatformFeature feature, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Enabled);
+        public Task<IReadOnlyList<PlatformControl>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PlatformControl>>([]);
+        public Task<bool> SetEnabledAsync(PlatformFeature feature, bool enabled, DateTimeOffset now,
+            CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 }

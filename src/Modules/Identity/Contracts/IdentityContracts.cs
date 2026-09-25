@@ -32,6 +32,8 @@ public interface IIdentityService
 
     Task<OperatorMfaEnrollment> EnrollOperatorMfaAsync(Guid accountId, CancellationToken cancellationToken = default);
 
+    Task<bool> VerifyOperatorPasswordAsync(Guid accountId, string password, CancellationToken cancellationToken = default);
+
     Task<bool> VerifyOperatorMfaAsync(string sessionToken, string code, CancellationToken cancellationToken = default);
 
     Task<bool> HasRecentOperatorReauthenticationAsync(string sessionToken, CancellationToken cancellationToken = default);

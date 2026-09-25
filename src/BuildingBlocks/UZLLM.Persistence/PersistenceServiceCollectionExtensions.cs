@@ -22,6 +22,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IConsumerInboxStore, PostgreSqlConsumerInboxStore>();
         services.AddScoped<ILeasedJobStore, PostgreSqlLeasedJobStore>();
         services.AddScoped<IOperationalAlertPublisher, PostgreSqlOperationalAlertPublisher>();
+        services.AddScoped<IPlatformControlStore, PostgreSqlPlatformControlStore>();
 
         return services;
     }
