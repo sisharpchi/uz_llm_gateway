@@ -91,10 +91,16 @@ Unsupported parameter behavior should be explicit.
 
 The P0 Gateway accepts the listed chat fields plus `max_completion_tokens` and
 `stream_options.include_usage`; it rejects unsupported top-level fields with
-`400 unsupported_parameter`. `model` may be canonical or `openai/<canonical>`.
-Only the OpenAI route exists until `PROVIDER-002`; an explicit provider route is
-never silently substituted. An omitted output limit uses the catalog model's
-maximum. For streaming, `data: [DONE]` follows a complete upstream stream;
+`400 unsupported_parameter`. `model` may be canonical, `openai/<canonical>`,
+or `anthropic/<canonical>` when an active provider mapping exists. An explicit
+provider route is never silently substituted. Canonical routing prefers OpenAI,
+then Anthropic, and may fail over only to another mapping of that same canonical
+model after a verified pre-execution transient rejection and before any output.
+At most two provider attempts share one reservation and total provider deadline.
+The `/v1/models` price fields are conservative per-token maxima across active
+supported mappings; actual charges use the selected attempt's price version.
+An omitted output limit uses the catalog model's maximum. For streaming,
+`data: [DONE]` follows a complete upstream stream;
 an interrupted stream emits a safe terminal error instead of replaying output.
 Missing provider usage leaves financial evidence unknown and the hold pending
 reconciliation rather than charging zero.

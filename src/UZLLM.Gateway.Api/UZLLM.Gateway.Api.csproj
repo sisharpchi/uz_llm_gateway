@@ -13,7 +13,9 @@
     <ProjectReference Include="..\Modules\Billing\UZLLM.Modules.Billing.csproj" />
     <ProjectReference Include="..\Modules\Usage\UZLLM.Modules.Usage.csproj" />
     <ProjectReference Include="..\Modules\Providers\UZLLM.Modules.Providers.csproj" />
+    <ProjectReference Include="..\Modules\Routing\UZLLM.Modules.Routing.csproj" />
     <ProjectReference Include="..\ProviderAdapters\UZLLM.Provider.OpenAI\UZLLM.Provider.OpenAI.csproj" />
+    <ProjectReference Include="..\ProviderAdapters\UZLLM.Provider.Anthropic\UZLLM.Provider.Anthropic.csproj" />
   </ItemGroup>
 
 </Project>

@@ -302,3 +302,25 @@ finish, and safe-error events. If an error occurs after HTTP headers/output,
 emit a safe terminal SSE error when the response shape permits and close; do not
 fabricate success or transparently replay the stream. Client cancellation stops
 upstream transport but does not cancel evidence/financial cleanup.
+
+## 15. P0 implementation boundary
+
+The gateway orders eligible mappings OpenAI before Anthropic (then by mapping
+ID), skips open Redis-backed provider-model circuits, and reserves the maximum
+estimated charge across at most two eligible mappings. It records each attempt
+under one logical request. A verified 429 or overload rejection may try the
+next mapping only before downstream output; 5xx, timeout, transport ambiguity,
+and mid-stream errors remain unknown financial outcomes and are not retried.
+The Redis circuit opens after three transient failures in one minute for 30
+seconds; an unavailable health dependency fails new managed admission closed.
+Detailed latency/throughput scoring and cross-model fallback remain P1.
+
+Anthropic translation uses its [Messages API](https://platform.claude.com/docs/en/api/messages/create),
+[stream event protocol](https://platform.claude.com/docs/en/build-with-claude/streaming),
+and [error codes](https://platform.claude.com/docs/en/api/errors). Its
+`cache_read_input_tokens` are included in total normalized input and marked as
+cached; unexpected cache-creation usage is left unknown rather than priced as
+ordinary input until Catalog supports that distinct upstream price dimension.
+An Anthropic refusal is a successful, billable provider response, not a
+failover trigger. Live model access, pricing, and platform credentials remain
+deployment/operator prerequisites.

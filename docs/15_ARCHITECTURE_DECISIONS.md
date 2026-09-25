@@ -202,7 +202,7 @@ Financial state is strongly consistent. Analytics rollups may lag briefly.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** PROVIDER-002 deterministic same-model healthy failover implemented
 
 MVP:
 - explicit provider/model;
@@ -248,7 +248,7 @@ This prevents lost side effects after committed transactions.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** Not implemented
+**Implementation status:** PROVIDER-002 OpenAI and Anthropic adapters implemented; paid-launch verification remains external
 
 The sellable MVP requires OpenAI, Anthropic, Payme, and CLICK. Provider families
 do not make models interchangeable; P0 failover remains same-model only.

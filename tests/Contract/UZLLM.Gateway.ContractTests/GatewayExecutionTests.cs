@@ -9,6 +9,7 @@ using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
+using UZLLM.Modules.Routing.Contracts;
 using UZLLM.Modules.Usage.Contracts;
 
 namespace UZLLM.Gateway.ContractTests;
@@ -28,6 +29,19 @@ public sealed class GatewayExecutionTests
         Assert.Equal("gpt-test", model.GetProperty("id").GetString());
         Assert.Equal(8192, model.GetProperty("context_length").GetInt32());
         Assert.False(model.TryGetProperty("credential_id", out _));
+    }
+
+    [Fact]
+    public async Task Models_endpoint_shows_conservative_price_when_failover_can_cost_more()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        await fixture.ListAsync();
+        fixture.Context.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(fixture.Context.Response.Body);
+        var price = Assert.Single(response.RootElement.GetProperty("data").EnumerateArray())
+            .GetProperty("pricing");
+        Assert.Equal(2000, price.GetProperty("input_micro_usd_per_million").GetInt64());
+        Assert.Equal(4000, price.GetProperty("output_micro_usd_per_million").GetInt64());
     }
 
     [Fact]
@@ -138,6 +152,155 @@ public sealed class GatewayExecutionTests
     }
 
     [Fact]
+    public async Task Same_model_rate_limit_fails_over_once_with_one_worst_case_reservation()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, "openai-req",
+            "Provider rate limit was reached.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(2, fixture.Usage.Attempts);
+        Assert.Equal(1, fixture.Finance.Reserves);
+        Assert.Equal(1, fixture.Usage.VerifiedEvidence);
+        Assert.Equal(0, fixture.Usage.UnknownEvidence);
+        Assert.Equal(1, fixture.Finance.Finalizes);
+        Assert.Equal(0, fixture.Finance.Releases);
+        Assert.Equal("anthropic", fixture.Context.Response.Headers["X-Uzllm-Provider"]);
+        Assert.Equal("deterministic:failover:anthropic", fixture.Usage.RouteStrategy);
+        Assert.Equal(17, fixture.Finance.LastMaximum!.Value.Value);
+        Assert.Equal(fixture.AnthropicPriceId, fixture.Usage.VerifiedPriceId);
+        Assert.Equal(1, fixture.Health.Failures);
+    }
+
+    [Fact]
+    public async Task Unknown_upstream_5xx_never_fails_over_or_releases_as_zero()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.Upstream5xx,
+            ProviderExecutionCertainty.Unknown, false, false, 503, "openai-req",
+            "Provider outcome is unknown.");
+        fixture.Finance.NextFinalization = FinalizationStatus.PendingEvidence;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Usage.UnknownEvidence);
+        Assert.Equal(0, fixture.Finance.Releases);
+        Assert.Equal(1, fixture.Finance.Finalizes);
+    }
+
+    [Fact]
+    public async Task Pinned_provider_does_not_substitute_after_eligible_rejection()
+    {
+        var fixture = new Scenario(twoProviders: true, modelCode: "openai/gpt-test");
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+            "Provider rate limit was reached.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Finance.Releases);
+    }
+
+    [Fact]
+    public async Task Explicit_anthropic_route_uses_only_anthropic_mapping()
+    {
+        var fixture = new Scenario(twoProviders: true, modelCode: "anthropic/gpt-test");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Usage.Attempts);
+        Assert.Equal("anthropic", fixture.Context.Response.Headers["X-Uzllm-Provider"]);
+        Assert.Equal("deterministic:anthropic", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Open_circuit_excludes_primary_before_reservation_and_attempt()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.Health.OpenPrimary = true;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Usage.Attempts);
+        Assert.Equal("anthropic", fixture.Context.Response.Headers["X-Uzllm-Provider"]);
+    }
+
+    [Fact]
+    public async Task Health_dependency_failure_fails_closed_before_reservation()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.Health.Unavailable = true;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(503, fixture.Context.Response.StatusCode);
+        Assert.Equal(0, fixture.Finance.Reserves);
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+    }
+
+    [Fact]
+    public async Task Model_limit_rejection_remains_a_client_error_with_multiple_mappings()
+    {
+        var fixture = new Scenario(twoProviders: true, outputTokens: 10000);
+
+        await fixture.RunAsync();
+
+        Assert.Equal(400, fixture.Context.Response.StatusCode);
+        Assert.Equal(0, fixture.Finance.Reserves);
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+    }
+
+    [Fact]
+    public async Task Partial_stream_rejection_does_not_replay_on_second_provider()
+    {
+        var fixture = new Scenario(stream: true, twoProviders: true);
+        fixture.Adapter.StreamItems = [new ProviderStreamEvent(ProviderStreamKind.TextDelta, Text: "partial"),
+            new ProviderStreamEvent(ProviderStreamKind.Error, Error: new ProviderError(
+                ProviderErrorCategory.RateLimited, ProviderExecutionCertainty.RejectedBeforeExecution,
+                true, true, 429, null, "Provider rate limit was reached."))];
+        fixture.Finance.NextFinalization = FinalizationStatus.PendingEvidence;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.StreamCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.StreamCalls);
+        Assert.Equal(1, fixture.Usage.UnknownEvidence);
+        Assert.False(fixture.Writer.StreamFinished);
+    }
+
+    [Fact]
+    public async Task Sse_error_event_before_output_is_unknown_and_never_falls_back()
+    {
+        var fixture = new Scenario(stream: true, twoProviders: true);
+        fixture.Adapter.StreamItems = [new ProviderStreamEvent(ProviderStreamKind.Error,
+            Error: new ProviderError(ProviderErrorCategory.RateLimited,
+                ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+                "Provider rate limit was reached."))];
+        fixture.Finance.NextFinalization = FinalizationStatus.PendingEvidence;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.StreamCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.StreamCalls);
+        Assert.Equal(1, fixture.Usage.UnknownEvidence);
+        Assert.Equal(0, fixture.Finance.Releases);
+    }
+
+    [Fact]
     public async Task Sse_disconnect_cancels_delivery_but_persists_unknown_evidence_and_finalizes()
     {
         var fixture = new Scenario(stream: true);
@@ -204,23 +367,29 @@ public sealed class GatewayExecutionTests
         private readonly Guid apiKeyId = Guid.NewGuid();
         private readonly Guid providerId = Guid.NewGuid();
         private readonly Guid mappingId = Guid.NewGuid();
+        private readonly Guid anthropicMappingId = Guid.NewGuid();
         private readonly Guid credentialId = Guid.NewGuid();
         private readonly Guid feeId = Guid.NewGuid();
         private readonly Guid priceId = Guid.NewGuid();
+        public readonly Guid AnthropicPriceId = Guid.NewGuid();
         public readonly DefaultHttpContext Context = new();
         public readonly FakeLimiter Limiter = new();
         public readonly FakeFinance Finance;
         public readonly FakeUsage Usage;
-        public readonly FakeAdapter Adapter = new();
+        public readonly FakeAdapter Adapter = new("openai");
+        public readonly FakeAdapter AnthropicAdapter = new("anthropic");
+        public readonly FakeHealth Health;
         public readonly FakeWriter Writer = new();
         private readonly CancellationTokenSource abort = new();
         public readonly FakeReadStore Reads;
         private readonly InferenceGateway gateway;
 
-        public Scenario(bool stream = false)
+        public Scenario(bool stream = false, bool twoProviders = false,
+            string modelCode = "gpt-test", int outputTokens = 100)
         {
             Finance = new FakeFinance(RequestId, organizationId, projectId, apiKeyId, feeId);
-            Usage = new FakeUsage(RequestId, mappingId);
+            Usage = new FakeUsage(RequestId);
+            Health = new FakeHealth(mappingId);
             var now = DateTimeOffset.UtcNow;
             var model = new CanonicalModel(Guid.NewGuid(), "gpt-test", "GPT Test", 8192, 512,
                 [CatalogCapability.Text], CatalogStatus.Active, now);
@@ -229,22 +398,38 @@ public sealed class GatewayExecutionTests
             var mapping = new ProviderModel(mappingId, providerId, model.Id, "gpt-test", null,
                 CatalogStatus.Active, [], now);
             var provider = new CatalogProvider(providerId, "openai", "OpenAI", CatalogStatus.Active, now);
-            var catalog = new FakeCatalog(new CatalogModelSummary(model,
-                [new CatalogProviderModelSummary(mapping, provider, price)]), price);
+            var mappings = new List<CatalogProviderModelSummary>
+            { new(mapping, provider, price) };
+            var prices = new Dictionary<Guid, ModelPrice> { [mappingId] = price };
+            if (twoProviders)
+            {
+                var anthropicId = Guid.NewGuid();
+                var anthropicMapping = new ProviderModel(anthropicMappingId, anthropicId, model.Id,
+                    "claude-test", null, CatalogStatus.Active, [], now);
+                var anthropicPrice = new ModelPrice(AnthropicPriceId, anthropicMappingId,
+                    now.AddDays(-1), null, 2000, 4000, null, "{}", now);
+                mappings.Add(new CatalogProviderModelSummary(anthropicMapping,
+                    new CatalogProvider(anthropicId, "anthropic", "Anthropic", CatalogStatus.Active, now),
+                    anthropicPrice));
+                prices[anthropicMappingId] = anthropicPrice;
+            }
+            var catalog = new FakeCatalog(new CatalogModelSummary(model, mappings), prices);
             var fee = new FeePolicyVersion(feeId, "default", 0, UsdMicroAmount.Zero,
                 now.AddDays(-1), null, now);
             Reads = new FakeReadStore(new GatewayTenantScope(organizationId, projectId), fee, credentialId);
             Context.Request.Headers.Authorization = "Bearer valid";
             Context.Request.ContentType = "application/json";
             Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes("""
-                {"model":"gpt-test","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"stream":STREAM}
-                """.Replace("STREAM", stream ? "true" : "false")));
+                {"model":"MODEL","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":MAX,"stream":STREAM}
+                """.Replace("STREAM", stream ? "true" : "false").Replace("MODEL", modelCode)
+                    .Replace("MAX", outputTokens.ToString(System.Globalization.CultureInfo.InvariantCulture))));
             Context.Response.Body = new MemoryStream();
             Context.RequestAborted = abort.Token;
             Writer.AbortSource = abort;
             gateway = new InferenceGateway(new FakeAuthenticator(apiKeyId, projectId), Reads,
                 catalog, Limiter, new FakeQuota(), new RequestConstraintValidator(), Finance,
-                Usage, new FakeAdapterSelector(Adapter), new FakeWriterFactory(Writer),
+                Usage, new FakeAdapterSelector(Adapter, AnthropicAdapter), Health,
+                new FakeWriterFactory(Writer),
                 new GatewayOptions("default", 1_048_576, TimeSpan.FromMinutes(2),
                     TimeSpan.FromMinutes(15), new LimitPolicy(60, 600, 8, 64, TimeSpan.FromMinutes(15))),
                 TimeProvider.System, NullLogger<InferenceGateway>.Instance);
@@ -274,13 +459,15 @@ public sealed class GatewayExecutionTests
             Task.FromResult<Guid?>(credentialId);
     }
 
-    private sealed class FakeCatalog(CatalogModelSummary summary, ModelPrice price) : ICatalogService
+    private sealed class FakeCatalog(CatalogModelSummary summary,
+        IReadOnlyDictionary<Guid, ModelPrice> prices) : ICatalogService
     {
         public Task<IReadOnlyList<CatalogModelSummary>> ListActiveModelsAsync(DateTimeOffset at,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<CatalogModelSummary>>([summary]);
         public Task<ModelPrice?> FindEffectivePriceAsync(Guid providerModelId, DateTimeOffset at,
-            CancellationToken cancellationToken = default) => Task.FromResult<ModelPrice?>(price);
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(prices.GetValueOrDefault(providerModelId));
         public Task<CatalogProvider> AddProviderAsync(string code, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CanonicalModel> AddModelAsync(string canonicalCode, string displayName, int contextLength, int maxOutputTokens, IEnumerable<CatalogCapability> capabilities, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ProviderModel> AddProviderModelAsync(Guid providerId, Guid modelId, string upstreamModelCode, string? endpointReference, IEnumerable<CatalogCapability>? capabilityOverrides, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -311,10 +498,27 @@ public sealed class GatewayExecutionTests
             CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
+    private sealed class FakeHealth(Guid primaryMappingId) : IProviderHealthService
+    {
+        public bool OpenPrimary, Unavailable;
+        public int Failures;
+        public Task<ProviderHealthState> CheckAsync(Guid providerModelId,
+            CancellationToken cancellationToken = default) => Task.FromResult(Unavailable
+                ? ProviderHealthState.DependencyUnavailable
+                : OpenPrimary && providerModelId == primaryMappingId ? ProviderHealthState.Open
+                    : ProviderHealthState.Healthy);
+        public Task RecordSuccessAsync(Guid providerModelId,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RecordTransientFailureAsync(Guid providerModelId,
+            CancellationToken cancellationToken = default)
+        { Failures++; return Task.CompletedTask; }
+    }
+
     private sealed class FakeFinance(Guid requestId, Guid organizationId, Guid projectId,
         Guid apiKeyId, Guid feeId) : IFinancialService
     {
         public int Reserves, Finalizes, Releases;
+        public UsdMicroAmount? LastMaximum;
         public AdmissionStatus NextAdmission = AdmissionStatus.Reserved;
         public FinalizationStatus NextFinalization = FinalizationStatus.Settled;
         public Exception? ReserveFailure, FinalizationFailure;
@@ -322,6 +526,7 @@ public sealed class GatewayExecutionTests
             CancellationToken cancellationToken = default)
         {
             Reserves++;
+            LastMaximum = input.MaximumCharge;
             if (ReserveFailure is not null) throw ReserveFailure;
             var reservation = NextAdmission == AdmissionStatus.Reserved
                 ? new Reservation(Guid.NewGuid(), requestId, organizationId, projectId, apiKeyId,
@@ -345,15 +550,17 @@ public sealed class GatewayExecutionTests
         public Task<bool> RecordLateExposureAsync(Guid evidenceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class FakeUsage(Guid requestId, Guid mappingId) : IUsageService
+    private sealed class FakeUsage(Guid requestId) : IUsageService
     {
         public int Attempts, VerifiedEvidence, UnknownEvidence;
         public DeliveryState? Delivery;
+        public string? RouteStrategy;
+        public Guid? VerifiedPriceId;
         public ExecutionState? AttemptFinalState;
         public ClaimResult? ExistingClaim;
         public Task<UsageAttempt> StartAttemptAsync(Guid id, Guid providerModelId,
             CancellationToken cancellationToken = default)
-        { Attempts++; return Task.FromResult(new UsageAttempt(Guid.NewGuid(), requestId, 1, mappingId,
+        { Attempts++; return Task.FromResult(new UsageAttempt(Guid.NewGuid(), requestId, Attempts, providerModelId,
             DateTimeOffset.UtcNow, null, ExecutionState.Prepared, null, null)); }
         public Task<bool> MarkDispatchedAsync(Guid attemptId, CancellationToken cancellationToken = default) => Task.FromResult(true);
         public Task<bool> FinishAttemptAsync(Guid attemptId, ExecutionState next, string? providerRequestId,
@@ -361,10 +568,11 @@ public sealed class GatewayExecutionTests
         { AttemptFinalState = next; return Task.FromResult(true); }
         public Task<bool> FinishRequestAsync(Guid id, ExecutionState execution, DeliveryState delivery,
             int httpStatus, string routeStrategy, CancellationToken cancellationToken = default)
-        { Delivery = delivery; return Task.FromResult(true); }
+        { Delivery = delivery; RouteStrategy = routeStrategy; return Task.FromResult(true); }
         public Task<UsageEvidence?> RecordVerifiedAsync(VerifiedUsageInput input,
             CancellationToken cancellationToken = default)
-        { VerifiedEvidence++; return Task.FromResult<UsageEvidence?>(null); }
+        { VerifiedEvidence++; VerifiedPriceId = input.PriceVersionId;
+            return Task.FromResult<UsageEvidence?>(null); }
         public Task<UsageEvidence?> RecordUnknownAsync(Guid id, Guid attemptId,
             CancellationToken cancellationToken = default)
         { UnknownEvidence++; return Task.FromResult<UsageEvidence?>(null); }
@@ -378,9 +586,9 @@ public sealed class GatewayExecutionTests
         public Task<IReadOnlyList<UsageEvidence>> ListEvidenceAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class FakeAdapter : ILlmProviderAdapter
+    private sealed class FakeAdapter(string providerCode) : ILlmProviderAdapter
     {
-        public string ProviderCode => "openai";
+        public string ProviderCode => providerCode;
         public int CompleteCalls, StreamCalls;
         public ProviderCompletion? Completion;
         public ProviderError? Error;
@@ -424,9 +632,11 @@ public sealed class GatewayExecutionTests
         public ICompletionWriter Create(HttpContext context) => writer;
     }
 
-    private sealed class FakeAdapterSelector(FakeAdapter adapter) : IProviderAdapterSelector
+    private sealed class FakeAdapterSelector(FakeAdapter openAi, FakeAdapter anthropic)
+        : IProviderAdapterSelector
     {
-        public ILlmProviderAdapter Get(string providerCode) => adapter;
+        public ILlmProviderAdapter Get(string providerCode) => providerCode == "anthropic"
+            ? anthropic : openAi;
     }
 
     private sealed class FakeWriter : ICompletionWriter

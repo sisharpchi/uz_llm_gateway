@@ -6,6 +6,8 @@ using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Usage.Infrastructure;
 using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Provider.OpenAI;
+using UZLLM.Provider.Anthropic;
+using UZLLM.Modules.Routing.Infrastructure;
 using UZLLM.Gateway.Api.Inference;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +22,8 @@ builder.Services.AddUzllmUsage();
 builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmProviders(builder.Configuration);
 builder.Services.AddUzllmOpenAiAdapter(builder.Configuration);
+builder.Services.AddUzllmAnthropicAdapter(builder.Configuration);
+builder.Services.AddUzllmRouting();
 builder.Services.AddSingleton(GatewayOptions.FromConfiguration(builder.Configuration));
 builder.Services.AddScoped<IGatewayReadStore, PostgreSqlGatewayReadStore>();
 builder.Services.AddScoped<IInferenceGateway, InferenceGateway>();

@@ -4,6 +4,7 @@ using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
+using UZLLM.Modules.Routing.Contracts;
 using UZLLM.Modules.Usage.Contracts;
 
 namespace UZLLM.Gateway.Api.Inference;
@@ -19,7 +20,8 @@ public sealed class InferenceGateway(
     ICatalogService catalog, IDistributedAdmissionLimiter limiter,
     IProviderQuotaProtection quota, IRequestConstraintValidator constraints,
     IFinancialService finance, IUsageService usage,
-    IProviderAdapterSelector adapters, ICompletionWriterFactory writerFactory,
+    IProviderAdapterSelector adapters, IProviderHealthService health,
+    ICompletionWriterFactory writerFactory,
     GatewayOptions options, TimeProvider clock, ILogger<InferenceGateway> logger) : IInferenceGateway
 {
     public async Task ListModelsAsync(HttpContext context, CancellationToken cancellationToken)
@@ -44,7 +46,7 @@ public sealed class InferenceGateway(
             await context.Response.WriteAsJsonAsync(new
             {
                 @object = "list",
-                data = models.Where(model => model.ProviderMappings.Any(mapping => mapping.Provider.Code == "openai"))
+                data = models.Where(model => model.ProviderMappings.Any(mapping => SupportedProvider(mapping.Provider.Code)))
                     .Select(model => new
                     {
                         id = model.Model.CanonicalCode, @object = "model", owned_by = "uzllm",
@@ -52,13 +54,18 @@ public sealed class InferenceGateway(
                         context_length = model.Model.ContextLength,
                         max_output_tokens = model.Model.MaxOutputTokens,
                         capabilities = model.Model.Capabilities.Select(capability => capability.ToString()).ToArray(),
-                        pricing = model.ProviderMappings.Where(mapping => mapping.Provider.Code == "openai")
-                            .Select(mapping => new
-                            {
-                                input_micro_usd_per_million = mapping.Price.InputPriceMicroUsdPerMillion,
-                                output_micro_usd_per_million = mapping.Price.OutputPriceMicroUsdPerMillion,
-                                cached_input_micro_usd_per_million = mapping.Price.CachedInputPriceMicroUsdPerMillion
-                            }).First()
+                        pricing = new
+                        {
+                            input_micro_usd_per_million = model.ProviderMappings
+                                .Where(mapping => SupportedProvider(mapping.Provider.Code))
+                                .Max(mapping => mapping.Price.InputPriceMicroUsdPerMillion),
+                            output_micro_usd_per_million = model.ProviderMappings
+                                .Where(mapping => SupportedProvider(mapping.Provider.Code))
+                                .Max(mapping => mapping.Price.OutputPriceMicroUsdPerMillion),
+                            cached_input_micro_usd_per_million = model.ProviderMappings
+                                .Where(mapping => SupportedProvider(mapping.Provider.Code))
+                                .Max(mapping => mapping.Price.CachedInputPriceMicroUsdPerMillion)
+                        }
                     }).ToArray()
             }, cancellationToken);
         }
@@ -134,44 +141,17 @@ public sealed class InferenceGateway(
             lease = limit.Lease;
 
             var models = await catalog.ListActiveModelsAsync(clock.GetUtcNow(), cancellationToken);
-            var requestedCode = parsed.Model.StartsWith("openai/", StringComparison.Ordinal)
-                ? parsed.Model[7..] : parsed.Model;
+            var separator = parsed.Model.IndexOf('/');
+            var pinnedProvider = separator >= 0 ? parsed.Model[..separator] : null;
+            var requestedCode = separator >= 0 ? parsed.Model[(separator + 1)..] : parsed.Model;
             var model = models.SingleOrDefault(value => value.Model.CanonicalCode == requestedCode);
-            var mapping = model?.ProviderMappings.FirstOrDefault(value => value.Provider.Code == "openai");
-            if (model is null || mapping is null || parsed.Model.Contains('/')
-                && !parsed.Model.StartsWith("openai/", StringComparison.Ordinal))
+            if (model is null || pinnedProvider is not null && !SupportedProvider(pinnedProvider))
             {
                 await WriteErrorAsync(context, new(404, "model_not_found", "invalid_request_error",
                     "Model is unavailable."), cancellationToken);
                 return;
             }
             var outputLimit = parsed.ProviderRequest.MaxOutputTokens ?? model.Model.MaxOutputTokens;
-            var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
-                .Select(value => value.ToString()).ToArray();
-            var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
-                model.Model.MaxOutputTokens, outputLimit, parsed.EstimatedInputTokens,
-                parsed.RequiredCapabilities, supported));
-            if (allowed.Outcome != RequestConstraintOutcome.Allowed)
-            {
-                await WriteErrorAsync(context, new(400, allowed.Outcome == RequestConstraintOutcome.ContextExceeded
-                    ? "context_length_exceeded" : "unsupported_model_capability", "invalid_request_error",
-                    "Request exceeds model limits or capabilities."), cancellationToken);
-                return;
-            }
-            var credentialId = await readStore.FindPlatformCredentialAsync(mapping.Provider.Id, cancellationToken);
-            if (credentialId is null)
-            {
-                await WriteErrorAsync(context, new(503, "provider_unavailable", "server_error",
-                    "Provider is unavailable."), cancellationToken);
-                return;
-            }
-            var quotaDecision = await quota.CheckAsync(credentialId.Value, cancellationToken);
-            if (quotaDecision.Outcome != ProviderQuotaOutcome.Available)
-            {
-                await WriteErrorAsync(context, new(503, "provider_unavailable", "server_error",
-                    "Provider is unavailable."), cancellationToken);
-                return;
-            }
             var fee = await readStore.FindFeePolicyAsync(options.FeePolicyCode, clock.GetUtcNow(), cancellationToken);
             if (fee is null)
             {
@@ -179,15 +159,67 @@ public sealed class InferenceGateway(
                     "Pricing is unavailable."), cancellationToken);
                 return;
             }
-            UsdMicroAmount maximum;
-            try { maximum = GatewayCostEstimator.MaximumCharge(model.Model, mapping.Price, fee, outputLimit); }
-            catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
+            var candidates = new List<RouteCandidate>();
+            var constraintAllowed = false;
+            RequestConstraintOutcome? constraintFailure = null;
+            var mappings = model.ProviderMappings
+                .Where(value => SupportedProvider(value.Provider.Code)
+                    && (pinnedProvider is null || value.Provider.Code == pinnedProvider))
+                .OrderBy(value => value.Provider.Code == "openai" ? 0 : 1)
+                .ThenBy(value => value.Mapping.Id);
+            foreach (var mapping in mappings)
             {
-                logger.LogError(exception, "Unsupported price dimensions for model {Model}", requestedCode);
-                await WriteErrorAsync(context, new(503, "pricing_unavailable", "server_error",
-                    "Pricing is unavailable."), cancellationToken);
+                if (candidates.Count == 2) break;
+                var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
+                    .Select(value => value.ToString()).ToArray();
+                var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
+                    model.Model.MaxOutputTokens, outputLimit, parsed.EstimatedInputTokens,
+                    parsed.RequiredCapabilities, supported));
+                if (allowed.Outcome != RequestConstraintOutcome.Allowed)
+                {
+                    constraintFailure ??= allowed.Outcome;
+                    continue;
+                }
+                constraintAllowed = true;
+                var credentialId = await readStore.FindPlatformCredentialAsync(mapping.Provider.Id, cancellationToken);
+                if (credentialId is null) continue;
+                var quotaDecision = await quota.CheckAsync(credentialId.Value, cancellationToken);
+                if (quotaDecision.Outcome == ProviderQuotaOutcome.DependencyUnavailable)
+                {
+                    await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
+                        "Provider eligibility is unavailable."), cancellationToken);
+                    return;
+                }
+                if (quotaDecision.Outcome != ProviderQuotaOutcome.Available) continue;
+                var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                if (healthState == ProviderHealthState.DependencyUnavailable)
+                {
+                    await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
+                        "Provider eligibility is unavailable."), cancellationToken);
+                    return;
+                }
+                if (healthState == ProviderHealthState.Open) continue;
+                try
+                {
+                    var maximumCharge = GatewayCostEstimator.MaximumCharge(model.Model, mapping.Price,
+                        fee, outputLimit);
+                    candidates.Add(new RouteCandidate(mapping, credentialId.Value, maximumCharge));
+                }
+                catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
+                { logger.LogError(exception, "Unsupported price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
+            }
+            if (candidates.Count == 0)
+            {
+                var constraintError = !constraintAllowed && constraintFailure is not null;
+                await WriteErrorAsync(context, constraintError
+                    ? new GatewayError(400, constraintFailure == RequestConstraintOutcome.ContextExceeded
+                        ? "context_length_exceeded" : "unsupported_model_capability",
+                        "invalid_request_error", "Request exceeds model limits or capabilities.")
+                    : new GatewayError(503, "provider_unavailable", "server_error",
+                        "No eligible provider is available."), cancellationToken);
                 return;
             }
+            var maximum = new UsdMicroAmount(candidates.Max(value => value.MaximumCharge.Value));
             var prepare = new PrepareUsageRequest(tenant.OrganizationId, identity.ProjectId,
                 identity.ApiKeyId, model.Model.Id, parsed.Stream, "chat.completions",
                 idempotencyKey, payloadHash, System.Diagnostics.Activity.Current?.TraceId.ToString());
@@ -200,9 +232,9 @@ public sealed class InferenceGateway(
                 return;
             }
             SetGatewayRequestId(context, admission.RequestId.Value);
-            context.Response.Headers["X-Uzllm-Provider"] = mapping.Provider.Code;
             context.Response.Headers["X-Uzllm-Model"] = model.Model.CanonicalCode;
-            await ExecuteReservedAsync(context, parsed, model.Model, mapping, credentialId.Value,
+            await ExecuteReservedAsync(context, parsed, model.Model, candidates,
+                pinnedProvider is not null, outputLimit,
                 admission.Reservation, cancellationToken);
         }
         catch (GatewayRequestException exception)
@@ -234,10 +266,13 @@ public sealed class InferenceGateway(
     }
 
     private async Task ExecuteReservedAsync(HttpContext context, ParsedChatRequest parsed,
-        CanonicalModel model, CatalogProviderModelSummary mapping, Guid credentialId,
+        CanonicalModel model, IReadOnlyList<RouteCandidate> candidates, bool pinned,
+        int outputLimit,
         Reservation reservation, CancellationToken cancellationToken)
     {
         var writer = writerFactory.Create(context);
+        var mapping = candidates[0].Mapping;
+        var credentialId = candidates[0].CredentialId;
         UsageAttempt? attempt = null;
         ProviderUsage? providerUsage = null;
         string? providerRequestId = null;
@@ -248,45 +283,109 @@ public sealed class InferenceGateway(
         var disconnected = false;
         var httpStatus = 200;
         var execution = ExecutionState.Succeeded;
+        var fallbackCount = 0;
+        var executionStartedAt = clock.GetUtcNow();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.ProviderTimeout);
         try
         {
-            attempt = await usage.StartAttemptAsync(reservation.RequestId, mapping.Mapping.Id, cancellationToken);
-            var effectivePrice = await catalog.FindEffectivePriceAsync(mapping.Mapping.Id,
-                attempt.StartedAt, cancellationToken);
-            if (effectivePrice?.Id != mapping.Price.Id)
-                throw new GatewayRequestException("Model pricing changed; retry the request.", "pricing_changed");
-            var adapter = adapters.Get(mapping.Provider.Code);
-            dispatched = await usage.MarkDispatchedAsync(attempt.Id, cancellationToken);
-            if (!dispatched) throw new InvalidOperationException("Attempt dispatch could not be persisted.");
-            var providerContext = new ProviderExecutionContext(reservation.RequestId,
-                mapping.Provider.Id, mapping.Mapping.Id, credentialId,
-                mapping.Mapping.UpstreamModelCode, options.ProviderTimeout);
-            if (parsed.Stream)
+            for (var index = 0; index < candidates.Count; index++)
             {
-                await foreach (var item in adapter.StreamAsync(parsed.ProviderRequest,
-                    providerContext, cancellationToken))
+                var candidate = candidates[index];
+                mapping = candidate.Mapping;
+                credentialId = candidate.CredentialId;
+                attempt = null;
+                providerUsage = null;
+                providerRequestId = null;
+                providerError = null;
+                completion = null;
+                dispatched = completed = false;
+                if (index > 0)
                 {
-                    providerRequestId ??= item.ProviderRequestId;
-                    if (item.Kind == ProviderStreamKind.Usage) providerUsage = item.Usage;
-                    if (item.Kind == ProviderStreamKind.Error)
+                    var currentHealth = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                    var currentQuota = await quota.CheckAsync(credentialId, cancellationToken);
+                    if (currentHealth != ProviderHealthState.Healthy
+                        || currentQuota.Outcome != ProviderQuotaOutcome.Available)
                     {
-                        providerError = item.Error ?? new ProviderError(ProviderErrorCategory.Unknown,
-                            ProviderExecutionCertainty.Unknown, false, false, null,
-                            providerRequestId, "Provider stream failed.");
+                        providerError = new ProviderError(ProviderErrorCategory.Capacity,
+                            ProviderExecutionCertainty.NotDispatched, false, false, null, null,
+                            "Fallback provider is unavailable.");
                         break;
                     }
-                    await writer.WriteStreamEventAsync(item, parsed.Model, reservation.RequestId,
-                        cancellationToken);
                 }
-                completed = providerError is null;
-            }
-            else
-            {
-                completion = await adapter.CompleteAsync(parsed.ProviderRequest, providerContext,
-                    cancellationToken);
-                providerUsage = completion.Usage;
-                providerRequestId = completion.ProviderRequestId;
-                completed = true;
+                var remaining = options.ProviderTimeout - (clock.GetUtcNow() - executionStartedAt);
+                if (remaining <= TimeSpan.Zero || deadline.IsCancellationRequested)
+                    throw new ProviderExecutionException(new ProviderError(ProviderErrorCategory.Timeout,
+                        ProviderExecutionCertainty.NotDispatched, false, false, null, null,
+                        "Provider attempt deadline expired."));
+                attempt = await usage.StartAttemptAsync(reservation.RequestId, mapping.Mapping.Id, cancellationToken);
+                var effectivePrice = await catalog.FindEffectivePriceAsync(mapping.Mapping.Id,
+                    attempt.StartedAt, cancellationToken);
+                if (effectivePrice?.Id != mapping.Price.Id)
+                    throw new GatewayRequestException("Model pricing changed; retry the request.", "pricing_changed");
+                var adapter = adapters.Get(mapping.Provider.Code);
+                dispatched = await usage.MarkDispatchedAsync(attempt.Id, cancellationToken);
+                if (!dispatched) throw new InvalidOperationException("Attempt dispatch could not be persisted.");
+                context.Response.Headers["X-Uzllm-Provider"] = mapping.Provider.Code;
+                var providerContext = new ProviderExecutionContext(reservation.RequestId,
+                    mapping.Provider.Id, mapping.Mapping.Id, credentialId,
+                    mapping.Mapping.UpstreamModelCode, remaining);
+                var adapterRequest = parsed.ProviderRequest with { MaxOutputTokens = outputLimit };
+                try
+                {
+                    if (parsed.Stream)
+                    {
+                        await foreach (var item in adapter.StreamAsync(adapterRequest,
+                            providerContext, deadline.Token))
+                        {
+                            providerRequestId ??= item.ProviderRequestId;
+                            if (item.Kind == ProviderStreamKind.Usage) providerUsage = item.Usage;
+                            if (item.Kind == ProviderStreamKind.Error)
+                            {
+                                providerError = item.Error ?? new ProviderError(ProviderErrorCategory.Unknown,
+                                    ProviderExecutionCertainty.Unknown, false, false, null,
+                                    providerRequestId, "Provider stream failed.");
+                                providerError = providerError with
+                                {
+                                    Certainty = ProviderExecutionCertainty.Unknown,
+                                    Retryable = false,
+                                    FallbackEligible = false
+                                };
+                                break;
+                            }
+                            await writer.WriteStreamEventAsync(item, model.CanonicalCode,
+                                reservation.RequestId, deadline.Token);
+                        }
+                        completed = providerError is null;
+                    }
+                    else
+                    {
+                        completion = await adapter.CompleteAsync(adapterRequest, providerContext,
+                            deadline.Token);
+                        providerUsage = completion.Usage;
+                        providerRequestId = completion.ProviderRequestId;
+                        completed = true;
+                    }
+                }
+                catch (ProviderExecutionException exception)
+                {
+                    providerError = exception.Error;
+                    providerRequestId = exception.Error.ProviderRequestId;
+                }
+                await RecordHealthAsync(mapping.Mapping.Id, providerError, completed);
+                if (!pinned && providerError is { FallbackEligible: true,
+                        Certainty: ProviderExecutionCertainty.RejectedBeforeExecution }
+                    && index + 1 < candidates.Count && !writer.Started && !deadline.IsCancellationRequested)
+                {
+                    using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    if (!await usage.FinishAttemptAsync(attempt.Id,
+                        ExecutionState.RejectedBeforeExecution, providerRequestId,
+                        providerError.Category.ToString(), cleanup.Token))
+                        throw new InvalidOperationException("Rejected attempt could not be finalized.");
+                    fallbackCount++;
+                    continue;
+                }
+                break;
             }
         }
         catch (ProviderExecutionException exception)
@@ -314,6 +413,14 @@ public sealed class InferenceGateway(
 
         if (providerError is not null)
         {
+            if (writer.Started && providerError.Certainty != ProviderExecutionCertainty.Unknown)
+                providerError = providerError with
+                {
+                    Certainty = ProviderExecutionCertainty.Unknown,
+                    Retryable = false,
+                    FallbackEligible = false,
+                    SafeMessage = "Provider outcome is unknown after partial delivery."
+                };
             if (!dispatched)
                 providerError = providerError with
                 {
@@ -415,12 +522,33 @@ public sealed class InferenceGateway(
                     disconnected ? DeliveryState.ClientDisconnected
                         : delivered ? DeliveryState.Completed
                         : writer.Started ? DeliveryState.Partial : DeliveryState.NotStarted,
-                    cleanupSucceeded ? httpStatus : 503, "deterministic:openai", activityToken.Token);
+                    cleanupSucceeded ? httpStatus : 503,
+                    fallbackCount == 0 ? $"deterministic:{mapping.Provider.Code}"
+                        : $"deterministic:failover:{mapping.Provider.Code}", activityToken.Token);
             }
             catch (Exception exception)
             { logger.LogError(exception, "Request activity finalization failed for {RequestId}", reservation.RequestId); }
         }
     }
+
+    private async Task RecordHealthAsync(Guid mappingId, ProviderError? error, bool completed)
+    {
+        try
+        {
+            if (completed && error is null)
+                await health.RecordSuccessAsync(mappingId, CancellationToken.None);
+            else if (error?.Category is ProviderErrorCategory.RateLimited or ProviderErrorCategory.Capacity
+                or ProviderErrorCategory.Timeout or ProviderErrorCategory.Upstream5xx)
+                await health.RecordTransientFailureAsync(mappingId, CancellationToken.None);
+        }
+        catch (Exception exception)
+        { logger.LogWarning(exception, "Provider health update failed for mapping {MappingId}", mappingId); }
+    }
+
+    private static bool SupportedProvider(string code) => code is "openai" or "anthropic";
+
+    private sealed record RouteCandidate(CatalogProviderModelSummary Mapping, Guid CredentialId,
+        UsdMicroAmount MaximumCharge);
 
     private Task<GatewayApiKeyAuthentication?> AuthenticateAsync(HttpContext context,
         CancellationToken cancellationToken)

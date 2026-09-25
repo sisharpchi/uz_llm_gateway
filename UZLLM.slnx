@@ -49,11 +49,13 @@
     <Project Path="src/Modules/Usage/UZLLM.Modules.Usage.csproj" />
   </Folder>
   <Folder Name="/src/ProviderAdapters/">
+    <Project Path="src/ProviderAdapters/UZLLM.Provider.Anthropic/UZLLM.Provider.Anthropic.csproj" />
     <Project Path="src/ProviderAdapters/UZLLM.Provider.OpenAI/UZLLM.Provider.OpenAI.csproj" />
   </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/Contract/">
     <Project Path="tests/Contract/UZLLM.Gateway.ContractTests/UZLLM.Gateway.ContractTests.csproj" />
+    <Project Path="tests/Contract/UZLLM.Provider.Anthropic.ContractTests/UZLLM.Provider.Anthropic.ContractTests.csproj" />
     <Project Path="tests/Contract/UZLLM.Provider.OpenAI.ContractTests/UZLLM.Provider.OpenAI.ContractTests.csproj" />
   </Folder>
   <Folder Name="/tests/Integration/">
