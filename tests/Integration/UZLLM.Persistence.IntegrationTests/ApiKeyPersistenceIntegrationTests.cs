@@ -92,6 +92,148 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
         Assert.Null(await authenticator.AuthenticateAsync(issued.Secret));
     }
 
+    [Fact]
+    public async Task Rotation_replaces_secret_atomically_and_keeps_key_identity_and_generation_history()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var (ownerId, projectId) = await SeedProjectAsync(db);
+        var fingerprint = new HmacApiKeySecretFingerprint(RandomNumberGenerator.GetBytes(32));
+        var service = CreateService(scope.ServiceProvider, fingerprint);
+        var authenticator = new ApiKeyAuthenticator(new PostgreSqlApiKeyStore(db),
+            new GatewayApiKeySecretGenerator(), fingerprint, TimeProvider.System);
+        var original = await service.CreateAsync(ownerId, projectId, "Production", null);
+
+        var replacement = await service.RotateAsync(ownerId, original.ApiKey.Id);
+
+        Assert.NotNull(replacement);
+        Assert.Equal(original.ApiKey.Id, replacement.ApiKey.Id);
+        Assert.Equal(2, replacement.ApiKey.Generation);
+        Assert.Null(await authenticator.AuthenticateAsync(original.Secret));
+        Assert.Equal(original.ApiKey.Id, (await authenticator.AuthenticateAsync(replacement.Secret))!.ApiKeyId);
+        var generations = await db.Set<GatewayApiKeyGenerationEntity>().AsNoTracking()
+            .OrderBy(value => value.Generation).ToListAsync();
+        Assert.Equal([1, 2], generations.Select(value => value.Generation));
+        Assert.NotNull(generations[0].RevokedAt);
+        Assert.Null(generations[1].RevokedAt);
+        Assert.Equal(replacement.ApiKey.Prefix, generations[1].Prefix);
+        Assert.Equal(2, await db.Set<AuditEventEntity>().CountAsync(value =>
+            value.Action == "api_key.created" || value.Action == "api_key.rotated"));
+    }
+
+    [Fact]
+    public async Task Two_concurrent_rotations_have_one_winner_and_old_secret_is_revoked()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var fingerprint = new HmacApiKeySecretFingerprint(RandomNumberGenerator.GetBytes(32));
+        Guid ownerId;
+        IssuedGatewayApiKey original;
+        await using (var setup = fixture.CreateServiceProvider())
+        await using (var scope = setup.CreateAsyncScope())
+        {
+            var seeded = await SeedProjectAsync(scope.ServiceProvider
+                .GetRequiredService<FoundationDbContext>());
+            ownerId = seeded.AccountId;
+            original = await CreateService(scope.ServiceProvider, fingerprint)
+                .CreateAsync(ownerId, seeded.ProjectId, "Production", null);
+        }
+        await using var one = fixture.CreateServiceProvider();
+        await using var two = fixture.CreateServiceProvider();
+        await using var scopeOne = one.CreateAsyncScope();
+        await using var scopeTwo = two.CreateAsyncScope();
+        var results = await Task.WhenAll(
+            CreateService(scopeOne.ServiceProvider, fingerprint).RotateAsync(ownerId, original.ApiKey.Id),
+            CreateService(scopeTwo.ServiceProvider, fingerprint).RotateAsync(ownerId, original.ApiKey.Id));
+
+        var winner = Assert.Single(results.OfType<IssuedGatewayApiKey>());
+        Assert.Equal(original.ApiKey.Id, winner.ApiKey.Id);
+        await using var verifier = fixture.CreateServiceProvider();
+        await using var verifyScope = verifier.CreateAsyncScope();
+        var db = verifyScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var auth = new ApiKeyAuthenticator(new PostgreSqlApiKeyStore(db), new GatewayApiKeySecretGenerator(),
+            fingerprint, TimeProvider.System);
+        Assert.Null(await auth.AuthenticateAsync(original.Secret));
+        Assert.NotNull(await auth.AuthenticateAsync(winner.Secret));
+        Assert.Equal(2, await db.Set<GatewayApiKeyGenerationEntity>().CountAsync());
+        Assert.Equal(1, await db.Set<AuditEventEntity>().CountAsync(value => value.Action == "api_key.rotated"));
+    }
+
+    [Fact]
+    public async Task Concurrent_disable_and_rotation_leave_no_authenticatable_secret()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var fingerprint = new HmacApiKeySecretFingerprint(RandomNumberGenerator.GetBytes(32));
+        Guid ownerId;
+        IssuedGatewayApiKey original;
+        await using (var setup = fixture.CreateServiceProvider())
+        await using (var scope = setup.CreateAsyncScope())
+        {
+            var seeded = await SeedProjectAsync(scope.ServiceProvider
+                .GetRequiredService<FoundationDbContext>());
+            ownerId = seeded.AccountId;
+            original = await CreateService(scope.ServiceProvider, fingerprint)
+                .CreateAsync(ownerId, seeded.ProjectId, "Production", null);
+        }
+        await using var one = fixture.CreateServiceProvider();
+        await using var two = fixture.CreateServiceProvider();
+        await using var scopeOne = one.CreateAsyncScope();
+        await using var scopeTwo = two.CreateAsyncScope();
+        var rotate = CreateService(scopeOne.ServiceProvider, fingerprint).RotateAsync(ownerId, original.ApiKey.Id);
+        var disable = CreateService(scopeTwo.ServiceProvider, fingerprint).SetStatusAsync(
+            ownerId, original.ApiKey.Id, GatewayApiKeyStatus.Disabled);
+        await Task.WhenAll(rotate, disable);
+
+        Assert.True(await disable);
+        await using var verifier = fixture.CreateServiceProvider();
+        await using var verifyScope = verifier.CreateAsyncScope();
+        var db = verifyScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var auth = new ApiKeyAuthenticator(new PostgreSqlApiKeyStore(db), new GatewayApiKeySecretGenerator(),
+            fingerprint, TimeProvider.System);
+        Assert.Null(await auth.AuthenticateAsync(original.Secret));
+        if (await rotate is { } replacement) Assert.Null(await auth.AuthenticateAsync(replacement.Secret));
+        Assert.Equal("Disabled", (await db.Set<GatewayApiKeyEntity>().SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Rotation_migration_backfills_preexisting_key_as_generation_one()
+    {
+        await fixture.ResetMigrationsAsync();
+        await using (var before = fixture.CreateServiceProvider())
+        await using (var scope = before.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>()
+                .MigrateAsync("20260925192424_AddRecurringBudgetWindows");
+            var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            var (ownerId, projectId) = await SeedProjectAsync(db);
+            var keyId = Guid.CreateVersion7();
+            var prefix = "abcdef123456";
+            var name = "Production";
+            var status = "Active";
+            var fingerprint = RandomNumberGenerator.GetBytes(32);
+            var now = DateTimeOffset.UtcNow;
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO gateway.api_key
+                    (id, project_id, name, key_prefix, secret_fingerprint, status, created_by, created_at)
+                VALUES ({keyId}, {projectId}, {name}, {prefix}, {fingerprint}, {status}, {ownerId}, {now});
+                """);
+        }
+        await fixture.ApplyMigrationsAsync();
+        await using var after = fixture.CreateServiceProvider();
+        await using var verifyScope = after.CreateAsyncScope();
+        var verified = verifyScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var key = await verified.Set<GatewayApiKeyEntity>().SingleAsync();
+        var history = await verified.Set<GatewayApiKeyGenerationEntity>().SingleAsync();
+        Assert.Equal(1, key.Generation);
+        Assert.Equal(key.Id, history.ApiKeyId);
+        Assert.Equal(key.Prefix, history.Prefix);
+        Assert.Null(history.RevokedAt);
+    }
+
     private static ApiKeyService CreateService(IServiceProvider services, IApiKeySecretFingerprint fingerprint)
     {
         var dbContext = services.GetRequiredService<FoundationDbContext>();

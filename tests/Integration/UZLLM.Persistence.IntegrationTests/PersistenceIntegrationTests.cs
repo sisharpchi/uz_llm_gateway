@@ -391,6 +391,17 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
                   END IF;
                 END $$;
                 """);
+        // Disposable test database only: the production Down migration
+        // rejects losing rotated key-generation history.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('gateway.api_key_generation') IS NOT NULL THEN
+                    DELETE FROM gateway.api_key_generation WHERE generation > 1;
+                    UPDATE gateway.api_key SET generation = 1 WHERE generation > 1;
+                  END IF;
+                END $$;
+                """);
         var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
         await migrator.MigrateAsync("0");
     }

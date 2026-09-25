@@ -6,7 +6,7 @@ public enum GatewayApiKeyStatus
     Disabled
 }
 
-public sealed record GatewayApiKey(Guid Id, Guid ProjectId, string Name, string Prefix, GatewayApiKeyStatus Status, DateTimeOffset? ExpiresAt, Guid CreatedByAccountId, DateTimeOffset CreatedAt);
+public sealed record GatewayApiKey(Guid Id, Guid ProjectId, string Name, string Prefix, GatewayApiKeyStatus Status, DateTimeOffset? ExpiresAt, Guid CreatedByAccountId, DateTimeOffset CreatedAt, int Generation = 1);
 
 public sealed record IssuedGatewayApiKey(GatewayApiKey ApiKey, string Secret);
 
@@ -15,6 +15,8 @@ public sealed record GatewayApiKeyAuthentication(Guid ApiKeyId, Guid ProjectId);
 public sealed record ApiKeySecret(string Value, string Prefix);
 
 public sealed record StoredGatewayApiKey(GatewayApiKey ApiKey, byte[] SecretFingerprint, bool IsProjectActive);
+
+public enum ApiKeyRotationStoreResult { Rotated, Conflict, PrefixCollision }
 
 public interface IApiKeyStore
 {
@@ -27,6 +29,9 @@ public interface IApiKeyStore
     Task<StoredGatewayApiKey?> FindAuthenticationCandidateAsync(string prefix, CancellationToken cancellationToken = default);
 
     Task<bool> TrySetStatusAsync(Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default);
+
+    Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration,
+        string newPrefix, byte[] newFingerprint, DateTimeOffset now, CancellationToken cancellationToken = default);
 }
 
 public interface IApiKeySecretGenerator
@@ -50,6 +55,8 @@ public interface IApiKeyService
     Task<IReadOnlyList<GatewayApiKey>> ListAsync(Guid accountId, Guid projectId, CancellationToken cancellationToken = default);
 
     Task<bool> SetStatusAsync(Guid accountId, Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default);
+
+    Task<IssuedGatewayApiKey?> RotateAsync(Guid accountId, Guid apiKeyId, CancellationToken cancellationToken = default);
 }
 
 public interface IApiKeyAuthenticator

@@ -233,6 +233,15 @@ POST   /api-keys/{id}/disable
 DELETE /api-keys/{id}
 ```
 
+`POST /management/v1/api-keys/{id}/rotate` requires the browser session and
+CSRF token. A successful `200` returns the unchanged key ID, incremented
+`generation`, new public prefix and replacement `secret` exactly once. No
+request body is required. `403` denies another tenant, `404` means the key
+does not exist, and `409` means it is inactive/expired/archived or changed
+concurrently. The old secret stops authenticating at transaction commit;
+already-admitted requests may finish. Rotate consumers should never persist
+the full response in logs or browser storage.
+
 ### Usage
 
 ```text

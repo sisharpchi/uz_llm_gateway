@@ -78,6 +78,40 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
         return true;
     }
 
+    public async Task<IssuedGatewayApiKey?> RotateAsync(Guid accountId, Guid apiKeyId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentifier(accountId, nameof(accountId));
+        ValidateIdentifier(apiKeyId, nameof(apiKeyId));
+        var apiKey = await store.FindByIdAsync(apiKeyId, cancellationToken)
+            ?? throw new KeyNotFoundException("The API key does not exist.");
+        var project = await projectAccess.GetOwnedAsync(accountId, apiKey.ProjectId, cancellationToken)
+            ?? throw new KeyNotFoundException("The project does not exist.");
+        var now = timeProvider.GetUtcNow();
+        if (project.Status is not ProjectStatus.Active || apiKey.Status is not GatewayApiKeyStatus.Active
+            || apiKey.ExpiresAt <= now)
+            return null;
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var secret = secretGenerator.Create();
+            await using var transaction = await transactionCoordinator.BeginAsync(cancellationToken);
+            var result = await store.TryRotateAsync(apiKeyId, apiKey.Generation, secret.Prefix,
+                secretFingerprint.Create(secret.Value), now, cancellationToken);
+            if (result is ApiKeyRotationStoreResult.PrefixCollision) continue;
+            if (result is ApiKeyRotationStoreResult.Conflict) return null;
+
+            await auditTrail.RecordAsync(new AuditEventInput(project.OrganizationId, accountId,
+                "api_key.rotated", "api_key", apiKeyId, null,
+                JsonSerializer.Serialize(new { projectId = apiKey.ProjectId, previousPrefix = apiKey.Prefix,
+                    newPrefix = secret.Prefix, generation = apiKey.Generation + 1 })), cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return new IssuedGatewayApiKey(apiKey with
+            { Prefix = secret.Prefix, Generation = apiKey.Generation + 1 }, secret.Value);
+        }
+        throw new InvalidOperationException("Could not generate a unique gateway key prefix.");
+    }
+
     private static void ValidateIdentifier(Guid value, string parameterName)
     {
         if (value == Guid.Empty)

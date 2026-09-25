@@ -72,6 +72,23 @@ public static class ApiKeyServiceCollectionExtensions
             catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         }).RequireManagementCsrf();
 
+        keys.MapPost("/{apiKeyId:guid}/rotate", async (Guid apiKeyId, HttpContext context,
+            IApiKeyService service, CancellationToken cancellationToken) =>
+        {
+            if (!TryGetAccountId(context.User, out var accountId)) return Results.Unauthorized();
+            try
+            {
+                var issued = await service.RotateAsync(accountId, apiKeyId, cancellationToken);
+                if (issued is not null) context.Response.Headers.CacheControl = "no-store";
+                return issued is null ? Results.Conflict(new { error = "The key is inactive or was changed concurrently." })
+                    : Results.Ok(issued);
+            }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
+        }).RequireManagementCsrf().WithName("RotateGatewayApiKey")
+            .WithSummary("Rotate an active API key immediately; the replacement secret is shown once");
+
         return endpoints;
     }
 

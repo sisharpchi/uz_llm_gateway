@@ -70,6 +70,15 @@ organization use the project scope as a tenant guard.
 
 Never store plaintext gateway secret.
 
+`gateway.api_key.generation` identifies the active secret generation. The
+append-only identity/history table `gateway.api_key_generation` records each
+generation's unique public prefix, activation and revocation timestamps. On
+rotation, the key row's fingerprint/prefix/generation changes in the same
+transaction that closes the old generation, inserts the new generation and
+writes audit. Existing usage, budget and request FKs retain the same API-key ID.
+The migration backfills generation 1 for pre-existing keys; downgrade refuses
+keys with rotated history.
+
 ---
 
 ## 3. Provider and catalog

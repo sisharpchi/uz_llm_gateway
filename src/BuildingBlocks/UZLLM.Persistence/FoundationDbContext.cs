@@ -198,10 +198,27 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(apiKey => apiKey.ExpiresAt).HasColumnName("expires_at");
             entity.Property(apiKey => apiKey.CreatedByAccountId).HasColumnName("created_by");
             entity.Property(apiKey => apiKey.CreatedAt).HasColumnName("created_at");
+            entity.Property(apiKey => apiKey.Generation).HasColumnName("generation").HasDefaultValue(1);
+            entity.ToTable(table => table.HasCheckConstraint("CK_api_key_generation", "generation >= 1"));
             entity.HasIndex(apiKey => apiKey.Prefix).IsUnique();
             entity.HasIndex(apiKey => new { apiKey.ProjectId, apiKey.CreatedAt }).IsDescending(false, true);
             entity.HasOne(apiKey => apiKey.Project).WithMany().HasForeignKey(apiKey => apiKey.ProjectId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(apiKey => apiKey.CreatedByAccount).WithMany().HasForeignKey(apiKey => apiKey.CreatedByAccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<GatewayApiKeyGenerationEntity>(entity =>
+        {
+            entity.ToTable("api_key_generation", "gateway", table =>
+                table.HasCheckConstraint("CK_api_key_generation_number", "generation >= 1"));
+            entity.HasKey(value => new { value.ApiKeyId, value.Generation });
+            entity.Property(value => value.ApiKeyId).HasColumnName("api_key_id");
+            entity.Property(value => value.Generation).HasColumnName("generation");
+            entity.Property(value => value.Prefix).HasColumnName("key_prefix").HasMaxLength(12);
+            entity.Property(value => value.ActivatedAt).HasColumnName("activated_at");
+            entity.Property(value => value.RevokedAt).HasColumnName("revoked_at");
+            entity.HasIndex(value => value.Prefix).IsUnique();
+            entity.HasOne<GatewayApiKeyEntity>().WithMany().HasForeignKey(value => value.ApiKeyId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AuditEventEntity>(entity =>

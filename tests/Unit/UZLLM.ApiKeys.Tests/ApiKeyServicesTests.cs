@@ -105,6 +105,49 @@ public sealed class ApiKeyServicesTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => fixture.Service.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id, "Production", fixture.Clock.GetUtcNow()));
     }
+
+    [Fact]
+    public async Task RotateAsync_preserves_identity_and_revokes_old_secret_without_auditing_plaintext()
+    {
+        var fixture = new ApiKeyFixture();
+        var original = await fixture.Service.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id,
+            "Production", null);
+
+        var rotated = await fixture.Service.RotateAsync(fixture.OwnerAccountId, original.ApiKey.Id);
+
+        Assert.NotNull(rotated);
+        Assert.Equal(original.ApiKey.Id, rotated.ApiKey.Id);
+        Assert.Equal(original.ApiKey.ProjectId, rotated.ApiKey.ProjectId);
+        Assert.Equal(2, rotated.ApiKey.Generation);
+        Assert.NotEqual(original.Secret, rotated.Secret);
+        Assert.Null(await fixture.Authenticator.AuthenticateAsync(original.Secret));
+        Assert.Equal(original.ApiKey.Id,
+            (await fixture.Authenticator.AuthenticateAsync(rotated.Secret))!.ApiKeyId);
+        Assert.Equal(rotated.ApiKey.Prefix,
+            (await fixture.Service.ListAsync(fixture.OwnerAccountId, fixture.Project.Id)).Single().Prefix);
+        var audit = Assert.Single(fixture.Audit.Events, value => value.Action == "api_key.rotated");
+        Assert.DoesNotContain(rotated.Secret, audit.MetadataJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(original.Secret, audit.MetadataJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RotateAsync_rejects_outsider_disabled_and_expired_keys()
+    {
+        var fixture = new ApiKeyFixture();
+        var issued = await fixture.Service.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id,
+            "Production", null);
+        await Assert.ThrowsAsync<TenantAccessDeniedException>(() =>
+            fixture.Service.RotateAsync(Guid.CreateVersion7(), issued.ApiKey.Id));
+        Assert.True(await fixture.Service.SetStatusAsync(fixture.OwnerAccountId, issued.ApiKey.Id,
+            GatewayApiKeyStatus.Disabled));
+        Assert.Null(await fixture.Service.RotateAsync(fixture.OwnerAccountId, issued.ApiKey.Id));
+        Assert.Equal(1, fixture.Store.Stored[issued.ApiKey.Id].ApiKey.Generation);
+
+        var expiring = await fixture.Service.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id,
+            "Expiring", fixture.Clock.GetUtcNow().AddMinutes(1));
+        fixture.Clock.Advance(TimeSpan.FromMinutes(1));
+        Assert.Null(await fixture.Service.RotateAsync(fixture.OwnerAccountId, expiring.ApiKey.Id));
+    }
 }
 
 internal sealed class ApiKeyFixture
@@ -139,12 +182,23 @@ internal sealed class AdjustableApiKeyTimeProvider(DateTimeOffset now) : TimePro
 internal sealed class DeterministicApiKeySecretGenerator : IApiKeySecretGenerator
 {
     private const string Value = "uzllm_live_123456abcdef_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    public ApiKeySecret Create() => new(Value, "123456abcdef");
+    private int generation;
+    public ApiKeySecret Create()
+    {
+        var number = Interlocked.Increment(ref generation);
+        if (number == 1) return new(Value, "123456abcdef");
+        var prefix = number.ToString("x12");
+        return new ApiKeySecret($"uzllm_live_{prefix}_{new string('b', 64)}", prefix);
+    }
     public bool TryParse(string value, out ApiKeySecret secret)
     {
         secret = default!;
-        if (!string.Equals(value, Value, StringComparison.Ordinal)) return false;
-        secret = Create();
+        if (string.Equals(value, Value, StringComparison.Ordinal))
+        {
+            secret = new ApiKeySecret(Value, "123456abcdef");
+            return true;
+        }
+        if (!new GatewayApiKeySecretGenerator().TryParse(value, out secret)) return false;
         return true;
     }
 }
@@ -153,11 +207,13 @@ internal sealed class InMemoryApiKeyStore : IApiKeyStore
 {
     public Dictionary<Guid, MutableStoredApiKey> Stored { get; } = [];
     public bool ProjectActive { get; set; } = true;
+    public HashSet<string> HistoricalPrefixes { get; } = [];
 
     public Task<bool> TryCreateAsync(StoredGatewayApiKey apiKey, CancellationToken cancellationToken = default)
     {
         if (Stored.Values.Any(existing => existing.ApiKey.Prefix == apiKey.ApiKey.Prefix)) return Task.FromResult(false);
         Stored.Add(apiKey.ApiKey.Id, new MutableStoredApiKey(apiKey.ApiKey, apiKey.SecretFingerprint));
+        HistoricalPrefixes.Add(apiKey.ApiKey.Prefix);
         return Task.FromResult(true);
     }
 
@@ -178,12 +234,25 @@ internal sealed class InMemoryApiKeyStore : IApiKeyStore
         stored.ApiKey = stored.ApiKey with { Status = status };
         return Task.FromResult(true);
     }
+
+    public Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration,
+        string newPrefix, byte[] newFingerprint, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        if (HistoricalPrefixes.Contains(newPrefix)) return Task.FromResult(ApiKeyRotationStoreResult.PrefixCollision);
+        if (Stored.GetValueOrDefault(apiKeyId) is not { } stored || stored.ApiKey.Generation != expectedGeneration
+            || stored.ApiKey.Status != GatewayApiKeyStatus.Active || stored.ApiKey.ExpiresAt <= now || !ProjectActive)
+            return Task.FromResult(ApiKeyRotationStoreResult.Conflict);
+        stored.ApiKey = stored.ApiKey with { Prefix = newPrefix, Generation = expectedGeneration + 1 };
+        stored.SecretFingerprint = newFingerprint;
+        HistoricalPrefixes.Add(newPrefix);
+        return Task.FromResult(ApiKeyRotationStoreResult.Rotated);
+    }
 }
 
 internal sealed class MutableStoredApiKey(GatewayApiKey apiKey, byte[] secretFingerprint)
 {
     public GatewayApiKey ApiKey { get; set; } = apiKey;
-    public byte[] SecretFingerprint { get; } = secretFingerprint;
+    public byte[] SecretFingerprint { get; set; } = secretFingerprint;
 }
 
 internal sealed class InMemoryProjectAccessService(Project project, Guid ownerAccountId) : IProjectAccessService

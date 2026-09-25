@@ -44,6 +44,19 @@ Authenticate by:
 
 Avoid storing reversible gateway key plaintext.
 
+Gateway-key rotation has immediate, non-overlapping cutover at the committed
+database transaction. Authentication queries begun after commit reject the old
+secret; already-authenticated/in-flight requests may finish. Rotating an
+inactive, expired or archived-project key fails. Two concurrent rotations use
+the expected generation so at most one replacement is issued. Disable racing
+with rotation leaves the key disabled. A replacement is returned only after
+the new fingerprint, generation history and audit commit together; neither
+secret is written to audit or logs. Client applications must switch credentials
+immediately; planned overlap/grace periods are not supported.
+If the response is lost after commit, the owner can rotate the still-active
+key again from the management session; the previous plaintext cannot be
+recovered.
+
 ---
 
 ## 3. BYOK security
