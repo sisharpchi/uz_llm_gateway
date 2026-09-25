@@ -22,5 +22,25 @@ jobs:
         run: dotnet build UZLLM.slnx --configuration Release --no-restore
       - name: Test
         run: dotnet test UZLLM.slnx --configuration Release --no-build
+      - name: Build isolated load seeder
+        run: dotnet build tests/Load/UZLLM.LoadSeed/UZLLM.LoadSeed.csproj --configuration Release
+      - name: Build application images
+        run: |
+          for target in gateway management worker migrator; do
+            docker build -f deploy/Dockerfile.app --target "$target" -t "uzllm-$target:ci" .
+          done
+      - name: Build edge and verify TLS configuration
+        run: |
+          docker build -f deploy/Dockerfile.edge -t uzllm-edge:ops002 .
+          sh deploy/validate-edge.sh
+      - name: Validate two-node Compose manifest
+        env:
+          UZLLM_PUBLIC_BASE_URL: https://example.test
+          UZLLM_PAYMENT_FEE_BPS: '100'
+          UZLLM_PAYMENT_FIXED_FEE_TIYIN: '0'
+          UZLLM_CERT_DIR: /tmp/uzllm-certs
+          UZLLM_KEYRING_DIR: /tmp/uzllm-keyring
+          UZLLM_SECRET_DIR: /tmp/uzllm-secrets
+        run: docker compose -f deploy/compose.production.yml config --quiet
       - name: Check whitespace
         run: git diff --check

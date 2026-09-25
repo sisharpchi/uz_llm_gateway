@@ -11,6 +11,7 @@ using UZLLM.Modules.Routing.Infrastructure;
 using UZLLM.Gateway.Api.Inference;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 builder.Services.AddOpenApi();
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);

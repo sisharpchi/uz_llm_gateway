@@ -229,6 +229,74 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     }
 
     [Fact]
+    public async Task Recovery_after_restart_distinguishes_unknown_evidence_from_pending_settlement()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 200_000);
+        Guid unknownReservation;
+        Guid knownReservation;
+        Guid unknownRequest;
+        Guid knownRequest;
+
+        await using (var firstNode = fixture.CreateServiceProvider())
+        await using (var firstScope = firstNode.CreateAsyncScope())
+        {
+            var clock = new MutableFinancialClock(Start);
+            var financial = Financial(firstScope.ServiceProvider, clock);
+            var usage = Usage(firstScope.ServiceProvider, clock);
+            var unknown = await financial.ReserveAsync(Admission(seed, 30_000, payload: [1]));
+            var known = await financial.ReserveAsync(Admission(seed, 30_000, payload: [2]));
+            unknownReservation = unknown.Reservation!.Id;
+            knownReservation = known.Reservation!.Id;
+            unknownRequest = unknown.RequestId!.Value;
+            knownRequest = known.RequestId!.Value;
+            var unknownAttempt = await usage.StartAttemptAsync(unknownRequest, seed.ProviderModelId);
+            var knownAttempt = await usage.StartAttemptAsync(knownRequest, seed.ProviderModelId);
+            Assert.True(await usage.MarkDispatchedAsync(unknownAttempt.Id));
+            Assert.True(await usage.MarkDispatchedAsync(knownAttempt.Id));
+            Assert.Equal(FinalizationStatus.PendingEvidence,
+                (await financial.FinalizeAsync(unknownReservation)).Status);
+            Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(knownRequest,
+                knownAttempt.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, "known-upstream")));
+            Assert.Equal(FinancialState.PendingSettlement,
+                (await usage.FindRequestAsync(knownRequest))!.Financial);
+        }
+
+        // A new provider/scope models a worker taking over after the Gateway died.
+        await using (var recoveryNode = fixture.CreateServiceProvider())
+        await using (var recoveryScope = recoveryNode.CreateAsyncScope())
+        {
+            var clock = new MutableFinancialClock(Start.AddHours(2));
+            var financial = Financial(recoveryScope.ServiceProvider, clock);
+            var usage = Usage(recoveryScope.ServiceProvider, clock);
+            Assert.Equal(FinalizationStatus.PendingEvidence,
+                (await financial.ReconcileAsync(unknownReservation)).Status);
+            Assert.Equal(FinalizationStatus.Settled,
+                (await financial.ReconcileAsync(knownReservation)).Status);
+            Assert.Equal(FinalizationStatus.AlreadyFinalized,
+                (await financial.ReconcileAsync(knownReservation)).Status);
+            Assert.Equal(FinancialState.PendingEvidence,
+                (await usage.FindRequestAsync(unknownRequest))!.Financial);
+            Assert.Equal(FinancialState.Settled,
+                (await usage.FindRequestAsync(knownRequest))!.Financial);
+            var held = await financial.GetWalletStateAsync(seed.OrganizationId);
+            Assert.Equal(190_000, held!.Wallet.PostedBalance.Value);
+            Assert.Equal(30_000, held.Wallet.ReservedBalance.Value);
+
+            clock.UtcNow = Start.AddHours(26).AddMinutes(1);
+            var released = await financial.ReconcileAsync(unknownReservation);
+            Assert.Equal(FinalizationStatus.Released, released.Status);
+            Assert.True(released.Settlement!.UnresolvedUsage);
+            Assert.Equal(0, released.Settlement.Charged.Value);
+            Assert.Equal(0, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
+            var db = recoveryScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>()
+                .CountAsync(value => value.Type == "UsageCharge"));
+        }
+    }
+
+    [Fact]
     public async Task Verified_preexecution_rejection_releases_hold_without_usage_evidence()
     {
         await ResetAsync();

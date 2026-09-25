@@ -29,6 +29,7 @@ same-model failover precedes P1 cross-model fallback.
 | PROVIDER-002 | Completed |
 | USAGE-002 | Completed |
 | ADMIN-001 | Completed |
+| OPS-002 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `PAYMENT-001`, public Payme documentation and official CLICK protocol examples

@@ -8,6 +8,7 @@ using UZLLM.Modules.Payments.Infrastructure;
 using UZLLM.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmUsage();

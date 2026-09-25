@@ -1,0 +1,125 @@
+# Two-node topology: deploy *-a on node A and *-b on node B with --no-deps.
+# A single-host run is only for qualification. A redundant external L7 load
+# balancer fronts edge on both nodes; PostgreSQL/Redis/key-ring are external.
+x-gateway: &gateway
+  build: { context: .., dockerfile: deploy/Dockerfile.app, target: gateway }
+  restart: unless-stopped
+  environment:
+    ASPNETCORE_ENVIRONMENT: Production
+    ASPNETCORE_URLS: https://+:8443
+    Kestrel__Certificates__Default__Path: /run/certs/gateway.pfx
+    Gateway__PublicBaseUrl: ${UZLLM_PUBLIC_BASE_URL:?Set UZLLM_PUBLIC_BASE_URL}
+  volumes:
+    - ${UZLLM_CERT_DIR:?Set UZLLM_CERT_DIR}/gateway.pfx:/run/certs/gateway.pfx:ro
+  secrets:
+    - { source: runtime-postgres, target: ConnectionStrings__Postgres }
+    - { source: redis, target: ConnectionStrings__Redis }
+    - { source: api-fingerprint, target: ApiKeys__FingerprintKey }
+    - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
+    - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
+    - { source: gateway-cert-password, target: Kestrel__Certificates__Default__Password }
+  networks: [application]
+
+x-management: &management
+  build: { context: .., dockerfile: deploy/Dockerfile.app, target: management }
+  restart: unless-stopped
+  environment:
+    ASPNETCORE_ENVIRONMENT: Production
+    ASPNETCORE_URLS: https://+:8443
+    Kestrel__Certificates__Default__Path: /run/certs/management.pfx
+    DataProtection__KeyRingPath: /run/keyring
+    DataProtection__CertificatePath: /run/certs/keyring.pfx
+    Payments__FeeBasisPoints: ${UZLLM_PAYMENT_FEE_BPS:?Set UZLLM_PAYMENT_FEE_BPS}
+    Payments__FixedFeeTiyin: ${UZLLM_PAYMENT_FIXED_FEE_TIYIN:?Set UZLLM_PAYMENT_FIXED_FEE_TIYIN}
+  volumes:
+    - ${UZLLM_CERT_DIR}/management.pfx:/run/certs/management.pfx:ro
+    - ${UZLLM_CERT_DIR}/keyring.pfx:/run/certs/keyring.pfx:ro
+    - ${UZLLM_KEYRING_DIR:?Set UZLLM_KEYRING_DIR}:/run/keyring:rw
+  secrets:
+    - { source: runtime-postgres, target: ConnectionStrings__Postgres }
+    - { source: redis, target: ConnectionStrings__Redis }
+    - { source: api-fingerprint, target: ApiKeys__FingerprintKey }
+    - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
+    - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
+    - { source: management-cert-password, target: Kestrel__Certificates__Default__Password }
+    - { source: keyring-cert-password, target: DataProtection__CertificatePassword }
+    - { source: payme-merchant-id, target: Payments__Payme__MerchantId }
+    - { source: payme-key, target: Payments__Payme__Key }
+    - { source: click-merchant-id, target: Payments__Click__MerchantId }
+    - { source: click-service-id, target: Payments__Click__ServiceId }
+    - { source: click-secret-key, target: Payments__Click__SecretKey }
+  networks: [application]
+
+x-worker: &worker
+  build: { context: .., dockerfile: deploy/Dockerfile.app, target: worker }
+  restart: unless-stopped
+  environment:
+    DOTNET_ENVIRONMENT: Production
+    Payments__FeeBasisPoints: ${UZLLM_PAYMENT_FEE_BPS}
+    Payments__FixedFeeTiyin: ${UZLLM_PAYMENT_FIXED_FEE_TIYIN}
+  secrets:
+    - { source: runtime-postgres, target: ConnectionStrings__Postgres }
+    - { source: redis, target: ConnectionStrings__Redis }
+    - { source: payme-merchant-id, target: Payments__Payme__MerchantId }
+    - { source: payme-key, target: Payments__Payme__Key }
+    - { source: click-merchant-id, target: Payments__Click__MerchantId }
+    - { source: click-service-id, target: Payments__Click__ServiceId }
+    - { source: click-secret-key, target: Payments__Click__SecretKey }
+  networks: [application]
+
+services:
+  edge:
+    build: { context: .., dockerfile: deploy/Dockerfile.edge }
+    restart: unless-stopped
+    environment:
+      NGINX_ENVSUBST_FILTER: '^UZLLM_'
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+      UZLLM_GATEWAY_A: ${UZLLM_GATEWAY_A:-gateway-a:8443}
+      UZLLM_GATEWAY_B: ${UZLLM_GATEWAY_B:-gateway-b:8443}
+      UZLLM_MANAGEMENT_A: ${UZLLM_MANAGEMENT_A:-management-a:8443}
+      UZLLM_MANAGEMENT_B: ${UZLLM_MANAGEMENT_B:-management-b:8443}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ${UZLLM_CERT_DIR}/public.crt:/run/certs/public.crt:ro
+      - ${UZLLM_CERT_DIR}/public.key:/run/certs/public.key:ro
+      - ${UZLLM_CERT_DIR}/internal-ca.crt:/run/certs/internal-ca.crt:ro
+    networks: [application]
+  gateway-a:
+    <<: *gateway
+    ports: ["${UZLLM_GATEWAY_A_BIND:-127.0.0.1:8443}:8443"]
+  gateway-b:
+    <<: *gateway
+    ports: ["${UZLLM_GATEWAY_B_BIND:-127.0.0.1:8445}:8443"]
+  management-a:
+    <<: *management
+    ports: ["${UZLLM_MANAGEMENT_A_BIND:-127.0.0.1:8444}:8443"]
+  management-b:
+    <<: *management
+    ports: ["${UZLLM_MANAGEMENT_B_BIND:-127.0.0.1:8446}:8443"]
+  worker-a: *worker
+  worker-b: *worker
+  migrator:
+    profiles: [migration]
+    build: { context: .., dockerfile: deploy/Dockerfile.app, target: migrator }
+    secrets:
+      - { source: migrator-postgres, target: ConnectionStrings__Postgres }
+    networks: [application]
+
+networks:
+  application: { internal: false }
+
+secrets:
+  runtime-postgres: { file: '${UZLLM_SECRET_DIR:?Set UZLLM_SECRET_DIR}/ConnectionStrings__Postgres' }
+  migrator-postgres: { file: '${UZLLM_SECRET_DIR}/ConnectionStrings__Postgres.migrator' }
+  redis: { file: '${UZLLM_SECRET_DIR}/ConnectionStrings__Redis' }
+  api-fingerprint: { file: '${UZLLM_SECRET_DIR}/ApiKeys__FingerprintKey' }
+  provider-active-version: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__ActiveKeyVersion' }
+  provider-key-v1: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__Keys__v1' }
+  gateway-cert-password: { file: '${UZLLM_SECRET_DIR}/Kestrel__Certificates__Default__Password.gateway' }
+  management-cert-password: { file: '${UZLLM_SECRET_DIR}/Kestrel__Certificates__Default__Password.management' }
+  keyring-cert-password: { file: '${UZLLM_SECRET_DIR}/DataProtection__CertificatePassword' }
+  payme-merchant-id: { file: '${UZLLM_SECRET_DIR}/Payments__Payme__MerchantId' }
+  payme-key: { file: '${UZLLM_SECRET_DIR}/Payments__Payme__Key' }
+  click-merchant-id: { file: '${UZLLM_SECRET_DIR}/Payments__Click__MerchantId' }
+  click-service-id: { file: '${UZLLM_SECRET_DIR}/Payments__Click__ServiceId' }
+  click-secret-key: { file: '${UZLLM_SECRET_DIR}/Payments__Click__SecretKey' }

@@ -14,6 +14,8 @@ using UZLLM.Management.Api;
 using UZLLM.Management.Api.Administration;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
+builder.Services.AddUzllmOperatorKeyRing(builder.Configuration, builder.Environment.IsProduction());
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmObservability(builder.Configuration, "UZLLM.Management.Api");

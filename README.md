@@ -6,12 +6,13 @@ providers, and tenant-scoped usage visibility.
 
 ## Status
 
-This repository contains a buildable .NET modular-monolith baseline,
-versioned PostgreSQL migrations, and separate Gateway, Management, and Worker
-hosts. The Gateway supports an OpenAI-compatible models/chat surface through
-one OpenAI adapter, prepaid admission, streaming, and usage finalization.
-Payment integrations, same-model provider failover, and dashboard read models
-remain backlog tasks.
+This repository contains a buildable .NET modular monolith with versioned
+PostgreSQL migrations and separate Gateway, Management, and Worker hosts. The
+Gateway supports OpenAI-compatible models/chat with OpenAI and Anthropic
+adapters, prepaid admission, streaming, usage finalization, and same-model
+failover. Payme/CLICK, usage read models, customer dashboard, and operator
+console are implemented; production merchant verification and load/recovery
+qualification remain launch gates.
 
 ## Local development
 
@@ -55,3 +56,4 @@ fee policy, and funded organization wallet. See
 - [Architecture decisions](docs/15_ARCHITECTURE_DECISIONS.md)
 - [Implementation backlog](docs/16_IMPLEMENTATION_BACKLOG.md)
 - [MVP roadmap](docs/14_MVP_AND_DELIVERY_ROADMAP.md)
+- [Production deployment and recovery](deploy/RUNBOOK.md)

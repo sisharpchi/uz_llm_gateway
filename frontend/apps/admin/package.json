@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "vite", "build": "tsc --noEmit && vite build" },
+  "scripts": { "dev": "vite", "build": "tsc --noEmit && vite build --base=/admin/" },
   "dependencies": {
     "@uzllm/api-client": "file:../../packages/api-client",
     "react": "^19.3.0",
