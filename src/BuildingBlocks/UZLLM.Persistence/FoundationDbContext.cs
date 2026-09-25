@@ -38,6 +38,14 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
     internal DbSet<BillingFxRateSnapshotEntity> BillingFxRateSnapshots => Set<BillingFxRateSnapshotEntity>();
 
+    internal DbSet<PaymentQuoteEntity> PaymentQuotes => Set<PaymentQuoteEntity>();
+
+    internal DbSet<PaymentIntentEntity> PaymentIntents => Set<PaymentIntentEntity>();
+
+    internal DbSet<PaymentCallbackReceiptEntity> PaymentCallbackReceipts => Set<PaymentCallbackReceiptEntity>();
+
+    internal DbSet<PaymentReconciliationCaseEntity> PaymentReconciliationCases => Set<PaymentReconciliationCaseEntity>();
+
     internal DbSet<CatalogProviderEntity> CatalogProviders => Set<CatalogProviderEntity>();
 
     internal DbSet<CatalogModelEntity> CatalogModels => Set<CatalogModelEntity>();
@@ -58,6 +66,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
     {
         ConfigureFinancialCompletion(modelBuilder);
         ConfigureProviderCredentials(modelBuilder);
+        ConfigurePayments(modelBuilder);
         modelBuilder.Entity<IdentityAccountEntity>(entity =>
         {
             entity.ToTable("user", "iam");

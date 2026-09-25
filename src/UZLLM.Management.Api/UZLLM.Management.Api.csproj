@@ -13,6 +13,7 @@
     <ProjectReference Include="..\Modules\Billing\UZLLM.Modules.Billing.csproj" />
     <ProjectReference Include="..\Modules\Catalog\UZLLM.Modules.Catalog.csproj" />
     <ProjectReference Include="..\Modules\Organizations\UZLLM.Modules.Organizations.csproj" />
+    <ProjectReference Include="..\Modules\Payments\UZLLM.Modules.Payments.csproj" />
     <ProjectReference Include="..\Modules\Projects\UZLLM.Modules.Projects.csproj" />
   </ItemGroup>
 

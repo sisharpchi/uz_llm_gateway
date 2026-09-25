@@ -24,6 +24,29 @@ https://api.example.uz/payments/payme/callback
 https://api.example.uz/payments/click/callback
 ```
 
+### P0 top-up control plane
+
+An authenticated organization owner uses `POST /management/v1/organizations/{organizationId}/billing/quotes`
+with `{ "provider": "Payme|Click", "amountTiyin": 100000 }`, then
+`POST /management/v1/organizations/{organizationId}/billing/topups` with
+`{ "quoteId": "..." }` and an `Idempotency-Key` header. Both writes require the
+management session and CSRF header. The latter returns an intent and provider
+checkout URL; the key may be replayed only for the same quote. `GET` endpoints
+for `/billing/topups`, `/billing/topups/{intentId}`, and `/billing/wallet` are
+owner-scoped. Amounts are integer UZS tiyin; wallet credits are integer USD
+micro-units using the quote's immutable FX snapshot.
+
+Payme calls `/payments/payme/callback` with its Merchant API JSON-RPC body and
+`Authorization: Basic` credential (`Paycom:<merchant key>`). Implemented methods:
+`CheckPerformTransaction`, `CreateTransaction`, `PerformTransaction`,
+`CancelTransaction`, `CheckTransaction`, and `GetStatement`. CLICK Shop API
+calls `/payments/click/callback` with `application/x-www-form-urlencoded`
+Prepare (`action=0`) or Complete (`action=1`) fields; its documented MD5
+`sign_string` is validated before processing. Callback routes do not use browser
+sessions or CSRF. Both reject bodies over 32 KiB. Payme `GetStatement` accepts
+at most a 30-day range and fails rather than truncating a response over 10,000
+transactions; callers can split the range.
+
 ---
 
 ## 2. Chat completions [P0]

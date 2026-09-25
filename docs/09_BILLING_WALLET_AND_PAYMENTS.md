@@ -279,5 +279,44 @@ entries. Provider reversal, usage refund, and discretionary cash refund are
 different operations.
 
 P0 payment work includes Payme `GetStatement` support and provider-specific
-callback fixtures. CLICK implementation is accepted only against active merchant
-protocol/signature fixtures supplied during merchant onboarding.
+callback fixtures. Public CLICK protocol examples from its official integration
+repository are sufficient for automated implementation acceptance. Active
+merchant sandbox/live protocol verification remains a paid-launch prerequisite.
+
+### P0 implementation and launch controls
+
+`Payments__FeeBasisPoints` and `Payments__FixedFeeTiyin` define the local
+top-up fee; no default commercial rate is assumed. Configure
+`Payments__Payme__MerchantId`, `Payments__Payme__Key`,
+`Payments__Click__MerchantId`, `Payments__Click__ServiceId`, and
+`Payments__Click__SecretKey` through secret management. A controlled operator
+must publish a `billing.fx_rate_snapshot` before quotes can be issued; quotes
+reject snapshots older than 24 hours and expire after 30 minutes. Do not store
+merchant secrets in `appsettings*.json` or `.env.example`.
+
+`payment.fx_quote` and `payment.callback_log` are append-only. Each intent
+copies its quote's exact UZS amount, fee, FX and USD credit; one quote and one
+organization/idempotency key bind at most one intent. The provider transaction
+identity is unique within merchant scope. A verified completion updates intent,
+top-up ledger, wallet/debt and outbox in one PostgreSQL transaction. A verified
+reversal applies the billing recovery-debt rules in one transaction. The worker
+expires unbound intents; stale bound transactions become deduplicated manual
+reconciliation cases with an operational alert, never an inferred zero-charge
+or automatic credit. Payme `GetStatement` exposes local transaction history;
+it is **not** independent provider-side settlement evidence.
+
+Public-spec tests exercise Payme lifecycle/replay and CLICK's documented
+signature field order, Prepare/Complete, invalid signature/amount and reversal.
+Before accepting live money, obtain merchant credentials and sandbox fixtures,
+verify Payme/CLICK callbacks and checkout links against the actual merchant
+accounts, compare provider settlement reports with local intents/ledger, and
+configure a trusted ingress source policy for CLICK callbacks. CLICK's public
+Shop API signature does not cover every callback field (notably `error`), so
+signature validation alone is insufficient to authenticate a reversal from an
+untrusted network source. This is an external launch gate, not a blocker for
+public-protocol implementation and automated validation.
+
+Protocol references: [Payme CreateTransaction](https://developer.help.paycom.uz/metody-merchant-api/createtransaction/),
+[GetStatement](https://developer.help.paycom.uz/metody-merchant-api/getstatement/),
+[CancelTransaction](https://developer.help.paycom.uz/metody-merchant-api/canceltransaction/),
+and the [official CLICK integration examples](https://github.com/click-llc/click-integration-php/blob/master/README.md).

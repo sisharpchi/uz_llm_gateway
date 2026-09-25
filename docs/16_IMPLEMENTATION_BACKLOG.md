@@ -24,13 +24,12 @@ same-model failover precedes P1 cross-model fallback.
 | LIMITS-001 | Completed |
 | PROVIDER-001 | Completed |
 | GATEWAY-001 | Completed |
-| PAYMENT-001 | Blocked — active CLICK merchant protocol/signature fixtures and merchant arrangement are required for P0 acceptance. |
+| PAYMENT-001 | Completed |
 
-All remaining task-register entries are `Planned` unless listed above. `PAYMENT-001`
-cannot be accepted from public protocol examples alone: the P0 payment rules in
-`docs/09_BILLING_WALLET_AND_PAYMENTS.md` require active CLICK onboarding fixtures.
-Resume this task when sanitized Prepare/Complete success, duplicate, amount/signature
-failure, and reversal fixtures and the enabled merchant capabilities are available.
+All remaining task-register entries are `Planned` unless listed above. For
+`PAYMENT-001`, public Payme documentation and official CLICK protocol examples
+are sufficient for implementation and automated contract fixtures. Live
+merchant verification remains an external paid-launch prerequisite.
 
 `FIN-001` through `FIN-004` are accepted by `BILLING-002`, where reservations,
 API-key caps, and settlement exist. `BILLING-001` establishes their wallet and

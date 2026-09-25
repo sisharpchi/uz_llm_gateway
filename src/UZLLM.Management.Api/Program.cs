@@ -7,6 +7,7 @@ using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Catalog.Infrastructure;
 using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Projects.Infrastructure;
+using UZLLM.Modules.Payments.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddUzllmPersistence(builder.Configuration);
@@ -20,6 +21,7 @@ builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmCatalog();
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmProjects();
+builder.Services.AddUzllmPayments(builder.Configuration);
 var app = builder.Build();
 
 app.UseUzllmRequestCorrelation();
@@ -29,4 +31,5 @@ app.MapUzllmIdentityEndpoints();
 app.MapUzllmOrganizationEndpoints();
 app.MapUzllmProjectEndpoints();
 app.MapUzllmApiKeyEndpoints();
+app.MapUzllmPaymentEndpoints();
 app.Run();
