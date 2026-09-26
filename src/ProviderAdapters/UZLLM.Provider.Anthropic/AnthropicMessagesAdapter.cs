@@ -113,8 +113,7 @@ public sealed class AnthropicMessagesAdapter(HttpClient client,
     private async Task<string> ResolveSecretAsync(ProviderExecutionContext context,
         CancellationToken cancellationToken)
     {
-        var secret = await credentials.ResolvePlatformSecretAsync(context.CredentialId,
-            context.ProviderId, cancellationToken);
+        var secret = await credentials.ResolveSecretAsync(context, cancellationToken);
         return !string.IsNullOrWhiteSpace(secret) ? secret
             : throw new ProviderExecutionException(new ProviderError(
                 ProviderErrorCategory.Authentication, ProviderExecutionCertainty.NotDispatched,

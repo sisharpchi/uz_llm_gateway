@@ -180,7 +180,7 @@ Payme/CLICK integration belongs in the core MVP because local top-up is a primar
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Managed execution implemented; `BYOK-001` has encrypted org credentials and explicit project grants, while BYOK/Hybrid gateway execution remains pending `BYOK-002`.
+**Implementation status:** Managed execution and `BYOK-002` request-selected BYOK/explicit Hybrid execution are implemented. One BYOK and one managed candidate are supported; multi-key ordering and advanced routing remain later work.
 
 Architecture must support all three even if MVP launches with a subset.
 

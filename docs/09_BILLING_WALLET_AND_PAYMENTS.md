@@ -108,6 +108,23 @@ Architecture must support a configurable billing policy.
 
 Do not entangle routing adapter code with commercial pricing policy.
 
+`BYOK-002` uses a separately versioned BYOK fee policy. Its markup basis
+points represent a **platform fee on estimated provider cost**, not a managed
+resale charge; fixed fee is additive. A zero policy permits requests without
+wallet credit. The PostgreSQL reservation holds the wallet fee (or the larger
+managed ceiling for explicit Hybrid fallback) and separately holds one
+credential's conservative external provider-cost estimate. Lifetime spend
+cap admission atomically checks `external_spent + external_reserved + new_hold`.
+Finalization debits only the wallet platform fee for BYOK, records external
+provider spend on the credential/settlement, and releases both holds in one
+transaction. A rejected BYOK attempt followed by managed execution uses the
+managed charge and releases the unused external hold. Unknown provider usage
+retains holds through reconciliation; late verified BYOK usage becomes an
+append-only external-spend adjustment, never platform exposure. The catalog
+price is a cost estimate, not the customer's provider invoice; upstream
+discounts, tax, and provider-side usage differences require external account
+reconciliation before a cap can be marketed as a hard provider-bill limit.
+
 ---
 
 ## 7. UZS top-up

@@ -5,10 +5,37 @@ namespace UZLLM.Modules.Billing.Domain;
 
 public static class RequestCostCalculator
 {
+    public static ChargeBreakdown CalculateByok(IReadOnlyList<PricedUsageEvidence> evidence,
+        FeePolicyVersion feePolicy, UsdMicroAmount walletReservation)
+    {
+        var exactProviderCost = ExactProviderCost(evidence);
+        var providerCost = new UsdMicroAmount(checked((long)decimal.Ceiling(exactProviderCost)));
+        var uncapped = new UsdMicroAmount(checked((long)decimal.Ceiling(
+            exactProviderCost * feePolicy.MarkupBasisPoints / 10_000m
+            + feePolicy.FixedFee.Value)));
+        var charged = new UsdMicroAmount(Math.Min(uncapped.Value, walletReservation.Value));
+        return new ChargeBreakdown(providerCost, uncapped, charged,
+            new UsdMicroAmount(uncapped.Value - charged.Value), UsdMicroAmount.Zero,
+            providerCost);
+    }
+
     public static ChargeBreakdown Calculate(
         IReadOnlyList<PricedUsageEvidence> evidence,
         FeePolicyVersion feePolicy,
         UsdMicroAmount reservation)
+    {
+        var exactProviderCost = ExactProviderCost(evidence);
+        var providerCost = new UsdMicroAmount(checked((long)decimal.Ceiling(exactProviderCost)));
+        var exactCustomer = exactProviderCost * (10_000m + feePolicy.MarkupBasisPoints) / 10_000m
+            + feePolicy.FixedFee.Value;
+        var uncapped = new UsdMicroAmount(checked((long)decimal.Ceiling(exactCustomer)));
+        var charged = new UsdMicroAmount(Math.Min(uncapped.Value, reservation.Value));
+        return new ChargeBreakdown(providerCost, uncapped, charged,
+            new UsdMicroAmount(uncapped.Value - charged.Value),
+            new UsdMicroAmount(Math.Max(0, providerCost.Value - charged.Value)));
+    }
+
+    private static decimal ExactProviderCost(IReadOnlyList<PricedUsageEvidence> evidence)
     {
         decimal exactProviderCost = 0;
         foreach (var item in evidence)
@@ -33,13 +60,6 @@ public static class RequestCostCalculator
                 + (decimal)item.OutputTokens * item.OutputRate) / 1_000_000m;
         }
 
-        var providerCost = new UsdMicroAmount(checked((long)decimal.Ceiling(exactProviderCost)));
-        var exactCustomer = exactProviderCost * (10_000m + feePolicy.MarkupBasisPoints) / 10_000m
-            + feePolicy.FixedFee.Value;
-        var uncapped = new UsdMicroAmount(checked((long)decimal.Ceiling(exactCustomer)));
-        var charged = new UsdMicroAmount(Math.Min(uncapped.Value, reservation.Value));
-        return new ChargeBreakdown(providerCost, uncapped, charged,
-            new UsdMicroAmount(uncapped.Value - charged.Value),
-            new UsdMicroAmount(Math.Max(0, providerCost.Value - charged.Value)));
+        return exactProviderCost;
     }
 }

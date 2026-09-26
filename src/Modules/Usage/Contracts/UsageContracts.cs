@@ -16,7 +16,7 @@ public sealed record UsageRequest(
 public sealed record UsageAttempt(
     Guid Id, Guid RequestId, int Number, Guid ProviderModelId, DateTimeOffset StartedAt,
     DateTimeOffset? CompletedAt, ExecutionState Execution, string? ProviderRequestId,
-    string? ErrorCategory);
+    string? ErrorCategory, Guid? CredentialId = null);
 
 public sealed record UsageEvidence(
     Guid Id, Guid RequestId, Guid AttemptId, Guid ProviderModelId, EvidenceState State, EvidenceSource Source,
@@ -72,6 +72,9 @@ public interface IUsageService
         string operation, string idempotencyKey, byte[] payloadHash,
         CancellationToken cancellationToken = default);
     Task<UsageAttempt> StartAttemptAsync(Guid requestId, Guid providerModelId, CancellationToken cancellationToken = default);
+    Task<UsageAttempt> StartAttemptAsync(Guid requestId, Guid providerModelId, Guid credentialId,
+        CancellationToken cancellationToken = default) => StartAttemptAsync(requestId, providerModelId,
+        cancellationToken);
     Task<bool> MarkDispatchedAsync(Guid attemptId, CancellationToken cancellationToken = default);
     Task<bool> FinishAttemptAsync(Guid attemptId, ExecutionState next,
         string? providerRequestId, string? errorCategory, CancellationToken cancellationToken = default);

@@ -7,6 +7,7 @@ public enum AdmissionStatus
 {
     Reserved, Duplicate, PayloadConflict, InvalidScope, InsufficientWallet,
     ProjectBudgetExceeded, ApiKeyBudgetExceeded, SpendingHeld, InvalidFeePolicy
+    , ByokSpendExceeded, ByokUnavailable
 }
 
 public enum FinalizationStatus { Settled, Released, AlreadyFinalized, PendingEvidence, NotDue, NotFound }
@@ -15,10 +16,18 @@ public sealed record ManagedAdmissionInput(
     PrepareUsageRequest Request, UsdMicroAmount MaximumCharge,
     Guid FeePolicyVersionId, DateTimeOffset ExpiresAt);
 
+public sealed record ByokAdmissionInput(
+    PrepareUsageRequest Request, UsdMicroAmount MaximumWalletCharge,
+    Guid FeePolicyVersionId, Guid ByokFeePolicyVersionId, Guid CredentialId,
+    UsdMicroAmount MaximumExternalSpend, bool AllowManagedFallback,
+    DateTimeOffset ExpiresAt);
+
 public sealed record Reservation(
     Guid Id, Guid RequestId, Guid OrganizationId, Guid ProjectId, Guid ApiKeyId,
     Guid FeePolicyVersionId, UsdMicroAmount Amount, DateTimeOffset CreatedAt,
-    DateTimeOffset ExpiresAt, string Status);
+    DateTimeOffset ExpiresAt, string Status, Guid? ByokCredentialId = null,
+    Guid? ByokFeePolicyVersionId = null, UsdMicroAmount MaximumExternalSpend = default,
+    bool AllowManagedFallback = false);
 
 public sealed record AdmissionResult(AdmissionStatus Status, Guid? RequestId, Reservation? Reservation);
 
@@ -26,7 +35,8 @@ public sealed record Settlement(
     Guid Id, Guid ReservationId, Guid RequestId, UsdMicroAmount ProviderCost,
     UsdMicroAmount UncappedCustomerCharge, UsdMicroAmount Charged,
     UsdMicroAmount UncollectedCharge, UsdMicroAmount PlatformExposure,
-    bool UnresolvedUsage, string Outcome, DateTimeOffset CreatedAt);
+    bool UnresolvedUsage, string Outcome, DateTimeOffset CreatedAt,
+    UsdMicroAmount ExternalProviderSpend = default);
 
 public sealed record FinalizationResult(FinalizationStatus Status, Settlement? Settlement);
 
@@ -48,18 +58,21 @@ public sealed record PricedUsageEvidence(
     DateTimeOffset AttemptStartedAt, DateTimeOffset PriceEffectiveFrom,
     DateTimeOffset? PriceEffectiveTo);
 
-public sealed record FinancialAttempt(Guid Id, ExecutionState Execution, bool HasEvidence);
+public sealed record FinancialAttempt(Guid Id, ExecutionState Execution, bool HasEvidence,
+    Guid? CredentialId = null, string? CredentialType = null,
+    bool CredentialProviderMatches = true);
 
 public sealed record FinalizationContext(
     Reservation Reservation, FeePolicyVersion FeePolicy, Settlement? ExistingSettlement,
     IReadOnlyList<FinancialAttempt> Attempts,
     IReadOnlyList<UsageEvidence> Evidence,
-    IReadOnlyList<PricedUsageEvidence> PricedEvidence);
+    IReadOnlyList<PricedUsageEvidence> PricedEvidence,
+    FeePolicyVersion? ByokFeePolicy = null);
 
 public sealed record ChargeBreakdown(
     UsdMicroAmount ProviderCost, UsdMicroAmount UncappedCustomerCharge,
     UsdMicroAmount Charged, UsdMicroAmount UncollectedCharge,
-    UsdMicroAmount PlatformExposure);
+    UsdMicroAmount PlatformExposure, UsdMicroAmount ExternalProviderSpend = default);
 
 public interface IFinancialStore
 {
@@ -82,11 +95,17 @@ public interface IFinancialStore
         DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<bool> TryRecordLateExposureAsync(Guid settlementId, Guid evidenceId,
         UsdMicroAmount providerCost, DateTimeOffset now, CancellationToken cancellationToken = default);
+    Task<bool> TryRecordLateExternalSpendAsync(Guid settlementId, Guid evidenceId,
+        Guid credentialId, UsdMicroAmount providerCost, DateTimeOffset now,
+        CancellationToken cancellationToken = default) => Task.FromResult(false);
 }
 
 public interface IFinancialService
 {
     Task<AdmissionResult> ReserveAsync(ManagedAdmissionInput input, CancellationToken cancellationToken = default);
+    Task<AdmissionResult> ReserveByokAsync(ByokAdmissionInput input,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("BYOK admission is not available in this implementation.");
     Task<FinalizationResult> FinalizeAsync(Guid reservationId, CancellationToken cancellationToken = default);
     Task<FinalizationResult> ReleaseUndispatchedAsync(Guid reservationId, CancellationToken cancellationToken = default);
     Task<FinalizationResult> ReconcileAsync(Guid reservationId, CancellationToken cancellationToken = default);

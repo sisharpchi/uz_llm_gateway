@@ -300,8 +300,11 @@ Create:
 `BYOK-001` exposes only fixed official OpenAI/Anthropic endpoints and
 organization credential-to-project grants. Do not show a custom base URL yet:
 approved custom endpoints belong to P2 `PROVIDER-010`. Model restrictions,
-spend and last-used displays stay hidden until their backend contracts are
-implemented; never imply that an unenforced restriction is active.
+spend displays were backend-gated until `BYOK-002`; its masked restriction and
+external spend fields are now available for a dedicated frontend task.
+Last-used remains unavailable and must stay hidden. The existing root
+`frontend/` mockup remains visual reference only; production UI belongs in
+`frontend/apps` and must follow the backlog's UI/UX note.
 
 Actions:
 - test;

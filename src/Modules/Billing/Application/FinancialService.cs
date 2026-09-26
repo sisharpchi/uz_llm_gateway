@@ -15,23 +15,48 @@ public sealed class FinancialService(
     public async Task<AdmissionResult> ReserveAsync(ManagedAdmissionInput input, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
-        ArgumentNullException.ThrowIfNull(input.Request);
         if (input.MaximumCharge.Value <= 0 || input.FeePolicyVersionId == Guid.Empty
             || input.ExpiresAt <= timeProvider.GetUtcNow())
             throw new ArgumentException("A positive bound, fee policy, and future expiry are required.", nameof(input));
+        return await ReserveCoreAsync(input.Request, input.MaximumCharge, input.FeePolicyVersionId,
+            input.ExpiresAt, null, null, UsdMicroAmount.Zero, false, cancellationToken);
+    }
+
+    public async Task<AdmissionResult> ReserveByokAsync(ByokAdmissionInput input,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        if (input.MaximumWalletCharge.Value < 0 || input.MaximumExternalSpend.Value <= 0
+            || input.AllowManagedFallback && input.MaximumWalletCharge.Value == 0
+            || input.FeePolicyVersionId == Guid.Empty || input.ByokFeePolicyVersionId == Guid.Empty
+            || input.CredentialId == Guid.Empty || input.ExpiresAt <= timeProvider.GetUtcNow())
+            throw new ArgumentException("BYOK admission requires a credential, prices, and external spend bound.", nameof(input));
+        return await ReserveCoreAsync(input.Request, input.MaximumWalletCharge,
+            input.FeePolicyVersionId, input.ExpiresAt, input.CredentialId,
+            input.ByokFeePolicyVersionId, input.MaximumExternalSpend,
+            input.AllowManagedFallback, cancellationToken);
+    }
+
+    private async Task<AdmissionResult> ReserveCoreAsync(PrepareUsageRequest request,
+        UsdMicroAmount maximumCharge, Guid feePolicyId, DateTimeOffset expiresAt,
+        Guid? byokCredentialId, Guid? byokFeePolicyId, UsdMicroAmount maximumExternalSpend,
+        bool allowManagedFallback, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
 
         ClaimResult? claim;
         AdmissionStatus status = AdmissionStatus.Reserved;
         Reservation? reservation = null;
         await using (var transaction = await transactions.BeginAsync(cancellationToken))
         {
-            claim = await usage.TryPrepareInTransactionAsync(input.Request, cancellationToken);
+            claim = await usage.TryPrepareInTransactionAsync(request, cancellationToken);
             if (claim is not null)
             {
                 reservation = new Reservation(Guid.CreateVersion7(), claim.RequestId,
-                    input.Request.OrganizationId, input.Request.ProjectId, input.Request.ApiKeyId,
-                    input.FeePolicyVersionId, input.MaximumCharge, timeProvider.GetUtcNow(),
-                    input.ExpiresAt, "Reserved");
+                    request.OrganizationId, request.ProjectId, request.ApiKeyId,
+                    feePolicyId, maximumCharge, timeProvider.GetUtcNow(),
+                    expiresAt, "Reserved", byokCredentialId, byokFeePolicyId,
+                    maximumExternalSpend, allowManagedFallback);
                 status = await store.TryReserveAsync(reservation, cancellationToken);
                 if (status == AdmissionStatus.Reserved)
                 {
@@ -44,7 +69,7 @@ public sealed class FinancialService(
 
         if (claim is null)
         {
-            var prior = await usage.ResolveDuplicateAsync(input.Request, cancellationToken);
+            var prior = await usage.ResolveDuplicateAsync(request, cancellationToken);
             return new AdmissionResult(prior.Kind == ClaimResultKind.PayloadConflict
                 ? AdmissionStatus.PayloadConflict : AdmissionStatus.Duplicate, prior.RequestId, null);
         }
@@ -120,11 +145,19 @@ public sealed class FinancialService(
         var cost = RequestCostCalculator.Calculate([priced],
             context.FeePolicy with { MarkupBasisPoints = 0, FixedFee = UsdMicroAmount.Zero },
             UsdMicroAmount.Zero).ProviderCost;
-        var recorded = await store.TryRecordLateExposureAsync(settlement.Id, evidenceId, cost,
-            timeProvider.GetUtcNow(), cancellationToken);
+        var credentialId = context.Reservation.ByokCredentialId;
+        var external = credentialId is not null
+            && context.Attempts.Any(attempt => attempt.Id == priced.AttemptId
+                && attempt.CredentialId == credentialId);
+        var recorded = external
+            ? await store.TryRecordLateExternalSpendAsync(settlement.Id, evidenceId,
+                credentialId!.Value, cost, timeProvider.GetUtcNow(), cancellationToken)
+            : await store.TryRecordLateExposureAsync(settlement.Id, evidenceId, cost,
+                timeProvider.GetUtcNow(), cancellationToken);
         if (recorded)
         {
-            await outbox.EnqueueAsync("billing.late_exposure.recorded",
+            await outbox.EnqueueAsync(external ? "billing.late_external_spend.recorded"
+                    : "billing.late_exposure.recorded",
                 JsonSerializer.Serialize(new { reservationId = reservationId.Value, evidenceId,
                     exposureMicroUsd = cost.Value }), cancellationToken: cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -173,9 +206,27 @@ public sealed class FinancialService(
 
                 if (nextReview is null || mode == FinalizationMode.Reconciliation && now >= nextReview)
                 {
+                    var byokEvidence = context.Reservation.ByokCredentialId is { } byokId
+                        && context.PricedEvidence.Any(evidence => context.Attempts.Any(attempt =>
+                            attempt.Id == evidence.AttemptId && attempt.CredentialId == byokId));
+                    if (context.Reservation.ByokCredentialId is not null && context.PricedEvidence.Count != 0
+                        && context.PricedEvidence.Any(evidence => !context.Attempts.Any(attempt =>
+                            attempt.Id == evidence.AttemptId && attempt.CredentialProviderMatches
+                                && (attempt.CredentialId == context.Reservation.ByokCredentialId
+                                    && attempt.CredentialType == "BYOK"
+                                || context.Reservation.AllowManagedFallback
+                                    && attempt.CredentialType == "Platform"))))
+                        throw new InvalidOperationException("Usage evidence has an unauthorized credential.");
+                    if (byokEvidence && context.PricedEvidence.Any(evidence => !context.Attempts.Any(attempt =>
+                        attempt.Id == evidence.AttemptId && attempt.CredentialId == context.Reservation.ByokCredentialId)))
+                        throw new InvalidOperationException("One request cannot charge BYOK and managed provider usage together.");
                     var cost = context.PricedEvidence.Count == 0
                         ? new ChargeBreakdown(UsdMicroAmount.Zero, UsdMicroAmount.Zero,
                             UsdMicroAmount.Zero, UsdMicroAmount.Zero, UsdMicroAmount.Zero)
+                        : byokEvidence
+                            ? RequestCostCalculator.CalculateByok(context.PricedEvidence,
+                                context.ByokFeePolicy ?? throw new InvalidOperationException("BYOK fee policy is missing."),
+                                context.Reservation.Amount)
                         : RequestCostCalculator.Calculate(context.PricedEvidence,
                             context.FeePolicy, context.Reservation.Amount);
                     var settled = await store.ApplyFinalizationAsync(context, cost,

@@ -29,6 +29,13 @@ X-CSRF-Token: {{csrf}}
 POST {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}/test
 X-CSRF-Token: {{csrf}}
 
+### Restrict canonical models and lifetime external spend (null removes either limit)
+PUT {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}/restrictions
+Content-Type: application/json
+X-CSRF-Token: {{csrf}}
+
+{"allowedModels":["gpt-4o-mini"],"spendLimitMicroUsd":"5000000"}
+
 ### Grant a project
 PUT {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}/projects/{{projectId}}
 X-CSRF-Token: {{csrf}}

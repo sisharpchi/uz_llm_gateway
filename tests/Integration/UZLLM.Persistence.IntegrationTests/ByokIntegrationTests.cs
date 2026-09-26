@@ -25,6 +25,45 @@ namespace UZLLM.Persistence.IntegrationTests;
 public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     [Fact]
+    public async Task Restrictions_accept_only_provider_models_and_audited_lifetime_spend_cap()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        await using var provider = CreateProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var owner = await RegisterAsync(scope, "byok-policy-owner@example.uz");
+        var outsider = await RegisterAsync(scope, "byok-policy-outsider@example.uz");
+        var org = await scope.ServiceProvider.GetRequiredService<IOrganizationService>()
+            .CreateAsync(owner, "BYOK policy");
+        var catalog = scope.ServiceProvider.GetRequiredService<ICatalogService>();
+        var upstream = await catalog.AddProviderAsync("openai", "OpenAI");
+        var model = await catalog.AddModelAsync("policy-model", "Policy model", 1000, 100,
+            [CatalogCapability.Text]);
+        await catalog.AddProviderModelAsync(upstream.Id, model.Id, "upstream-model", null, null);
+        var byok = scope.ServiceProvider.GetRequiredService<IByokCredentialService>();
+        var key = await byok.CreateAsync(owner, org.Id, upstream.Id,
+            "Restricted", "sk-restricted-example-1234");
+        await Assert.ThrowsAsync<TenantAccessDeniedException>(() => byok.SetRestrictionsAsync(
+            outsider, org.Id, key.Id, ["policy-model"], 50_000));
+        await Assert.ThrowsAsync<ArgumentException>(() => byok.SetRestrictionsAsync(
+            owner, org.Id, key.Id, ["unmapped-model"], 50_000));
+        await Assert.ThrowsAsync<ArgumentException>(() => byok.SetRestrictionsAsync(
+            owner, org.Id, key.Id, ["policy-model", "policy-model"], 50_000));
+        await Assert.ThrowsAsync<ArgumentException>(() => byok.SetRestrictionsAsync(
+            owner, org.Id, key.Id, ["policy-model"], -1));
+        var restricted = await byok.SetRestrictionsAsync(owner, org.Id,
+            key.Id, ["policy-model"], 50_000);
+        Assert.Equal(["policy-model"], restricted!.AllowedModels);
+        Assert.Equal(50_000, restricted.SpendLimitMicroUsd);
+        Assert.Equal(0, restricted.ExternalSpentMicroUsd);
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Single(await db.Set<AuditEventEntity>().AsNoTracking().Where(value =>
+            value.ResourceId == key.Id && value.Action == "byok.restrictions.updated").ToListAsync());
+        Assert.True(await byok.DisableAsync(owner, org.Id, key.Id));
+        Assert.Null(await byok.SetRestrictionsAsync(owner, org.Id, key.Id, null, null));
+    }
+
+    [Fact]
     public async Task Org_credential_lifecycle_is_masked_encrypted_audited_and_disabled()
     {
         await fixture.ResetMigrationsAsync();
@@ -133,6 +172,13 @@ public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
         Assert.Equal([allowed.Id], (await byok.FindAsync(owner, org.Id, key.Id))!.ProjectIds);
         Assert.Equal(secret, await resolver.ResolveGrantedSecretAsync(org.Id, allowed.Id,
             key.Id, upstream.Id));
+        var executionResolver = scope.ServiceProvider.GetRequiredService<IProviderCredentialResolver>();
+        var execution = new ProviderExecutionContext(Guid.NewGuid(), upstream.Id, Guid.NewGuid(),
+            key.Id, "upstream-model", TimeSpan.FromSeconds(5), org.Id, allowed.Id);
+        Assert.Equal(secret, await executionResolver.ResolveSecretAsync(execution));
+        Assert.Null(await executionResolver.ResolveSecretAsync(execution with { ProjectId = denied.Id }));
+        Assert.Null(await executionResolver.ResolveSecretAsync(execution with { OrganizationId = otherOrg.Id,
+            ProjectId = foreign.Id }));
         Assert.Null(await resolver.ResolveGrantedSecretAsync(org.Id, denied.Id,
             key.Id, upstream.Id));
         Assert.Null(await resolver.ResolveGrantedSecretAsync(otherOrg.Id, foreign.Id,

@@ -42,6 +42,7 @@ public sealed class UsageAttemptEntity
     public Guid RequestId { get; set; }
     public int Number { get; set; }
     public Guid ProviderModelId { get; set; }
+    public Guid? CredentialId { get; set; }
     public DateTimeOffset StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public string ExecutionState { get; set; } = null!;

@@ -35,6 +35,7 @@ same-model failover precedes P1 cross-model fallback.
 | NOTIFY-001 | Completed |
 | TEAM-001 | Completed |
 | BYOK-001 | Completed |
+| BYOK-002 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -111,8 +112,8 @@ platform envelope encryption and key-version foundation was delivered in
 `ADMIN-001` instead. `BYOK-001` adds organization-bound authenticated data and
 grant enforcement. This mapping restores the omitted dependency without
 silently treating platform-only encryption as tenant-safe BYOK encryption.
-FR-056 model restrictions and BYOK spend-cap enforcement remain `BYOK-002`
-work; the `BYOK-001` UI/API must not claim they are active. Live testing with
+FR-056 model restrictions and BYOK spend-cap enforcement were delivered in
+`BYOK-002`; the `BYOK-001` UI/API alone did not claim they were active. Live testing with
 customer-owned provider secrets is an external launch prerequisite, not a CI
 fixture.
 

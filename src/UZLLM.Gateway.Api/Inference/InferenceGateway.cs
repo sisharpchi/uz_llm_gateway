@@ -100,16 +100,18 @@ public sealed class InferenceGateway(
                     "Project is unavailable."), cancellationToken);
                 return;
             }
-            if (!await platformControls.IsEnabledAsync(PlatformFeature.ManagedTraffic, cancellationToken))
+            if (!context.Request.HasJsonContentType())
+                throw new GatewayRequestException("Content-Type must be application/json.", "unsupported_media_type");
+            var raw = await ReadRequestBodyAsync(context.Request, options.MaximumRequestBytes, cancellationToken);
+            var parsed = ChatRequestParser.Parse(raw);
+            var managedEnabled = await platformControls.IsEnabledAsync(PlatformFeature.ManagedTraffic,
+                cancellationToken);
+            if (parsed.ProviderKeyId is null && !managedEnabled)
             {
                 await WriteErrorAsync(context, new(503, "managed_traffic_paused", "server_error",
                     "Managed traffic is temporarily unavailable."), cancellationToken);
                 return;
             }
-            if (!context.Request.HasJsonContentType())
-                throw new GatewayRequestException("Content-Type must be application/json.", "unsupported_media_type");
-            var raw = await ReadRequestBodyAsync(context.Request, options.MaximumRequestBytes, cancellationToken);
-            var parsed = ChatRequestParser.Parse(raw);
             var idempotencyKey = context.Request.Headers["Idempotency-Key"].ToString();
             if (idempotencyKey.Length == 0) idempotencyKey = null;
             if (idempotencyKey is not null
@@ -160,13 +162,6 @@ public sealed class InferenceGateway(
                 return;
             }
             var outputLimit = parsed.ProviderRequest.MaxOutputTokens ?? model.Model.MaxOutputTokens;
-            var fee = await readStore.FindFeePolicyAsync(options.FeePolicyCode, clock.GetUtcNow(), cancellationToken);
-            if (fee is null)
-            {
-                await WriteErrorAsync(context, new(503, "pricing_unavailable", "server_error",
-                    "Pricing is unavailable."), cancellationToken);
-                return;
-            }
             var candidates = new List<RouteCandidate>();
             var constraintAllowed = false;
             RequestConstraintOutcome? constraintFailure = null;
@@ -174,47 +169,114 @@ public sealed class InferenceGateway(
                 .Where(value => SupportedProvider(value.Provider.Code)
                     && (pinnedProvider is null || value.Provider.Code == pinnedProvider))
                 .OrderBy(value => value.Provider.Code == "openai" ? 0 : 1)
-                .ThenBy(value => value.Mapping.Id);
-            foreach (var mapping in mappings)
+                .ThenBy(value => value.Mapping.Id).ToArray();
+            GatewayByokCredential? byok = null;
+            FeePolicyVersion? byokFee = null;
+            if (parsed.ProviderKeyId is { } providerKeyId)
             {
-                if (candidates.Count == 2) break;
-                var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
-                    .Select(value => value.ToString()).ToArray();
-                var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
-                    model.Model.MaxOutputTokens, outputLimit, parsed.EstimatedInputTokens,
-                    parsed.RequiredCapabilities, supported));
-                if (allowed.Outcome != RequestConstraintOutcome.Allowed)
+                byok = await readStore.FindByokCredentialAsync(tenant.OrganizationId,
+                    identity.ProjectId, providerKeyId, model.Model.CanonicalCode, cancellationToken);
+                if (byok is null)
                 {
-                    constraintFailure ??= allowed.Outcome;
-                    continue;
-                }
-                constraintAllowed = true;
-                var credentialId = await readStore.FindPlatformCredentialAsync(mapping.Provider.Id, cancellationToken);
-                if (credentialId is null) continue;
-                var quotaDecision = await quota.CheckAsync(credentialId.Value, cancellationToken);
-                if (quotaDecision.Outcome == ProviderQuotaOutcome.DependencyUnavailable)
-                {
-                    await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
-                        "Provider eligibility is unavailable."), cancellationToken);
+                    await WriteErrorAsync(context, new(403, "provider_key_unavailable", "permission_error",
+                        "Provider key is unavailable for this project and model."), cancellationToken);
                     return;
                 }
-                if (quotaDecision.Outcome != ProviderQuotaOutcome.Available) continue;
-                var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
-                if (healthState == ProviderHealthState.DependencyUnavailable)
+                byokFee = await readStore.FindFeePolicyAsync(options.ByokFeePolicyCode,
+                    clock.GetUtcNow(), cancellationToken);
+                if (byokFee is null)
                 {
-                    await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
-                        "Provider eligibility is unavailable."), cancellationToken);
+                    await WriteErrorAsync(context, new(503, "pricing_unavailable", "server_error",
+                        "BYOK platform-fee policy is unavailable."), cancellationToken);
                     return;
                 }
-                if (healthState == ProviderHealthState.Open) continue;
-                try
+                foreach (var mapping in mappings.Where(value => value.Provider.Id == byok.ProviderId))
                 {
-                    var maximumCharge = GatewayCostEstimator.MaximumCharge(model.Model, mapping.Price,
-                        fee, outputLimit);
-                    candidates.Add(new RouteCandidate(mapping, credentialId.Value, maximumCharge));
+                    var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
+                        .Select(value => value.ToString()).ToArray();
+                    var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
+                        model.Model.MaxOutputTokens, outputLimit, parsed.EstimatedInputTokens,
+                        parsed.RequiredCapabilities, supported));
+                    if (allowed.Outcome != RequestConstraintOutcome.Allowed)
+                    {
+                        constraintFailure ??= allowed.Outcome;
+                        continue;
+                    }
+                    constraintAllowed = true;
+                    var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                    if (healthState == ProviderHealthState.DependencyUnavailable)
+                    {
+                        await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
+                            "Provider eligibility is unavailable."), cancellationToken);
+                        return;
+                    }
+                    if (healthState == ProviderHealthState.Open) continue;
+                    try
+                    {
+                        var external = GatewayCostEstimator.MaximumProviderCost(model.Model,
+                            mapping.Price, outputLimit);
+                        candidates.Add(new RouteCandidate(mapping, byok.Id,
+                            GatewayCostEstimator.MaximumByokFee(external, byokFee), true, external));
+                        break;
+                    }
+                    catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
+                    { logger.LogError(exception, "Unsupported BYOK price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
                 }
-                catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
-                { logger.LogError(exception, "Unsupported price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
+            }
+            var includeManaged = byok is null || parsed.AllowManagedFallback && managedEnabled
+                && candidates.Count != 0;
+            FeePolicyVersion? fee = null;
+            if (includeManaged)
+            {
+                fee = await readStore.FindFeePolicyAsync(options.FeePolicyCode,
+                    clock.GetUtcNow(), cancellationToken);
+                if (fee is null)
+                {
+                    await WriteErrorAsync(context, new(503, "pricing_unavailable", "server_error",
+                        "Pricing is unavailable."), cancellationToken);
+                    return;
+                }
+                foreach (var mapping in mappings)
+                {
+                    if (candidates.Count == 2) break;
+                    var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
+                        .Select(value => value.ToString()).ToArray();
+                    var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
+                        model.Model.MaxOutputTokens, outputLimit, parsed.EstimatedInputTokens,
+                        parsed.RequiredCapabilities, supported));
+                    if (allowed.Outcome != RequestConstraintOutcome.Allowed)
+                    {
+                        constraintFailure ??= allowed.Outcome;
+                        continue;
+                    }
+                    constraintAllowed = true;
+                    var credentialId = await readStore.FindPlatformCredentialAsync(mapping.Provider.Id, cancellationToken);
+                    if (credentialId is null) continue;
+                    var quotaDecision = await quota.CheckAsync(credentialId.Value, cancellationToken);
+                    if (quotaDecision.Outcome == ProviderQuotaOutcome.DependencyUnavailable)
+                    {
+                        await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
+                            "Provider eligibility is unavailable."), cancellationToken);
+                        return;
+                    }
+                    if (quotaDecision.Outcome != ProviderQuotaOutcome.Available) continue;
+                    var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                    if (healthState == ProviderHealthState.DependencyUnavailable)
+                    {
+                        await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
+                            "Provider eligibility is unavailable."), cancellationToken);
+                        return;
+                    }
+                    if (healthState == ProviderHealthState.Open) continue;
+                    try
+                    {
+                        var maximumCharge = GatewayCostEstimator.MaximumCharge(model.Model, mapping.Price,
+                            fee, outputLimit);
+                        candidates.Add(new RouteCandidate(mapping, credentialId.Value, maximumCharge));
+                    }
+                    catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
+                    { logger.LogError(exception, "Unsupported price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
+                }
             }
             if (candidates.Count == 0)
             {
@@ -231,8 +293,14 @@ public sealed class InferenceGateway(
             var prepare = new PrepareUsageRequest(tenant.OrganizationId, identity.ProjectId,
                 identity.ApiKeyId, model.Model.Id, parsed.Stream, "chat.completions",
                 idempotencyKey, payloadHash, System.Diagnostics.Activity.Current?.TraceId.ToString());
-            var admission = await finance.ReserveAsync(new ManagedAdmissionInput(prepare,
-                maximum, fee.Id, clock.GetUtcNow().Add(options.ReservationLifetime)), cancellationToken);
+            var expiresAt = clock.GetUtcNow().Add(options.ReservationLifetime);
+            var admission = byok is null
+                ? await finance.ReserveAsync(new ManagedAdmissionInput(prepare,
+                    maximum, fee!.Id, expiresAt), cancellationToken)
+                : await finance.ReserveByokAsync(new ByokAdmissionInput(prepare,
+                    maximum, fee?.Id ?? byokFee!.Id, byokFee!.Id, byok.Id,
+                    candidates[0].MaximumExternalSpend, candidates.Any(value => !value.IsByok),
+                    expiresAt), cancellationToken);
             if (admission.Status != AdmissionStatus.Reserved || admission.Reservation is null
                 || admission.RequestId is null)
             {
@@ -242,7 +310,7 @@ public sealed class InferenceGateway(
             SetGatewayRequestId(context, admission.RequestId.Value);
             context.Response.Headers["X-Uzllm-Model"] = model.Model.CanonicalCode;
             await ExecuteReservedAsync(context, parsed, model.Model, candidates,
-                pinnedProvider is not null, outputLimit,
+                pinnedProvider is not null && !parsed.AllowManagedFallback, outputLimit,
                 admission.Reservation, cancellationToken);
         }
         catch (GatewayRequestException exception)
@@ -310,8 +378,18 @@ public sealed class InferenceGateway(
                 dispatched = completed = false;
                 if (index > 0)
                 {
+                    if (!candidate.IsByok && !await platformControls.IsEnabledAsync(
+                        PlatformFeature.ManagedTraffic, cancellationToken))
+                    {
+                        providerError = new ProviderError(ProviderErrorCategory.Capacity,
+                            ProviderExecutionCertainty.NotDispatched, false, false, null, null,
+                            "Managed fallback is unavailable.");
+                        break;
+                    }
                     var currentHealth = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
-                    var currentQuota = await quota.CheckAsync(credentialId, cancellationToken);
+                    var currentQuota = candidate.IsByok
+                        ? new ProviderQuotaDecision(ProviderQuotaOutcome.Available, null)
+                        : await quota.CheckAsync(credentialId, cancellationToken);
                     if (currentHealth != ProviderHealthState.Healthy
                         || currentQuota.Outcome != ProviderQuotaOutcome.Available)
                     {
@@ -326,7 +404,8 @@ public sealed class InferenceGateway(
                     throw new ProviderExecutionException(new ProviderError(ProviderErrorCategory.Timeout,
                         ProviderExecutionCertainty.NotDispatched, false, false, null, null,
                         "Provider attempt deadline expired."));
-                attempt = await usage.StartAttemptAsync(reservation.RequestId, mapping.Mapping.Id, cancellationToken);
+                attempt = await usage.StartAttemptAsync(reservation.RequestId, mapping.Mapping.Id,
+                    credentialId, cancellationToken);
                 var effectivePrice = await catalog.FindEffectivePriceAsync(mapping.Mapping.Id,
                     attempt.StartedAt, cancellationToken);
                 if (effectivePrice?.Id != mapping.Price.Id)
@@ -337,7 +416,10 @@ public sealed class InferenceGateway(
                 context.Response.Headers["X-Uzllm-Provider"] = mapping.Provider.Code;
                 var providerContext = new ProviderExecutionContext(reservation.RequestId,
                     mapping.Provider.Id, mapping.Mapping.Id, credentialId,
-                    mapping.Mapping.UpstreamModelCode, remaining);
+                    mapping.Mapping.UpstreamModelCode, remaining,
+                    candidate.IsByok ? reservation.OrganizationId : null,
+                    candidate.IsByok ? reservation.ProjectId : null);
+                context.Response.Headers["X-Uzllm-Billing-Mode"] = candidate.IsByok ? "byok" : "managed";
                 var adapterRequest = parsed.ProviderRequest with { MaxOutputTokens = outputLimit };
                 try
                 {
@@ -383,6 +465,8 @@ public sealed class InferenceGateway(
                 await RecordHealthAsync(mapping.Mapping.Id, providerError, completed);
                 if (!pinned && providerError is { FallbackEligible: true,
                         Certainty: ProviderExecutionCertainty.RejectedBeforeExecution }
+                    && providerError.Category is ProviderErrorCategory.RateLimited
+                        or ProviderErrorCategory.Capacity
                     && index + 1 < candidates.Count && !writer.Started && !deadline.IsCancellationRequested)
                 {
                     using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -531,8 +615,9 @@ public sealed class InferenceGateway(
                         : delivered ? DeliveryState.Completed
                         : writer.Started ? DeliveryState.Partial : DeliveryState.NotStarted,
                     cleanupSucceeded ? httpStatus : 503,
-                    fallbackCount == 0 ? $"deterministic:{mapping.Provider.Code}"
-                        : $"deterministic:failover:{mapping.Provider.Code}", activityToken.Token);
+                    fallbackCount == 0
+                        ? $"deterministic:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}"
+                        : $"deterministic:failover:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}", activityToken.Token);
             }
             catch (Exception exception)
             { logger.LogError(exception, "Request activity finalization failed for {RequestId}", reservation.RequestId); }
@@ -556,7 +641,8 @@ public sealed class InferenceGateway(
     private static bool SupportedProvider(string code) => code is "openai" or "anthropic";
 
     private sealed record RouteCandidate(CatalogProviderModelSummary Mapping, Guid CredentialId,
-        UsdMicroAmount MaximumCharge);
+        UsdMicroAmount MaximumCharge, bool IsByok = false,
+        UsdMicroAmount MaximumExternalSpend = default);
 
     private Task<GatewayApiKeyAuthentication?> AuthenticateAsync(HttpContext context,
         CancellationToken cancellationToken)
@@ -576,6 +662,12 @@ public sealed class InferenceGateway(
             new(402, "budget_exceeded", "billing_error", "Insufficient available budget."),
         AdmissionStatus.InvalidScope =>
             new(403, "scope_forbidden", "permission_error", "Project or API key is unavailable."),
+        AdmissionStatus.ByokSpendExceeded =>
+            new(402, "provider_key_spend_exceeded", "billing_error",
+                "Provider-key external spend cap is exhausted."),
+        AdmissionStatus.ByokUnavailable =>
+            new(403, "provider_key_unavailable", "permission_error",
+                "Provider key is unavailable for this project and model."),
         _ => new(503, "admission_unavailable", "server_error", "Financial admission is unavailable.")
     };
 

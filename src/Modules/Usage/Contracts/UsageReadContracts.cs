@@ -75,7 +75,9 @@ public sealed record UsageRequestDetail(
     string? ProviderCostMicroUsd, string? ChargedMicroUsd,
     string? PlatformExposureMicroUsd, bool? UnresolvedUsage,
     IReadOnlyList<UsageAttemptDetail> Attempts,
-    IReadOnlyList<UsageEvidenceDetail> Evidence);
+    IReadOnlyList<UsageEvidenceDetail> Evidence,
+    string? ExternalProviderSpendMicroUsd = null,
+    string? LateExternalSpendMicroUsd = null);
 
 public enum UsageBreakdownDimension { Model, Provider, ApiKey, Project }
 

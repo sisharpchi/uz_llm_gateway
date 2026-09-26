@@ -28,8 +28,17 @@ public sealed class PlatformCredentialService(IProviderCredentialStore store,
 }
 
 public sealed class ProviderCredentialResolver(IProviderCredentialStore store,
-    IProviderSecretProtector protector) : IProviderCredentialResolver
+    IProviderSecretProtector protector, IByokCredentialResolver byok) : IProviderCredentialResolver
 {
+    public Task<string?> ResolveSecretAsync(ProviderExecutionContext context,
+        CancellationToken cancellationToken = default) =>
+        context.OrganizationId is { } organizationId && context.ProjectId is { } projectId
+            ? byok.ResolveGrantedSecretAsync(organizationId, projectId,
+                context.CredentialId, context.ProviderId, cancellationToken)
+            : context.OrganizationId is null && context.ProjectId is null
+                ? ResolvePlatformSecretAsync(context.CredentialId, context.ProviderId, cancellationToken)
+                : Task.FromResult<string?>(null);
+
     public async Task<string?> ResolvePlatformSecretAsync(Guid credentialId, Guid providerId,
         CancellationToken cancellationToken = default)
     {

@@ -1,5 +1,6 @@
 @baseUrl = https://localhost:7057
 @apiKey = uzllm_live_replace_with_issued_key
+@providerKeyId = 00000000-0000-0000-0000-000000000003
 
 ### List enabled models
 GET {{baseUrl}}/v1/models
@@ -29,6 +30,20 @@ Content-Type: application/json
   "max_completion_tokens": 100,
   "stream": true
 }
+
+### BYOK only (the customer pays the provider directly)
+POST {{baseUrl}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"provider_key_id":"{{providerKeyId}}"}}
+
+### Explicit Hybrid: managed fallback only for verified pre-execution rejection
+POST {{baseUrl}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"provider_key_id":"{{providerKeyId}}","allow_managed_fallback":true}}
 
 ### Explicit unsupported parameter error
 POST {{baseUrl}}/v1/chat/completions

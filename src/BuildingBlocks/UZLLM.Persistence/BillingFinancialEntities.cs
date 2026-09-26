@@ -8,6 +8,10 @@ public sealed class BillingReservationEntity
     public Guid ProjectId { get; set; }
     public Guid ApiKeyId { get; set; }
     public Guid FeePolicyVersionId { get; set; }
+    public Guid? ByokCredentialId { get; set; }
+    public Guid? ByokFeePolicyVersionId { get; set; }
+    public long MaximumExternalSpendMicroUsd { get; set; }
+    public bool AllowManagedFallback { get; set; }
     public long AmountMicroUsd { get; set; }
     public string Status { get; set; } = null!;
     public long? CapturedMicroUsd { get; set; }
@@ -55,6 +59,7 @@ public sealed class BillingSettlementEntity
     public long ChargedMicroUsd { get; set; }
     public long UncollectedChargeMicroUsd { get; set; }
     public long PlatformExposureMicroUsd { get; set; }
+    public long ExternalProviderSpendMicroUsd { get; set; }
     public bool UnresolvedUsage { get; set; }
     public string Outcome { get; set; } = null!;
     public DateTimeOffset CreatedAt { get; set; }
@@ -100,6 +105,16 @@ public sealed class BillingPlatformExposureEntity
     public Guid Id { get; set; }
     public Guid SettlementId { get; set; }
     public Guid EvidenceId { get; set; }
+    public long ProviderCostMicroUsd { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class BillingExternalSpendAdjustmentEntity
+{
+    public Guid Id { get; set; }
+    public Guid SettlementId { get; set; }
+    public Guid EvidenceId { get; set; }
+    public Guid CredentialId { get; set; }
     public long ProviderCostMicroUsd { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

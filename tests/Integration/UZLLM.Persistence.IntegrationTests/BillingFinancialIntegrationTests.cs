@@ -19,6 +19,258 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     private static readonly DateTimeOffset Start = new(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task Byok_zero_fee_external_cap_is_atomic_without_wallet_credit_and_replay_adds_no_hold()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        var keyId = await SeedByokAsync(seed, 100_000);
+        var providers = new List<ServiceProvider>();
+        var scopes = new List<AsyncServiceScope>();
+        try
+        {
+            for (var i = 0; i < 10; i++)
+            {
+                var provider = fixture.CreateServiceProvider();
+                providers.Add(provider);
+                scopes.Add(provider.CreateAsyncScope());
+            }
+            var results = await Task.WhenAll(scopes.Select((scope, index) =>
+                Financial(scope.ServiceProvider, new MutableFinancialClock(Start))
+                    .ReserveByokAsync(ByokAdmission(seed, keyId, 0, 30_000,
+                        payload: [checked((byte)index)]))));
+            Assert.Equal(3, results.Count(result => result.Status == AdmissionStatus.Reserved));
+            Assert.Equal(7, results.Count(result => result.Status == AdmissionStatus.ByokSpendExceeded));
+
+            await using var verifier = fixture.CreateServiceProvider();
+            await using var verifyScope = verifier.CreateAsyncScope();
+            var db = verifyScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            var credential = await db.Set<ProviderCredentialEntity>().AsNoTracking()
+                .SingleAsync(value => value.Id == keyId);
+            Assert.Equal(90_000, credential.ExternalReservedMicroUsd);
+            Assert.Equal(0, credential.ExternalSpentMicroUsd);
+            var wallet = (await Financial(verifyScope.ServiceProvider,
+                new MutableFinancialClock(Start)).GetWalletStateAsync(seed.OrganizationId))!.Wallet;
+            Assert.Equal(0, wallet.PostedBalance.Value);
+            Assert.Equal(0, wallet.ReservedBalance.Value);
+            var first = results.First(result => result.Status == AdmissionStatus.Reserved);
+            var replay = await Financial(verifyScope.ServiceProvider, new MutableFinancialClock(Start))
+                .ReserveByokAsync(ByokAdmission(seed, keyId, 0, 30_000,
+                    idempotencyKey: "00000000-0000-0000-0000-000000000001", payload: [88]));
+            Assert.Equal(AdmissionStatus.ByokSpendExceeded, replay.Status);
+            Assert.Equal(FinalizationStatus.Released,
+                (await Financial(verifyScope.ServiceProvider, new MutableFinancialClock(Start))
+                    .ReleaseUndispatchedAsync(first.Reservation!.Id)).Status);
+            var accepted = await Financial(verifyScope.ServiceProvider, new MutableFinancialClock(Start))
+                .ReserveByokAsync(ByokAdmission(seed, keyId, 0, 30_000,
+                    idempotencyKey: "00000000-0000-0000-0000-000000000001", payload: [88]));
+            Assert.Equal(AdmissionStatus.Reserved, accepted.Status);
+            Assert.Equal(AdmissionStatus.Duplicate,
+                (await Financial(verifyScope.ServiceProvider, new MutableFinancialClock(Start))
+                    .ReserveByokAsync(ByokAdmission(seed, keyId, 0, 30_000,
+                        idempotencyKey: "00000000-0000-0000-0000-000000000001", payload: [88]))).Status);
+            Assert.Equal(90_000, (await db.Set<ProviderCredentialEntity>().AsNoTracking()
+                .SingleAsync(value => value.Id == keyId)).ExternalReservedMicroUsd);
+        }
+        finally
+        {
+            foreach (var scope in scopes) await scope.DisposeAsync();
+            foreach (var provider in providers) await provider.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Byok_verified_usage_spends_external_cap_but_wallet_only_pays_platform_fee()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        var keyId = await SeedByokAsync(seed, 50_000);
+        await CreditAsync(seed.OrganizationId, 2_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, new UsdMicroAmount(2_000)));
+        var admitted = await financial.ReserveByokAsync(ByokAdmission(seed, keyId,
+            2_000, 50_000, chargeByokFee: true));
+        Assert.Equal(AdmissionStatus.Reserved, admitted.Status);
+        Assert.Equal(2_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.ReservedBalance.Value);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var attempt = await usage.StartAttemptAsync(admitted.RequestId!.Value,
+            seed.ProviderModelId, keyId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(admitted.RequestId.Value,
+            attempt.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, "byok-upstream")));
+        var final = await financial.FinalizeAsync(admitted.Reservation!.Id);
+        Assert.Equal(FinalizationStatus.Settled, final.Status);
+        Assert.Equal(10_000, final.Settlement!.ProviderCost.Value);
+        Assert.Equal(10_000, final.Settlement.ExternalProviderSpend.Value);
+        Assert.Equal(1_000, final.Settlement.Charged.Value);
+        Assert.Equal(0, final.Settlement.PlatformExposure.Value);
+        var wallet = (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet;
+        Assert.Equal(1_000, wallet.PostedBalance.Value);
+        Assert.Equal(0, wallet.ReservedBalance.Value);
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var credential = await db.Set<ProviderCredentialEntity>().AsNoTracking()
+            .SingleAsync(value => value.Id == keyId);
+        Assert.Equal(10_000, credential.ExternalSpentMicroUsd);
+        Assert.Equal(0, credential.ExternalReservedMicroUsd);
+        Assert.Equal(1_000, (await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId))
+            .Single().Captured.Value);
+        var detail = await new PostgreSqlUsageReadStore(db).FindDetailAsync(
+            seed.OrganizationId, admitted.RequestId.Value);
+        Assert.Equal("10000", detail!.ExternalProviderSpendMicroUsd);
+        Assert.Equal("0", detail.LateExternalSpendMicroUsd);
+        Assert.Equal("1000", detail.ChargedMicroUsd);
+        Assert.Single(await db.Set<BillingLedgerEntryEntity>().Where(value =>
+            value.Type == "UsageCharge" && value.AmountMicroUsd == -1_000).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Hybrid_managed_fallback_charges_wallet_and_releases_unused_byok_external_hold()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        var byokId = await SeedByokAsync(seed, 50_000);
+        var platformId = await SeedPlatformCredentialAsync(seed);
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        var admitted = await financial.ReserveByokAsync(ByokAdmission(seed, byokId,
+            50_000, 50_000, allowManagedFallback: true, chargeByokFee: true));
+        Assert.Equal(AdmissionStatus.Reserved, admitted.Status);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var rejected = await usage.StartAttemptAsync(admitted.RequestId!.Value,
+            seed.ProviderModelId, byokId);
+        Assert.True(await usage.MarkDispatchedAsync(rejected.Id));
+        Assert.True(await usage.FinishAttemptAsync(rejected.Id,
+            ExecutionState.RejectedBeforeExecution, null, "RateLimited"));
+        var managed = await usage.StartAttemptAsync(admitted.RequestId.Value,
+            seed.ProviderModelId, platformId);
+        Assert.True(await usage.MarkDispatchedAsync(managed.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(admitted.RequestId.Value,
+            managed.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, null)));
+        var final = await financial.FinalizeAsync(admitted.Reservation!.Id);
+        Assert.Equal(FinalizationStatus.Settled, final.Status);
+        Assert.Equal(10_000, final.Settlement!.Charged.Value);
+        Assert.Equal(0, final.Settlement.ExternalProviderSpend.Value);
+        Assert.Equal(0, (await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Set<ProviderCredentialEntity>().AsNoTracking().SingleAsync(value => value.Id == byokId))
+            .ExternalReservedMicroUsd);
+        Assert.Equal(90_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.PostedBalance.Value);
+    }
+
+    [Fact]
+    public async Task Byok_unknown_outcome_reconciles_then_late_usage_increases_external_spend_once()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        var byokId = await SeedByokAsync(seed, 30_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var admitted = await financial.ReserveByokAsync(ByokAdmission(seed, byokId,
+            0, 30_000));
+        var attempt = await usage.StartAttemptAsync(admitted.RequestId!.Value,
+            seed.ProviderModelId, byokId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.Equal(FinalizationStatus.PendingEvidence,
+            (await financial.FinalizeAsync(admitted.Reservation!.Id)).Status);
+        clock.UtcNow = Start.AddHours(1);
+        Assert.Equal(FinalizationStatus.PendingEvidence,
+            (await financial.ReconcileAsync(admitted.Reservation.Id)).Status);
+        clock.UtcNow = Start.AddHours(25).AddMinutes(1);
+        var unresolved = await financial.ReconcileAsync(admitted.Reservation.Id);
+        Assert.Equal(FinalizationStatus.Released, unresolved.Status);
+        Assert.True(unresolved.Settlement!.UnresolvedUsage);
+        var late = await usage.RecordVerifiedAsync(new VerifiedUsageInput(admitted.RequestId.Value,
+            attempt.Id, EvidenceSource.Reconciled, 10_000, 0, 0, null, seed.PriceId, null));
+        Assert.NotNull(late);
+        Assert.True(await financial.RecordLateExposureAsync(late.Id));
+        Assert.False(await financial.RecordLateExposureAsync(late.Id));
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Empty(await db.Set<BillingPlatformExposureEntity>().ToListAsync());
+        var adjustment = Assert.Single(await db.Set<BillingExternalSpendAdjustmentEntity>().ToListAsync());
+        await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM billing.external_spend_adjustment WHERE id = {adjustment.Id}"));
+        var credential = await db.Set<ProviderCredentialEntity>().AsNoTracking()
+            .SingleAsync(value => value.Id == byokId);
+        Assert.Equal(10_000, credential.ExternalSpentMicroUsd);
+        Assert.Equal(0, credential.ExternalReservedMicroUsd);
+        Assert.Equal(0, (await financial.GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.PostedBalance.Value);
+        var detail = await new PostgreSqlUsageReadStore(db).FindDetailAsync(
+            seed.OrganizationId, admitted.RequestId.Value);
+        Assert.Equal("10000", detail!.LateExternalSpendMicroUsd);
+    }
+
+    [Fact]
+    public async Task Byok_admission_rechecks_model_grant_and_hybrid_wallet_before_external_hold()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        var keyId = await SeedByokAsync(seed, 50_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var financial = Financial(scope.ServiceProvider, new MutableFinancialClock(Start));
+        await db.Set<ProviderCredentialEntity>().Where(value => value.Id == keyId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.AllowedModelsJson,
+                "[\"other-model\"]"));
+        Assert.Equal(AdmissionStatus.ByokUnavailable,
+            (await financial.ReserveByokAsync(ByokAdmission(seed, keyId, 0, 50_000))).Status);
+        await db.Set<ProviderCredentialEntity>().Where(value => value.Id == keyId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.AllowedModelsJson,
+                "[\"billing-test-model\"]"));
+        Assert.Equal(AdmissionStatus.InsufficientWallet,
+            (await financial.ReserveByokAsync(ByokAdmission(seed, keyId, 50_000,
+                50_000, allowManagedFallback: true))).Status);
+        Assert.Equal(0, (await db.Set<ProviderCredentialEntity>().AsNoTracking()
+            .SingleAsync(value => value.Id == keyId)).ExternalReservedMicroUsd);
+        await db.Set<ProviderCredentialProjectGrantEntity>().Where(value =>
+            value.OrganizationId == seed.OrganizationId && value.CredentialId == keyId)
+            .ExecuteDeleteAsync();
+        Assert.Equal(AdmissionStatus.ByokUnavailable,
+            (await financial.ReserveByokAsync(ByokAdmission(seed, keyId, 0, 50_000))).Status);
+    }
+
+    [Fact]
+    public async Task Byok_platform_fee_respects_project_and_api_key_budgets_atomically()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        var keyId = await SeedByokAsync(seed, 90_000);
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var financial = Financial(scope.ServiceProvider, new MutableFinancialClock(Start));
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, new UsdMicroAmount(600)));
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            seed.ApiKeyId, new UsdMicroAmount(500)));
+        Assert.Equal(AdmissionStatus.ApiKeyBudgetExceeded,
+            (await financial.ReserveByokAsync(ByokAdmission(seed, keyId, 501,
+                30_000, chargeByokFee: true))).Status);
+        Assert.Equal(AdmissionStatus.Reserved,
+            (await financial.ReserveByokAsync(ByokAdmission(seed, keyId, 500,
+                30_000, chargeByokFee: true))).Status);
+        Assert.Equal(AdmissionStatus.ApiKeyBudgetExceeded,
+            (await financial.ReserveByokAsync(ByokAdmission(seed, keyId, 1,
+                30_000, chargeByokFee: true))).Status);
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(30_000, (await db.Set<ProviderCredentialEntity>().AsNoTracking()
+            .SingleAsync(value => value.Id == keyId)).ExternalReservedMicroUsd);
+        Assert.Equal(500, (await financial.GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.ReservedBalance.Value);
+    }
+
+    [Fact]
     public async Task Fifty_concurrent_thirty_cent_holds_on_one_dollar_admit_only_thirty_three()
     {
         await ResetAsync();
@@ -727,7 +979,8 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         await using var scope = provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
         var seed = new BillingSeed(Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),
-            Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7());
+            Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(), Guid.CreateVersion7(),
+            Guid.CreateVersion7());
         var providerId = Guid.CreateVersion7();
         var accountId = Guid.CreateVersion7();
         db.Set<IdentityAccountEntity>().Add(new IdentityAccountEntity
@@ -776,6 +1029,11 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
             Id = seed.FeeId, PolicyCode = "managed", MarkupBasisPoints = 0,
             FixedFeeMicroUsd = 0, EffectiveFrom = Start.AddDays(-1), CreatedAt = Start.AddDays(-1)
         });
+        db.Set<BillingFeePolicyVersionEntity>().Add(new BillingFeePolicyVersionEntity
+        {
+            Id = seed.ByokFeeId, PolicyCode = "byok", MarkupBasisPoints = 1_000,
+            FixedFeeMicroUsd = 0, EffectiveFrom = Start.AddDays(-1), CreatedAt = Start.AddDays(-1)
+        });
         await db.SaveChangesAsync();
         return seed;
     }
@@ -815,8 +1073,64 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
             false, "chat.completions", idempotencyKey, SHA256.HashData(payload ?? [1]), null),
         new UsdMicroAmount(amount), seed.FeeId, Start.AddHours(1));
 
+    private static ByokAdmissionInput ByokAdmission(BillingSeed seed, Guid credentialId,
+        long maximumWalletCharge, long maximumExternalSpend, bool allowManagedFallback = false,
+        bool chargeByokFee = false, string? idempotencyKey = null, byte[]? payload = null) => new(
+        new PrepareUsageRequest(seed.OrganizationId, seed.ProjectId, seed.ApiKeyId, seed.ModelId,
+            false, "chat.completions", idempotencyKey, SHA256.HashData(payload ?? [1]), null),
+        new UsdMicroAmount(maximumWalletCharge), seed.FeeId,
+        chargeByokFee ? seed.ByokFeeId : seed.FeeId, credentialId,
+        new UsdMicroAmount(maximumExternalSpend), allowManagedFallback, Start.AddHours(1));
+
+    private async Task<Guid> SeedByokAsync(BillingSeed seed, long spendLimit)
+    {
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var providerId = await db.Set<CatalogProviderModelEntity>().AsNoTracking()
+            .Where(value => value.Id == seed.ProviderModelId)
+            .Select(value => value.ProviderId).SingleAsync();
+        var credentialId = Guid.CreateVersion7();
+        db.Set<ProviderCredentialEntity>().Add(new ProviderCredentialEntity
+        {
+            Id = credentialId, OrganizationId = seed.OrganizationId, ProviderId = providerId,
+            CredentialType = "BYOK", Status = "Active", Name = "Customer key",
+            MaskedKey = "••••test", EncryptedSecret = RandomNumberGenerator.GetBytes(32),
+            WrappedDataKey = RandomNumberGenerator.GetBytes(60), KeyVersion = "test-v1",
+            CreatedAt = Start, UpdatedAt = Start, AllowedModelsJson = "[\"billing-test-model\"]",
+            SpendLimitMicroUsd = spendLimit
+        });
+        db.Set<ProviderCredentialProjectGrantEntity>().Add(new ProviderCredentialProjectGrantEntity
+        {
+            OrganizationId = seed.OrganizationId, ProjectId = seed.ProjectId,
+            CredentialId = credentialId, CreatedAt = Start
+        });
+        await db.SaveChangesAsync();
+        return credentialId;
+    }
+
+    private async Task<Guid> SeedPlatformCredentialAsync(BillingSeed seed)
+    {
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var providerId = await db.Set<CatalogProviderModelEntity>().AsNoTracking()
+            .Where(value => value.Id == seed.ProviderModelId)
+            .Select(value => value.ProviderId).SingleAsync();
+        var credentialId = Guid.CreateVersion7();
+        db.Set<ProviderCredentialEntity>().Add(new ProviderCredentialEntity
+        {
+            Id = credentialId, ProviderId = providerId, CredentialType = "Platform",
+            Status = "Active", EncryptedSecret = RandomNumberGenerator.GetBytes(32),
+            WrappedDataKey = RandomNumberGenerator.GetBytes(60), KeyVersion = "test-v1",
+            CreatedAt = Start
+        });
+        await db.SaveChangesAsync();
+        return credentialId;
+    }
+
     private sealed record BillingSeed(Guid OrganizationId, Guid ProjectId, Guid ApiKeyId,
-        Guid ModelId, Guid ProviderModelId, Guid PriceId, Guid FeeId);
+        Guid ModelId, Guid ProviderModelId, Guid PriceId, Guid FeeId, Guid ByokFeeId);
 
     private sealed class MutableFinancialClock(DateTimeOffset now) : TimeProvider
     {

@@ -32,7 +32,8 @@ public sealed class ProviderCredentialPersistenceIntegrationTests(PersistenceInt
         var protector = new ProviderEnvelopeSecretProtector(config);
         var store = new PostgreSqlProviderCredentialStore(db);
         var service = new PlatformCredentialService(store, protector, TimeProvider.System);
-        var resolver = new ProviderCredentialResolver(store, protector);
+        var resolver = new ProviderCredentialResolver(store, protector,
+            new ByokCredentialResolver(new PostgreSqlByokCredentialStore(db), protector));
 
         var credential = await service.CreateAsync(catalogProvider.Id, "sk-sensitive-value");
 

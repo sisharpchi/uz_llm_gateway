@@ -4,7 +4,8 @@ using UZLLM.Modules.Providers.Contracts;
 namespace UZLLM.Gateway.Api.Inference;
 
 public sealed record ParsedChatRequest(string Model, bool Stream, ProviderChatRequest ProviderRequest,
-    IReadOnlyCollection<string> RequiredCapabilities, int EstimatedInputTokens);
+    IReadOnlyCollection<string> RequiredCapabilities, int EstimatedInputTokens,
+    Guid? ProviderKeyId = null, bool AllowManagedFallback = false);
 
 public sealed class GatewayRequestException(string message, string code = "invalid_request") : Exception(message)
 {
@@ -15,7 +16,7 @@ public static class ChatRequestParser
 {
     private static readonly HashSet<string> AllowedFields =
     ["model", "messages", "temperature", "top_p", "max_tokens", "max_completion_tokens",
-        "stream", "stop", "tools", "tool_choice", "response_format", "stream_options"];
+        "stream", "stop", "tools", "tool_choice", "response_format", "stream_options", "uzllm"];
 
     public static ParsedChatRequest Parse(ReadOnlyMemory<byte> utf8)
     {
@@ -29,6 +30,21 @@ public static class ChatRequestParser
                     throw new GatewayRequestException($"Unsupported parameter: {property.Name}.", "unsupported_parameter");
             var model = RequiredString(root, "model", 200);
             var stream = OptionalBoolean(root, "stream") ?? false;
+            Guid? providerKeyId = null;
+            var allowManagedFallback = false;
+            if (root.TryGetProperty("uzllm", out var extension))
+            {
+                RequireObject(extension, "uzllm");
+                foreach (var property in extension.EnumerateObject())
+                    if (property.Name is not ("provider_key_id" or "allow_managed_fallback"))
+                        throw new GatewayRequestException($"Unsupported uzllm parameter: {property.Name}.",
+                            "unsupported_parameter");
+                if (!Guid.TryParse(RequiredString(extension, "provider_key_id", 36), out var key)
+                    || key == Guid.Empty)
+                    throw new GatewayRequestException("uzllm.provider_key_id must be a non-empty UUID.");
+                providerKeyId = key;
+                allowManagedFallback = OptionalBoolean(extension, "allow_managed_fallback") ?? false;
+            }
             if (root.TryGetProperty("stream_options", out var options))
             {
                 RequireObject(options, "stream_options");
@@ -73,7 +89,8 @@ public static class ChatRequestParser
             var imageCount = messages.SelectMany(message => message.Content)
                 .Count(part => part.Kind == ProviderContentKind.ImageUrl);
             var estimated = checked((int)Math.Min(int.MaxValue, (textLength + 1) / 2 + imageCount * 1_000L));
-            return new ParsedChatRequest(model, stream, request, capabilities, estimated);
+            return new ParsedChatRequest(model, stream, request, capabilities, estimated,
+                providerKeyId, allowManagedFallback);
         }
         catch (JsonException)
         { throw new GatewayRequestException("Request body must be valid JSON."); }

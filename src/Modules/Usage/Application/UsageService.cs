@@ -89,12 +89,24 @@ public sealed class UsageService(
     }
 
     public async Task<UsageAttempt> StartAttemptAsync(Guid requestId, Guid providerModelId, CancellationToken cancellationToken = default)
+        => await StartAttemptCoreAsync(requestId, providerModelId, null, cancellationToken);
+
+    public async Task<UsageAttempt> StartAttemptAsync(Guid requestId, Guid providerModelId,
+        Guid credentialId, CancellationToken cancellationToken = default)
+    {
+        ValidateId(credentialId, nameof(credentialId));
+        return await StartAttemptCoreAsync(requestId, providerModelId, credentialId, cancellationToken);
+    }
+
+    private async Task<UsageAttempt> StartAttemptCoreAsync(Guid requestId, Guid providerModelId,
+        Guid? credentialId, CancellationToken cancellationToken)
     {
         ValidateId(requestId, nameof(requestId));
         ValidateId(providerModelId, nameof(providerModelId));
         await using var transaction = await transactions.BeginAsync(cancellationToken);
         var attempt = await store.AddAttemptAsync(new UsageAttempt(Guid.CreateVersion7(), requestId, 0,
-            providerModelId, timeProvider.GetUtcNow(), null, ExecutionState.Prepared, null, null), cancellationToken);
+            providerModelId, timeProvider.GetUtcNow(), null, ExecutionState.Prepared, null, null,
+            credentialId), cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return attempt;
     }

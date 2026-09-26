@@ -25,7 +25,7 @@ public sealed record ProviderChatRequest(
 
 public sealed record ProviderExecutionContext(Guid RequestId, Guid ProviderId,
     Guid ProviderModelId, Guid CredentialId, string UpstreamModelCode,
-    TimeSpan Timeout);
+    TimeSpan Timeout, Guid? OrganizationId = null, Guid? ProjectId = null);
 
 public sealed record ProviderUsage(int InputTokens, int OutputTokens,
     int CachedInputTokens, int? ReasoningTokens);
@@ -91,7 +91,9 @@ public interface IProviderSecretProtector
 public sealed record ByokCredential(Guid Id, Guid OrganizationId, Guid ProviderId,
     string ProviderCode, string Name, string MaskedKey, ProviderCredentialStatus Status,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? LastTestedAt,
-    string? LastTestStatus, IReadOnlyList<Guid> ProjectIds);
+    string? LastTestStatus, IReadOnlyList<Guid> ProjectIds,
+    IReadOnlyList<string>? AllowedModels = null, long? SpendLimitMicroUsd = null,
+    long ExternalSpentMicroUsd = 0, long ExternalReservedMicroUsd = 0);
 
 public sealed record StoredByokCredential(ByokCredential Credential,
     ProtectedProviderSecret ProtectedSecret);
@@ -123,6 +125,9 @@ public interface IByokCredentialStore
         bool enabled, DateTimeOffset createdAt, CancellationToken cancellationToken = default);
     Task<bool> SetTestResultAsync(Guid organizationId, Guid credentialId,
         ByokTestStatus result, DateTimeOffset testedAt, CancellationToken cancellationToken = default);
+    Task<bool> SetRestrictionsAsync(Guid organizationId, Guid credentialId,
+        IReadOnlyList<string>? allowedModels, long? spendLimitMicroUsd,
+        DateTimeOffset updatedAt, CancellationToken cancellationToken = default);
     Task<ProtectedProviderSecret?> FindGrantedSecretAsync(Guid organizationId, Guid projectId,
         Guid credentialId, Guid providerId, CancellationToken cancellationToken = default);
 }
@@ -144,6 +149,9 @@ public interface IByokCredentialService
     Task<bool> SetProjectGrantAsync(Guid actorId, Guid organizationId, Guid credentialId,
         Guid projectId, bool enabled, CancellationToken cancellationToken = default);
     Task<ByokTestStatus?> TestAsync(Guid actorId, Guid organizationId, Guid credentialId,
+        CancellationToken cancellationToken = default);
+    Task<ByokCredential?> SetRestrictionsAsync(Guid actorId, Guid organizationId,
+        Guid credentialId, IReadOnlyList<string>? allowedModels, long? spendLimitMicroUsd,
         CancellationToken cancellationToken = default);
 }
 
@@ -174,4 +182,9 @@ public interface IProviderCredentialResolver
 {
     Task<string?> ResolvePlatformSecretAsync(Guid credentialId, Guid providerId,
         CancellationToken cancellationToken = default);
+    Task<string?> ResolveSecretAsync(ProviderExecutionContext context,
+        CancellationToken cancellationToken = default) => context.OrganizationId is null
+            && context.ProjectId is null
+            ? ResolvePlatformSecretAsync(context.CredentialId, context.ProviderId, cancellationToken)
+            : Task.FromResult<string?>(null);
 }

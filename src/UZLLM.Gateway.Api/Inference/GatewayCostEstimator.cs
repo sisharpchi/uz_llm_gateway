@@ -9,6 +9,21 @@ public static class GatewayCostEstimator
     public static UsdMicroAmount MaximumCharge(CanonicalModel model, ModelPrice price,
         FeePolicyVersion fee, int outputLimit)
     {
+        var maximumProviderCost = MaximumProviderCost(model, price, outputLimit);
+        var maximumCustomerCost = checked((long)decimal.Ceiling(
+            (decimal)maximumProviderCost.Value * (10_000 + fee.MarkupBasisPoints) / 10_000m
+            + fee.FixedFee.Value));
+        return new UsdMicroAmount(Math.Max(1, maximumCustomerCost));
+    }
+
+    public static UsdMicroAmount MaximumByokFee(UsdMicroAmount maximumProviderCost,
+        FeePolicyVersion fee) => new(checked((long)decimal.Ceiling(
+            (decimal)maximumProviderCost.Value * fee.MarkupBasisPoints / 10_000m
+            + fee.FixedFee.Value)));
+
+    public static UsdMicroAmount MaximumProviderCost(CanonicalModel model, ModelPrice price,
+        int outputLimit)
+    {
         using var extras = JsonDocument.Parse(price.ExtraPricingJson);
         if (extras.RootElement.ValueKind != JsonValueKind.Object
             || extras.RootElement.EnumerateObject().Any())
@@ -20,9 +35,6 @@ public static class GatewayCostEstimator
         var maximumProviderCost = checked((long)decimal.Ceiling(
             ((decimal)model.ContextLength * maximumInputRate
                 + (decimal)outputLimit * price.OutputPriceMicroUsdPerMillion) / 1_000_000m));
-        var maximumCustomerCost = checked((long)decimal.Ceiling(
-            (decimal)maximumProviderCost * (10_000 + fee.MarkupBasisPoints) / 10_000m
-            + fee.FixedFee.Value));
-        return new UsdMicroAmount(Math.Max(1, maximumCustomerCost));
+        return new UsdMicroAmount(Math.Max(1, maximumProviderCost));
     }
 }

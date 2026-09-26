@@ -131,6 +131,28 @@ public sealed class ByokCredentialService(
         return result;
     }
 
+    public async Task<ByokCredential?> SetRestrictionsAsync(Guid actorId, Guid organizationId,
+        Guid credentialId, IReadOnlyList<string>? allowedModels, long? spendLimitMicroUsd,
+        CancellationToken cancellationToken = default)
+    {
+        if (credentialId == Guid.Empty || spendLimitMicroUsd is < 0)
+            throw new ArgumentException("A credential and non-negative spend cap are required.");
+        if (allowedModels is { Count: 0 or > 100 }
+            || allowedModels?.Any(code => string.IsNullOrWhiteSpace(code) || code.Length > 200
+                || code != code.Trim()) == true
+            || allowedModels?.Distinct(StringComparer.Ordinal).Count() != allowedModels?.Count)
+            throw new ArgumentException("Allowed models must be unique canonical model codes (1-100).");
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        await LockAndAuthorizeAsync(actorId, organizationId, cancellationToken);
+        var updated = await store.SetRestrictionsAsync(organizationId, credentialId,
+            allowedModels, spendLimitMicroUsd, clock.GetUtcNow(), cancellationToken);
+        if (!updated) return null;
+        await RecordAsync(organizationId, actorId, "byok.restrictions.updated", credentialId,
+            new { allowedModels, spendLimitMicroUsd }, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return (await store.FindAsync(organizationId, credentialId, cancellationToken))?.Credential;
+    }
+
     private async Task<bool> SetStatusAsync(Guid actorId, Guid organizationId,
         Guid credentialId, bool deleted, CancellationToken cancellationToken)
     {

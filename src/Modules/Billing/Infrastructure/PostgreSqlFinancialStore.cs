@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Billing.Domain;
 using UZLLM.Modules.Usage.Contracts;
@@ -31,6 +32,12 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
                 && value.EffectiveFrom <= reservation.CreatedAt
                 && (value.EffectiveTo == null || reservation.CreatedAt < value.EffectiveTo), cancellationToken);
         if (!validFee) return AdmissionStatus.InvalidFeePolicy;
+        if (reservation.ByokFeePolicyVersionId is { } byokFeeId
+            && !await db.Set<BillingFeePolicyVersionEntity>().AsNoTracking()
+                .AnyAsync(value => value.Id == byokFeeId
+                    && value.EffectiveFrom <= reservation.CreatedAt
+                    && (value.EffectiveTo == null || reservation.CreatedAt < value.EffectiveTo),
+                    cancellationToken)) return AdmissionStatus.InvalidFeePolicy;
 
         var walletUpdated = await db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE billing.wallet AS wallet
@@ -38,9 +45,9 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
                 version = wallet.version + 1
             WHERE wallet.organization_id = {reservation.OrganizationId}
               AND wallet.posted_balance_micro_usd - wallet.reserved_balance_micro_usd >= {reservation.Amount.Value}
-              AND NOT EXISTS (
+              AND ({reservation.Amount.Value} = 0 OR NOT EXISTS (
                   SELECT 1 FROM billing.recovery_debt AS debt
-                  WHERE debt.organization_id = wallet.organization_id AND debt.spending_held);
+                  WHERE debt.organization_id = wallet.organization_id AND debt.spending_held));
             """, cancellationToken);
         if (walletUpdated != 1)
         {
@@ -48,6 +55,56 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
                 .AnyAsync(value => value.OrganizationId == reservation.OrganizationId && value.SpendingHeld,
                     cancellationToken);
             return held ? AdmissionStatus.SpendingHeld : AdmissionStatus.InsufficientWallet;
+        }
+
+        if (reservation.ByokCredentialId is { } byokId)
+        {
+            var requestModel = await db.Set<UsageRequestEntity>().AsNoTracking()
+                .Where(request => request.Id == reservation.RequestId)
+                .Select(request => new { request.CanonicalModelId,
+                    request.CanonicalModel.CanonicalCode }).SingleAsync(cancellationToken);
+            var reserved = await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE gateway.provider_credential AS credential
+                SET external_reserved_micro_usd = external_reserved_micro_usd + {reservation.MaximumExternalSpend.Value}
+                WHERE credential.id = {byokId}
+                  AND credential.organization_id = {reservation.OrganizationId}
+                  AND credential.credential_type = 'BYOK' AND credential.status = 'Active'
+                  AND credential.deleted_at IS NULL
+                  AND (credential.allowed_models_json IS NULL
+                       OR credential.allowed_models_json ? {requestModel.CanonicalCode})
+                  AND EXISTS (SELECT 1 FROM gateway.provider_credential_project_grant AS permission_grant
+                      WHERE permission_grant.organization_id = {reservation.OrganizationId}
+                        AND permission_grant.credential_id = credential.id
+                        AND permission_grant.project_id = {reservation.ProjectId})
+                  AND EXISTS (SELECT 1 FROM catalog.provider_model AS mapping
+                      JOIN catalog.model AS model ON model.id = mapping.model_id
+                      WHERE mapping.provider_id = credential.provider_id
+                        AND model.id = {requestModel.CanonicalModelId}
+                        AND mapping.status = 'Active')
+                  AND (credential.spend_limit_micro_usd IS NULL
+                       OR {reservation.MaximumExternalSpend.Value} <= credential.spend_limit_micro_usd
+                           - credential.external_spent_micro_usd - credential.external_reserved_micro_usd);
+                """, cancellationToken);
+            if (reserved != 1)
+            {
+                var credential = await db.Set<ProviderCredentialProjectGrantEntity>().AsNoTracking()
+                    .Where(value => value.OrganizationId == reservation.OrganizationId
+                        && value.ProjectId == reservation.ProjectId && value.CredentialId == byokId)
+                    .Join(db.Set<ProviderCredentialEntity>(), grant => grant.CredentialId,
+                        credential => credential.Id, (_, credential) => credential)
+                    .Where(value => value.Status == "Active" && value.DeletedAt == null)
+                    .Select(value => new { value.ProviderId, value.AllowedModelsJson })
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (credential is null || credential.AllowedModelsJson is { } json
+                    && JsonSerializer.Deserialize<string[]>(json)?.Contains(requestModel.CanonicalCode,
+                        StringComparer.Ordinal) != true
+                    || !await db.Set<CatalogProviderModelEntity>().AsNoTracking()
+                        .AnyAsync(value => value.ProviderId == credential.ProviderId
+                            && value.ModelId == requestModel.CanonicalModelId
+                            && value.Status == "Active", cancellationToken))
+                    return AdmissionStatus.ByokUnavailable;
+                return AdmissionStatus.ByokSpendExceeded;
+            }
         }
 
         var policies = await db.Set<BillingBudgetPolicyEntity>().AsNoTracking()
@@ -81,6 +138,10 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             Id = reservation.Id, RequestId = reservation.RequestId,
             OrganizationId = reservation.OrganizationId, ProjectId = reservation.ProjectId,
             ApiKeyId = reservation.ApiKeyId, FeePolicyVersionId = reservation.FeePolicyVersionId,
+            ByokCredentialId = reservation.ByokCredentialId,
+            ByokFeePolicyVersionId = reservation.ByokFeePolicyVersionId,
+            MaximumExternalSpendMicroUsd = reservation.MaximumExternalSpend.Value,
+            AllowManagedFallback = reservation.AllowManagedFallback,
             AmountMicroUsd = reservation.Amount.Value, Status = "Reserved",
             CreatedAt = reservation.CreatedAt, ExpiresAt = reservation.ExpiresAt
         });
@@ -116,10 +177,28 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             .SingleAsync(value => value.Id == entity.FeePolicyVersionId, cancellationToken);
         var feePolicy = new FeePolicyVersion(fee.Id, fee.PolicyCode, fee.MarkupBasisPoints,
             new UsdMicroAmount(fee.FixedFeeMicroUsd), fee.EffectiveFrom, fee.EffectiveTo, fee.CreatedAt);
+        FeePolicyVersion? byokFeePolicy = null;
+        if (entity.ByokFeePolicyVersionId is { } byokFeeId)
+        {
+            var byokFee = await db.Set<BillingFeePolicyVersionEntity>().AsNoTracking()
+                .SingleAsync(value => value.Id == byokFeeId, cancellationToken);
+            byokFeePolicy = new FeePolicyVersion(byokFee.Id, byokFee.PolicyCode,
+                byokFee.MarkupBasisPoints, new UsdMicroAmount(byokFee.FixedFeeMicroUsd),
+                byokFee.EffectiveFrom, byokFee.EffectiveTo, byokFee.CreatedAt);
+        }
         var prior = await db.Set<BillingSettlementEntity>().AsNoTracking()
             .SingleOrDefaultAsync(value => value.ReservationId == reservationId, cancellationToken);
         var attempts = await db.Set<UsageAttemptEntity>().AsNoTracking()
             .Where(value => value.RequestId == requestId.Value).ToListAsync(cancellationToken);
+        var credentialIds = attempts.Where(value => value.CredentialId is not null)
+            .Select(value => value.CredentialId!.Value).Distinct().ToArray();
+        var credentialKinds = await db.Set<ProviderCredentialEntity>().AsNoTracking()
+            .Where(value => credentialIds.Contains(value.Id))
+            .ToDictionaryAsync(value => value.Id, cancellationToken);
+        var mappingIds = attempts.Select(value => value.ProviderModelId).Distinct().ToArray();
+        var mappingProviders = await db.Set<CatalogProviderModelEntity>().AsNoTracking()
+            .Where(value => mappingIds.Contains(value.Id))
+            .ToDictionaryAsync(value => value.Id, value => value.ProviderId, cancellationToken);
         var evidenceEntities = await db.Set<UsageEvidenceEntity>().AsNoTracking()
             .Where(value => value.RequestId == requestId.Value).ToListAsync(cancellationToken);
         var priceIds = evidenceEntities.Where(value => value.State == "Verified")
@@ -144,9 +223,14 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             }).ToArray();
         var attemptContracts = attempts.Select(value => new FinancialAttempt(value.Id,
             Enum.Parse<ExecutionState>(value.ExecutionState),
-            evidenceEntities.Any(item => item.AttemptId == value.Id))).ToArray();
+            evidenceEntities.Any(item => item.AttemptId == value.Id), value.CredentialId,
+            value.CredentialId is { } credentialId && credentialKinds.TryGetValue(credentialId, out var credential)
+                ? credential.CredentialType : null,
+            value.CredentialId is null || credentialKinds.TryGetValue(value.CredentialId.Value,
+                out var matchingCredential) && mappingProviders.TryGetValue(value.ProviderModelId,
+                out var mappingProviderId) && matchingCredential.ProviderId == mappingProviderId)).ToArray();
         return new FinalizationContext(reservation, feePolicy, prior is null ? null : ToContract(prior),
-            attemptContracts, evidence, priced);
+            attemptContracts, evidence, priced, byokFeePolicy);
     }
 
     public Task<Guid?> FindReservationIdAsync(Guid requestId, CancellationToken cancellationToken = default) =>
@@ -173,6 +257,32 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
         return inserted == 1;
     }
 
+    public async Task<bool> TryRecordLateExternalSpendAsync(Guid settlementId, Guid evidenceId,
+        Guid credentialId, UsdMicroAmount providerCost, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+    {
+        if (await db.Set<BillingSettlementEvidenceEntity>().AsNoTracking()
+            .AnyAsync(value => value.EvidenceId == evidenceId, cancellationToken)) return false;
+        var inserted = await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO billing.external_spend_adjustment
+                (id, settlement_id, evidence_id, credential_id, provider_cost_micro_usd, created_at)
+            SELECT {Guid.CreateVersion7()}, settlement.id, {evidenceId}, {credentialId},
+                {providerCost.Value}, {now}
+            FROM billing.settlement AS settlement
+            JOIN billing.reservation AS reservation ON reservation.id = settlement.reservation_id
+            WHERE settlement.id = {settlementId} AND reservation.byok_credential_id = {credentialId}
+            ON CONFLICT (evidence_id) DO NOTHING;
+            """, cancellationToken);
+        if (inserted != 1) return false;
+        var updated = await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE gateway.provider_credential
+            SET external_spent_micro_usd = external_spent_micro_usd + {providerCost.Value}
+            WHERE id = {credentialId} AND credential_type = 'BYOK';
+            """, cancellationToken);
+        if (updated != 1) throw new InvalidOperationException("BYOK spend adjustment lost its credential.");
+        return true;
+    }
+
     public async Task<Settlement> ApplyFinalizationAsync(FinalizationContext context, ChargeBreakdown charge,
         bool unresolvedUsage, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
@@ -196,6 +306,19 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             """, cancellationToken);
         if (updated != 1) throw new InvalidOperationException("Wallet reservation and settlement are inconsistent.");
 
+        if (reservation.ByokCredentialId is { } byokId)
+        {
+            updated = await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE gateway.provider_credential
+                SET external_reserved_micro_usd = external_reserved_micro_usd - {reservation.MaximumExternalSpend.Value},
+                    external_spent_micro_usd = external_spent_micro_usd + {charge.ExternalProviderSpend.Value}
+                WHERE id = {byokId} AND organization_id = {reservation.OrganizationId}
+                  AND credential_type = 'BYOK'
+                  AND external_reserved_micro_usd >= {reservation.MaximumExternalSpend.Value};
+                """, cancellationToken);
+            if (updated != 1) throw new InvalidOperationException("BYOK spend hold and settlement are inconsistent.");
+        }
+
         var holds = await db.Set<BillingReservationBudgetEntity>().AsNoTracking()
             .Where(value => value.ReservationId == reservation.Id).OrderBy(value => value.PolicyId)
             .ToListAsync(cancellationToken);
@@ -212,7 +335,8 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
 
         var settlement = new Settlement(Guid.CreateVersion7(), reservation.Id, reservation.RequestId,
             charge.ProviderCost, charge.UncappedCustomerCharge, charge.Charged,
-            charge.UncollectedCharge, charge.PlatformExposure, unresolvedUsage, outcome, now);
+            charge.UncollectedCharge, charge.PlatformExposure, unresolvedUsage, outcome, now,
+            charge.ExternalProviderSpend);
         db.Set<BillingSettlementEntity>().Add(new BillingSettlementEntity
         {
             Id = settlement.Id, ReservationId = reservation.Id, RequestId = reservation.RequestId,
@@ -222,6 +346,7 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
             ChargedMicroUsd = charge.Charged.Value,
             UncollectedChargeMicroUsd = charge.UncollectedCharge.Value,
             PlatformExposureMicroUsd = charge.PlatformExposure.Value,
+            ExternalProviderSpendMicroUsd = charge.ExternalProviderSpend.Value,
             UnresolvedUsage = unresolvedUsage, Outcome = outcome, CreatedAt = now
         });
         foreach (var evidence in context.Evidence)
@@ -444,11 +569,14 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
 
     private static Reservation ToContract(BillingReservationEntity value) => new(value.Id, value.RequestId,
         value.OrganizationId, value.ProjectId, value.ApiKeyId, value.FeePolicyVersionId,
-        new UsdMicroAmount(value.AmountMicroUsd), value.CreatedAt, value.ExpiresAt, value.Status);
+        new UsdMicroAmount(value.AmountMicroUsd), value.CreatedAt, value.ExpiresAt, value.Status,
+        value.ByokCredentialId, value.ByokFeePolicyVersionId,
+        new UsdMicroAmount(value.MaximumExternalSpendMicroUsd), value.AllowManagedFallback);
 
     private static Settlement ToContract(BillingSettlementEntity value) => new(value.Id,
         value.ReservationId, value.RequestId, new UsdMicroAmount(value.ProviderCostMicroUsd),
         new UsdMicroAmount(value.UncappedCustomerChargeMicroUsd), new UsdMicroAmount(value.ChargedMicroUsd),
         new UsdMicroAmount(value.UncollectedChargeMicroUsd), new UsdMicroAmount(value.PlatformExposureMicroUsd),
-        value.UnresolvedUsage, value.Outcome, value.CreatedAt);
+        value.UnresolvedUsage, value.Outcome, value.CreatedAt,
+        new UsdMicroAmount(value.ExternalProviderSpendMicroUsd));
 }

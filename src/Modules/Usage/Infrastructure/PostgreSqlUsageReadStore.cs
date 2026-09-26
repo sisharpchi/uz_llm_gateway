@@ -45,12 +45,18 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
                 value.State, value.Source, value.InputTokens, value.OutputTokens,
                 value.CachedInputTokens, value.ReasoningTokens, value.CapturedAt, value.ReconcileAfter))
             .ToListAsync(cancellationToken);
+        var lateExternalSpend = await dbContext.Set<BillingExternalSpendAdjustmentEntity>()
+            .AsNoTracking().Where(value => dbContext.Set<BillingSettlementEntity>()
+                .Any(settlement => settlement.RequestId == requestId
+                    && settlement.Id == value.SettlementId))
+            .SumAsync(value => (long?)value.ProviderCostMicroUsd, cancellationToken) ?? 0;
 
         return new UsageRequestDetail(ToActivity(fact), fact.TraceId, fact.RouteStrategy,
             fact.HasSettlement ? Money(fact.ProviderCostMicroUsd) : null,
             fact.HasSettlement ? Money(fact.ChargedMicroUsd) : null,
             fact.HasSettlement ? Money(fact.PlatformExposureMicroUsd) : null, fact.UnresolvedUsage,
-            attempts, evidence);
+            attempts, evidence, fact.HasSettlement ? Money(fact.ExternalProviderSpendMicroUsd) : null,
+            fact.HasSettlement ? lateExternalSpend.ToString(CultureInfo.InvariantCulture) : null);
     }
 
     public async Task<(long Requests, long Completed, long Errors, long Pending,
@@ -219,6 +225,9 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
             PlatformExposureMicroUsd = dbContext.Set<BillingSettlementEntity>()
                 .Where(settlement => settlement.RequestId == value.Id)
                 .Select(settlement => (long?)settlement.PlatformExposureMicroUsd).FirstOrDefault(),
+            ExternalProviderSpendMicroUsd = dbContext.Set<BillingSettlementEntity>()
+                .Where(settlement => settlement.RequestId == value.Id)
+                .Select(settlement => (long?)settlement.ExternalProviderSpendMicroUsd).FirstOrDefault(),
             UnresolvedUsage = dbContext.Set<BillingSettlementEntity>()
                 .Where(settlement => settlement.RequestId == value.Id)
                 .Select(settlement => (bool?)settlement.UnresolvedUsage).FirstOrDefault()
@@ -265,6 +274,7 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
         public bool HasSettlement { get; init; }
         public long? ProviderCostMicroUsd { get; init; }
         public long? PlatformExposureMicroUsd { get; init; }
+        public long? ExternalProviderSpendMicroUsd { get; init; }
         public bool? UnresolvedUsage { get; init; }
     }
 

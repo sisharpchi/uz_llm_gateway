@@ -19,6 +19,10 @@ public sealed partial class FoundationDbContext
                     "(credential_type = 'Platform' AND name IS NULL AND masked_key IS NULL) OR (credential_type = 'BYOK' AND name IS NOT NULL AND masked_key IS NOT NULL)");
                 table.HasCheckConstraint("CK_provider_credential_test_status",
                     "last_test_status IS NULL OR last_test_status IN ('Valid', 'Invalid', 'Unavailable')");
+                table.HasCheckConstraint("CK_provider_credential_spend",
+                    "external_spent_micro_usd >= 0 AND external_reserved_micro_usd >= 0 AND (spend_limit_micro_usd IS NULL OR spend_limit_micro_usd >= 0)");
+                table.HasCheckConstraint("CK_provider_credential_restrictions_scope",
+                    "credential_type = 'BYOK' OR (allowed_models_json IS NULL AND spend_limit_micro_usd IS NULL AND external_spent_micro_usd = 0 AND external_reserved_micro_usd = 0)");
             });
             entity.HasKey(value => value.Id);
             entity.Property(value => value.Id).HasColumnName("id");
@@ -36,6 +40,10 @@ public sealed partial class FoundationDbContext
             entity.Property(value => value.DeletedAt).HasColumnName("deleted_at");
             entity.Property(value => value.LastTestedAt).HasColumnName("last_tested_at");
             entity.Property(value => value.LastTestStatus).HasColumnName("last_test_status").HasMaxLength(20);
+            entity.Property(value => value.AllowedModelsJson).HasColumnName("allowed_models_json").HasColumnType("jsonb");
+            entity.Property(value => value.SpendLimitMicroUsd).HasColumnName("spend_limit_micro_usd");
+            entity.Property(value => value.ExternalSpentMicroUsd).HasColumnName("external_spent_micro_usd");
+            entity.Property(value => value.ExternalReservedMicroUsd).HasColumnName("external_reserved_micro_usd");
             entity.HasIndex(value => new { value.ProviderId, value.CredentialType, value.Status });
             entity.HasIndex(value => new { value.OrganizationId, value.Id }).IsUnique();
             entity.HasIndex(value => new { value.OrganizationId, value.CreatedAt });

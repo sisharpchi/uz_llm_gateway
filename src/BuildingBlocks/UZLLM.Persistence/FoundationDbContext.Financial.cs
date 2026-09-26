@@ -10,7 +10,8 @@ public sealed partial class FoundationDbContext
         {
             entity.ToTable("reservation", "billing", table =>
             {
-                table.HasCheckConstraint("CK_reservation_amount", "amount_micro_usd > 0 AND (captured_micro_usd IS NULL OR captured_micro_usd BETWEEN 0 AND amount_micro_usd)");
+                table.HasCheckConstraint("CK_reservation_amount", "amount_micro_usd >= 0 AND (captured_micro_usd IS NULL OR captured_micro_usd BETWEEN 0 AND amount_micro_usd)");
+                table.HasCheckConstraint("CK_reservation_byok", "maximum_external_spend_micro_usd >= 0 AND ((byok_credential_id IS NULL AND byok_fee_policy_version_id IS NULL AND maximum_external_spend_micro_usd = 0 AND NOT allow_managed_fallback) OR (byok_credential_id IS NOT NULL AND byok_fee_policy_version_id IS NOT NULL AND maximum_external_spend_micro_usd > 0))");
                 table.HasCheckConstraint("CK_reservation_state", "(status = 'Reserved' AND captured_micro_usd IS NULL AND finalized_at IS NULL) OR (status IN ('Settled', 'Released') AND captured_micro_usd IS NOT NULL AND finalized_at IS NOT NULL)");
                 table.HasCheckConstraint("CK_reservation_expiry", "expires_at > created_at");
             });
@@ -21,6 +22,10 @@ public sealed partial class FoundationDbContext
             entity.Property(value => value.ProjectId).HasColumnName("project_id");
             entity.Property(value => value.ApiKeyId).HasColumnName("api_key_id");
             entity.Property(value => value.FeePolicyVersionId).HasColumnName("fee_policy_version_id");
+            entity.Property(value => value.ByokCredentialId).HasColumnName("byok_credential_id");
+            entity.Property(value => value.ByokFeePolicyVersionId).HasColumnName("byok_fee_policy_version_id");
+            entity.Property(value => value.MaximumExternalSpendMicroUsd).HasColumnName("maximum_external_spend_micro_usd");
+            entity.Property(value => value.AllowManagedFallback).HasColumnName("allow_managed_fallback");
             entity.Property(value => value.AmountMicroUsd).HasColumnName("amount_micro_usd");
             entity.Property(value => value.Status).HasColumnName("status").HasMaxLength(20);
             entity.Property(value => value.CapturedMicroUsd).HasColumnName("captured_micro_usd");
@@ -34,6 +39,8 @@ public sealed partial class FoundationDbContext
             entity.HasOne<ProjectEntity>().WithMany().HasForeignKey(value => new { value.OrganizationId, value.ProjectId })
                 .HasPrincipalKey(value => new { value.OrganizationId, value.Id }).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<BillingFeePolicyVersionEntity>().WithMany().HasForeignKey(value => value.FeePolicyVersionId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<BillingFeePolicyVersionEntity>().WithMany().HasForeignKey(value => value.ByokFeePolicyVersionId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ProviderCredentialEntity>().WithMany().HasForeignKey(value => value.ByokCredentialId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<BillingBudgetPolicyEntity>(entity =>
@@ -73,7 +80,7 @@ public sealed partial class FoundationDbContext
 
         modelBuilder.Entity<BillingReservationBudgetEntity>(entity =>
         {
-            entity.ToTable("reservation_budget", "billing", table => table.HasCheckConstraint("CK_reservation_budget_positive", "amount_micro_usd > 0"));
+            entity.ToTable("reservation_budget", "billing", table => table.HasCheckConstraint("CK_reservation_budget_positive", "amount_micro_usd >= 0"));
             entity.HasKey(value => new { value.ReservationId, value.PolicyId });
             entity.Property(value => value.ReservationId).HasColumnName("reservation_id");
             entity.Property(value => value.PolicyId).HasColumnName("policy_id");
@@ -88,7 +95,7 @@ public sealed partial class FoundationDbContext
         modelBuilder.Entity<BillingSettlementEntity>(entity =>
         {
             entity.ToTable("settlement", "billing", table => table.HasCheckConstraint("CK_settlement_amounts",
-                "provider_cost_micro_usd >= 0 AND uncapped_customer_charge_micro_usd >= 0 AND charged_micro_usd >= 0 AND uncollected_charge_micro_usd >= 0 AND platform_exposure_micro_usd >= 0 AND outcome IN ('Settled', 'Released')"));
+                "provider_cost_micro_usd >= 0 AND uncapped_customer_charge_micro_usd >= 0 AND charged_micro_usd >= 0 AND uncollected_charge_micro_usd >= 0 AND platform_exposure_micro_usd >= 0 AND external_provider_spend_micro_usd >= 0 AND outcome IN ('Settled', 'Released')"));
             entity.HasKey(value => value.Id);
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.ReservationId).HasColumnName("reservation_id");
@@ -99,6 +106,7 @@ public sealed partial class FoundationDbContext
             entity.Property(value => value.ChargedMicroUsd).HasColumnName("charged_micro_usd");
             entity.Property(value => value.UncollectedChargeMicroUsd).HasColumnName("uncollected_charge_micro_usd");
             entity.Property(value => value.PlatformExposureMicroUsd).HasColumnName("platform_exposure_micro_usd");
+            entity.Property(value => value.ExternalProviderSpendMicroUsd).HasColumnName("external_provider_spend_micro_usd");
             entity.Property(value => value.UnresolvedUsage).HasColumnName("unresolved_usage");
             entity.Property(value => value.Outcome).HasColumnName("outcome").HasMaxLength(20);
             entity.Property(value => value.CreatedAt).HasColumnName("created_at");
@@ -176,6 +184,23 @@ public sealed partial class FoundationDbContext
             entity.HasIndex(value => value.EvidenceId).IsUnique();
             entity.HasOne<BillingSettlementEntity>().WithMany().HasForeignKey(value => value.SettlementId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<UsageEvidenceEntity>().WithMany().HasForeignKey(value => value.EvidenceId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BillingExternalSpendAdjustmentEntity>(entity =>
+        {
+            entity.ToTable("external_spend_adjustment", "billing", table => table.HasCheckConstraint(
+                "CK_external_spend_adjustment_non_negative", "provider_cost_micro_usd >= 0"));
+            entity.HasKey(value => value.Id);
+            entity.Property(value => value.Id).HasColumnName("id");
+            entity.Property(value => value.SettlementId).HasColumnName("settlement_id");
+            entity.Property(value => value.EvidenceId).HasColumnName("evidence_id");
+            entity.Property(value => value.CredentialId).HasColumnName("credential_id");
+            entity.Property(value => value.ProviderCostMicroUsd).HasColumnName("provider_cost_micro_usd");
+            entity.Property(value => value.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(value => value.EvidenceId).IsUnique();
+            entity.HasOne<BillingSettlementEntity>().WithMany().HasForeignKey(value => value.SettlementId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UsageEvidenceEntity>().WithMany().HasForeignKey(value => value.EvidenceId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ProviderCredentialEntity>().WithMany().HasForeignKey(value => value.CredentialId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

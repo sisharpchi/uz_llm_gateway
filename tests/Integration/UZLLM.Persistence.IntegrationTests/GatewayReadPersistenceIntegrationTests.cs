@@ -9,6 +9,47 @@ namespace UZLLM.Persistence.IntegrationTests;
 public sealed class GatewayReadPersistenceIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     [Fact]
+    public async Task Gateway_byok_lookup_requires_matching_tenant_project_grant_and_model_allowlist()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        await using var services = fixture.CreateServiceProvider();
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var org = new OrganizationEntity { Id = Guid.NewGuid(), Name = "BYOK read",
+            Status = "Active", CreatedAt = now };
+        var project = new ProjectEntity { Id = Guid.NewGuid(), OrganizationId = org.Id,
+            Name = "Granted", Status = "Active", CreatedAt = now };
+        var denied = new ProjectEntity { Id = Guid.NewGuid(), OrganizationId = org.Id,
+            Name = "Denied", Status = "Active", CreatedAt = now };
+        var upstream = new CatalogProviderEntity { Id = Guid.NewGuid(), Code = "openai",
+            Name = "OpenAI", Status = "Active", CreatedAt = now };
+        var credential = new ProviderCredentialEntity { Id = Guid.NewGuid(),
+            ProviderId = upstream.Id, OrganizationId = org.Id, CredentialType = "BYOK",
+            Status = "Active", Name = "Tenant", MaskedKey = "••••test",
+            EncryptedSecret = new byte[40], WrappedDataKey = new byte[60], KeyVersion = "v1",
+            CreatedAt = now, AllowedModelsJson = "[\"allowed-model\"]" };
+        db.AddRange(org, project, denied, upstream, credential,
+            new ProviderCredentialProjectGrantEntity { OrganizationId = org.Id,
+                ProjectId = project.Id, CredentialId = credential.Id, CreatedAt = now });
+        await db.SaveChangesAsync();
+        var read = new PostgreSqlGatewayReadStore(db);
+        Assert.NotNull(await read.FindByokCredentialAsync(org.Id, project.Id,
+            credential.Id, "allowed-model", CancellationToken.None));
+        Assert.Null(await read.FindByokCredentialAsync(org.Id, project.Id,
+            credential.Id, "other-model", CancellationToken.None));
+        Assert.Null(await read.FindByokCredentialAsync(org.Id, denied.Id,
+            credential.Id, "allowed-model", CancellationToken.None));
+        Assert.Null(await read.FindByokCredentialAsync(Guid.NewGuid(), project.Id,
+            credential.Id, "allowed-model", CancellationToken.None));
+        await db.Set<ProviderCredentialEntity>().Where(value => value.Id == credential.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Status, "Disabled"));
+        Assert.Null(await read.FindByokCredentialAsync(org.Id, project.Id,
+            credential.Id, "allowed-model", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Gateway_scope_rejects_suspended_tenants_and_credential_selection_requires_active_platform_scope()
     {
         await fixture.ResetMigrationsAsync();

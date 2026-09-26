@@ -493,6 +493,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(attempt => attempt.RequestId).HasColumnName("request_id");
             entity.Property(attempt => attempt.Number).HasColumnName("number");
             entity.Property(attempt => attempt.ProviderModelId).HasColumnName("provider_model_id");
+            entity.Property(attempt => attempt.CredentialId).HasColumnName("credential_id");
             entity.Property(attempt => attempt.StartedAt).HasColumnName("started_at");
             entity.Property(attempt => attempt.CompletedAt).HasColumnName("completed_at");
             entity.Property(attempt => attempt.ExecutionState).HasColumnName("execution_state").HasMaxLength(30);
@@ -502,6 +503,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.HasIndex(attempt => new { attempt.Id, attempt.RequestId }).IsUnique();
             entity.HasOne(attempt => attempt.Request).WithMany(request => request.Attempts).HasForeignKey(attempt => attempt.RequestId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(attempt => attempt.ProviderModel).WithMany().HasForeignKey(attempt => attempt.ProviderModelId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ProviderCredentialEntity>().WithMany().HasForeignKey(attempt => attempt.CredentialId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<UsageEvidenceEntity>(entity =>

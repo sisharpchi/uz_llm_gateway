@@ -99,6 +99,7 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
             RequestId = numbered.RequestId,
             Number = numbered.Number,
             ProviderModelId = numbered.ProviderModelId,
+            CredentialId = numbered.CredentialId,
             StartedAt = numbered.StartedAt,
             CompletedAt = numbered.CompletedAt,
             ExecutionState = numbered.Execution.ToString(),
@@ -252,5 +253,5 @@ public sealed class PostgreSqlUsageStore(FoundationDbContext dbContext) : IUsage
     private static UsageAttempt ToContract(UsageAttemptEntity attempt) => new(
         attempt.Id, attempt.RequestId, attempt.Number, attempt.ProviderModelId,
         attempt.StartedAt, attempt.CompletedAt, Enum.Parse<ExecutionState>(attempt.ExecutionState),
-        attempt.ProviderRequestId, attempt.ErrorCategory);
+        attempt.ProviderRequestId, attempt.ErrorCategory, attempt.CredentialId);
 }

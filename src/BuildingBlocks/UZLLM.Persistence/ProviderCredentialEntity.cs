@@ -17,6 +17,10 @@ public sealed class ProviderCredentialEntity
     public DateTimeOffset? DeletedAt { get; set; }
     public DateTimeOffset? LastTestedAt { get; set; }
     public string? LastTestStatus { get; set; }
+    public string? AllowedModelsJson { get; set; }
+    public long? SpendLimitMicroUsd { get; set; }
+    public long ExternalSpentMicroUsd { get; set; }
+    public long ExternalReservedMicroUsd { get; set; }
 }
 
 public sealed class ProviderCredentialProjectGrantEntity

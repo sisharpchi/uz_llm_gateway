@@ -315,6 +315,14 @@ The Redis circuit opens after three transient failures in one minute for 30
 seconds; an unavailable health dependency fails new managed admission closed.
 Detailed latency/throughput scoring and cross-model fallback remain P1.
 
+`BYOK-002` selects one explicitly requested, project-granted BYOK credential
+before an optional managed same-model candidate. Managed fallback requires
+`uzllm.allow_managed_fallback=true` and a full managed wallet reservation.
+An unavailable BYOK credential, disallowed canonical model, or exceeded
+lifetime external-spend cap fails admission; the gateway never silently
+changes a BYOK-only request to Managed. Provider authentication rejection,
+unknown execution, and partial SSE output are terminal for this request.
+
 Anthropic translation uses its [Messages API](https://platform.claude.com/docs/en/api/messages/create),
 [stream event protocol](https://platform.claude.com/docs/en/build-with-claude/streaming),
 and [error codes](https://platform.claude.com/docs/en/api/errors). Its

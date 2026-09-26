@@ -81,6 +81,29 @@ public static class ByokEndpointExtensions
         }).RequireManagementCsrf().WithName("TestByokCredential")
             .WithSummary("Test a key against a fixed provider-owned endpoint without a DB transaction.");
 
+        keys.MapPut("/{id:guid}/restrictions", async (Guid organizationId, Guid id,
+            SetByokRestrictionsRequest request, HttpContext context,
+            IByokCredentialService service, CancellationToken ct) =>
+        {
+            if (!TryActor(context, out var actor)) return Results.Unauthorized();
+            if (request.SpendLimitMicroUsd is not null
+                && !long.TryParse(request.SpendLimitMicroUsd,
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out _))
+                return Invalid("spendLimitMicroUsd must be a non-negative integer string.");
+            try
+            {
+                var cap = request.SpendLimitMicroUsd is null ? (long?)null
+                    : long.Parse(request.SpendLimitMicroUsd, System.Globalization.CultureInfo.InvariantCulture);
+                var item = await service.SetRestrictionsAsync(actor, organizationId,
+                    id, request.AllowedModels, cap, ct);
+                return item is null ? Results.NotFound() : Results.Ok(ToResponse(item));
+            }
+            catch (TenantAccessDeniedException) { return Denied(); }
+            catch (ArgumentException error) { return Invalid(error.Message); }
+        }).RequireManagementCsrf().WithName("SetByokRestrictions")
+            .WithSummary("Replace model allowlist and lifetime external provider spend cap.");
+
         keys.MapPost("/{id:guid}/disable", async (Guid organizationId, Guid id,
             HttpContext context, IByokCredentialService service, CancellationToken ct) =>
             await MutateAsync(organizationId, id, context, service,
@@ -141,7 +164,10 @@ public static class ByokEndpointExtensions
     private static ByokCredentialResponse ToResponse(ByokCredential item) => new(item.Id,
         item.OrganizationId, item.ProviderId, item.ProviderCode, item.Name, item.MaskedKey,
         item.Status.ToString(), item.CreatedAt, item.UpdatedAt, item.LastTestedAt,
-        item.LastTestStatus, item.ProjectIds);
+        item.LastTestStatus, item.ProjectIds, item.AllowedModels,
+        item.SpendLimitMicroUsd?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        item.ExternalSpentMicroUsd.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        item.ExternalReservedMicroUsd.ToString(System.Globalization.CultureInfo.InvariantCulture));
 }
 
 /// <summary>Accepts one provider-owned secret for an organization.</summary>
@@ -150,6 +176,10 @@ public sealed record CreateByokCredentialRequest(Guid ProviderId, string Name, s
 /// <summary>Optionally renames or rotates an existing organization provider key.</summary>
 public sealed record UpdateByokCredentialRequest(string? Name, string? Secret);
 
+/// <summary>Replaces the optional canonical-model allowlist and external spend cap.</summary>
+public sealed record SetByokRestrictionsRequest(IReadOnlyList<string>? AllowedModels,
+    string? SpendLimitMicroUsd);
+
 /// <summary>Safe provider credential verification outcome without upstream response details.</summary>
 public sealed record ByokTestResponse(string Status);
 
@@ -157,4 +187,6 @@ public sealed record ByokTestResponse(string Status);
 public sealed record ByokCredentialResponse(Guid Id, Guid OrganizationId, Guid ProviderId,
     string ProviderCode, string Name, string MaskedKey, string Status,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? LastTestedAt,
-    string? LastTestStatus, IReadOnlyList<Guid> ProjectIds);
+    string? LastTestStatus, IReadOnlyList<Guid> ProjectIds,
+    IReadOnlyList<string>? AllowedModels, string? SpendLimitMicroUsd,
+    string ExternalSpentMicroUsd, string ExternalReservedMicroUsd);

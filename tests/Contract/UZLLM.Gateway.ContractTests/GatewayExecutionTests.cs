@@ -18,6 +18,77 @@ namespace UZLLM.Gateway.ContractTests;
 public sealed class GatewayExecutionTests
 {
     [Fact]
+    public async Task Byok_request_uses_tenant_credential_even_when_managed_traffic_is_paused()
+    {
+        var fixture = new Scenario();
+        fixture.UseByok(false);
+        fixture.PlatformControls.Enabled = false;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Finance.ByokReserves);
+        Assert.Equal(0, fixture.Finance.ManagedReserves);
+        Assert.Equal(0, fixture.Finance.LastMaximum!.Value.Value);
+        Assert.Equal(fixture.ByokCredentialId, fixture.Adapter.LastContext!.CredentialId);
+        Assert.NotNull(fixture.Adapter.LastContext.OrganizationId);
+        Assert.NotNull(fixture.Adapter.LastContext.ProjectId);
+        Assert.Equal("byok", fixture.Context.Response.Headers["X-Uzllm-Billing-Mode"]);
+    }
+
+    [Fact]
+    public async Task Byok_ungranted_key_is_rejected_before_financial_admission()
+    {
+        var fixture = new Scenario();
+        fixture.UseByok(false);
+        fixture.Reads.Byok = null;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(403, fixture.Context.Response.StatusCode);
+        Assert.Equal(0, fixture.Finance.ByokReserves);
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+    }
+
+    [Fact]
+    public async Task Hybrid_opt_in_falls_back_to_managed_only_after_verified_preexecution_rejection()
+    {
+        var fixture = new Scenario();
+        fixture.UseByok(true);
+        fixture.Adapter.ByokError = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+            "BYOK rate limited.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(2, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.Finance.ByokReserves);
+        Assert.True(fixture.Finance.LastByokInput!.AllowManagedFallback);
+        Assert.Equal(1, fixture.Usage.VerifiedEvidence);
+        Assert.Equal(1, fixture.Finance.Finalizes);
+        Assert.Null(fixture.Adapter.LastContext!.OrganizationId);
+        Assert.Equal("managed", fixture.Context.Response.Headers["X-Uzllm-Billing-Mode"]);
+    }
+
+    [Theory]
+    [InlineData(ProviderErrorCategory.Authentication, ProviderExecutionCertainty.RejectedBeforeExecution, true)]
+    [InlineData(ProviderErrorCategory.Timeout, ProviderExecutionCertainty.Unknown, true)]
+    [InlineData(ProviderErrorCategory.RateLimited, ProviderExecutionCertainty.RejectedBeforeExecution, false)]
+    public async Task Byok_auth_unknown_or_non_opted_rejection_never_uses_managed_fallback(
+        ProviderErrorCategory category, ProviderExecutionCertainty certainty, bool optIn)
+    {
+        var fixture = new Scenario();
+        fixture.UseByok(optIn);
+        fixture.Adapter.ByokError = new ProviderError(category, certainty,
+            true, true, 429, null, "BYOK request failed.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(fixture.ByokCredentialId, fixture.Adapter.LastContext!.CredentialId);
+        Assert.NotEqual("managed", fixture.Context.Response.Headers["X-Uzllm-Billing-Mode"].ToString());
+    }
+
+    [Fact]
     public async Task Models_endpoint_lists_active_catalog_without_provider_secrets()
     {
         var fixture = new Scenario();
@@ -383,6 +454,7 @@ public sealed class GatewayExecutionTests
         private readonly Guid mappingId = Guid.NewGuid();
         private readonly Guid anthropicMappingId = Guid.NewGuid();
         private readonly Guid credentialId = Guid.NewGuid();
+        public readonly Guid ByokCredentialId = Guid.NewGuid();
         private readonly Guid feeId = Guid.NewGuid();
         private readonly Guid priceId = Guid.NewGuid();
         public readonly Guid AnthropicPriceId = Guid.NewGuid();
@@ -452,6 +524,17 @@ public sealed class GatewayExecutionTests
 
         public Task RunAsync() => gateway.ChatAsync(Context, Context.RequestAborted);
         public Task ListAsync() => gateway.ListModelsAsync(Context, Context.RequestAborted);
+        public void UseByok(bool allowManagedFallback)
+        {
+            Reads.Byok = new GatewayByokCredential(ByokCredentialId, providerId);
+            Context.Request.Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
+                max_completion_tokens = 100,
+                uzllm = new { provider_key_id = ByokCredentialId,
+                    allow_managed_fallback = allowManagedFallback }
+            }));
+        }
     }
 
     private sealed class FakeAuthenticator(Guid keyId, Guid projectId) : IApiKeyAuthenticator
@@ -466,12 +549,18 @@ public sealed class GatewayExecutionTests
         : IGatewayReadStore
     {
         public bool Active = true;
+        public GatewayByokCredential? Byok;
         public Task<GatewayTenantScope?> FindTenantAsync(Guid projectId, CancellationToken cancellationToken) =>
             Task.FromResult<GatewayTenantScope?>(Active && projectId == tenant.ProjectId ? tenant : null);
         public Task<FeePolicyVersion?> FindFeePolicyAsync(string policyCode, DateTimeOffset at,
             CancellationToken cancellationToken) => Task.FromResult<FeePolicyVersion?>(fee);
         public Task<Guid?> FindPlatformCredentialAsync(Guid providerId, CancellationToken cancellationToken) =>
             Task.FromResult<Guid?>(credentialId);
+        public Task<GatewayByokCredential?> FindByokCredentialAsync(Guid organizationId,
+            Guid projectId, Guid byokId, string canonicalModelCode,
+            CancellationToken cancellationToken) => Task.FromResult(Byok is { } value
+                && organizationId == tenant.OrganizationId && projectId == tenant.ProjectId
+                && byokId == value.Id && canonicalModelCode == "gpt-test" ? Byok : null);
     }
 
     private sealed class FakeCatalog(CatalogModelSummary summary,
@@ -532,8 +621,9 @@ public sealed class GatewayExecutionTests
     private sealed class FakeFinance(Guid requestId, Guid organizationId, Guid projectId,
         Guid apiKeyId, Guid feeId) : IFinancialService
     {
-        public int Reserves, Finalizes, Releases;
+        public int Reserves, ManagedReserves, ByokReserves, Finalizes, Releases;
         public UsdMicroAmount? LastMaximum;
+        public ByokAdmissionInput? LastByokInput;
         public AdmissionStatus NextAdmission = AdmissionStatus.Reserved;
         public FinalizationStatus NextFinalization = FinalizationStatus.Settled;
         public Exception? ReserveFailure, FinalizationFailure;
@@ -541,11 +631,27 @@ public sealed class GatewayExecutionTests
             CancellationToken cancellationToken = default)
         {
             Reserves++;
+            ManagedReserves++;
             LastMaximum = input.MaximumCharge;
             if (ReserveFailure is not null) throw ReserveFailure;
             var reservation = NextAdmission == AdmissionStatus.Reserved
                 ? new Reservation(Guid.NewGuid(), requestId, organizationId, projectId, apiKeyId,
                     feeId, input.MaximumCharge, DateTimeOffset.UtcNow, input.ExpiresAt, "Reserved") : null;
+            return Task.FromResult(new AdmissionResult(NextAdmission, requestId, reservation));
+        }
+        public Task<AdmissionResult> ReserveByokAsync(ByokAdmissionInput input,
+            CancellationToken cancellationToken = default)
+        {
+            Reserves++;
+            ByokReserves++;
+            LastMaximum = input.MaximumWalletCharge;
+            LastByokInput = input;
+            if (ReserveFailure is not null) throw ReserveFailure;
+            var reservation = NextAdmission == AdmissionStatus.Reserved
+                ? new Reservation(Guid.NewGuid(), requestId, organizationId, projectId, apiKeyId,
+                    input.FeePolicyVersionId, input.MaximumWalletCharge, DateTimeOffset.UtcNow,
+                    input.ExpiresAt, "Reserved", input.CredentialId, input.ByokFeePolicyVersionId,
+                    input.MaximumExternalSpend, input.AllowManagedFallback) : null;
             return Task.FromResult(new AdmissionResult(NextAdmission, requestId, reservation));
         }
         public Task<FinalizationResult> FinalizeAsync(Guid reservationId, CancellationToken cancellationToken = default)
@@ -612,6 +718,8 @@ public sealed class GatewayExecutionTests
         public int CompleteCalls, StreamCalls;
         public ProviderCompletion? Completion;
         public ProviderError? Error;
+        public ProviderError? ByokError;
+        public ProviderExecutionContext? LastContext;
         public IReadOnlyList<ProviderStreamEvent> StreamItems = [];
         public bool FailAfterStreamItems;
         public CancellationToken ObservedStreamToken;
@@ -620,7 +728,10 @@ public sealed class GatewayExecutionTests
             ProviderExecutionContext context, CancellationToken cancellationToken = default)
         {
             CompleteCalls++;
+            LastContext = context;
             if (Error is not null) throw new ProviderExecutionException(Error);
+            if (context.OrganizationId is not null && ByokError is not null)
+                throw new ProviderExecutionException(ByokError);
             return Task.FromResult(Completion ?? new ProviderCompletion("u", "gpt-test",
                 new ProviderMessage("assistant", [new ProviderContentPart(ProviderContentKind.Text, "ok")]),
                 "stop", new ProviderUsage(2, 1, 0, null), "p"));

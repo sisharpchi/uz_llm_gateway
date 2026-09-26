@@ -380,6 +380,16 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // This fixture owns a disposable database. Production Down refuses to
+        // discard BYOK holds, evidence, or external spend; clear them only here.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('billing.external_spend_adjustment') IS NOT NULL THEN
+                    TRUNCATE TABLE usage.request, gateway.provider_credential CASCADE;
+                  END IF;
+                END $$;
+                """);
         // This fixture owns a disposable database. Clear recurring financial
         // history before exercising Down; production downgrade deliberately
         // refuses to collapse populated windows into the old single bucket.

@@ -11,6 +11,32 @@ namespace UZLLM.Gateway.ContractTests;
 public sealed class GatewayWireContractTests
 {
     [Fact]
+    public void Chat_parser_requires_explicit_provider_key_for_hybrid_fallback()
+    {
+        var id = Guid.NewGuid();
+        var parsed = Parse(JsonSerializer.Serialize(new
+        {
+            model = "m", messages = new[] { new { role = "user", content = "x" } },
+            uzllm = new { provider_key_id = id, allow_managed_fallback = true }
+        }));
+        Assert.Equal(id, parsed.ProviderKeyId);
+        Assert.True(parsed.AllowManagedFallback);
+        Assert.Null(Parse("""{"model":"m","messages":[{"role":"user","content":"x"}]}""").ProviderKeyId);
+    }
+
+    [Theory]
+    [InlineData("{\"provider_key_id\":\"not-a-uuid\"}")]
+    [InlineData("{\"allow_managed_fallback\":true}")]
+    [InlineData("{\"provider_key_id\":\"00000000-0000-0000-0000-000000000000\"}")]
+    [InlineData("{\"provider_key_id\":\"11111111-1111-1111-1111-111111111111\",\"unapproved\":true}")]
+    public void Chat_parser_rejects_invalid_byok_extension(string extension)
+    {
+        var json = "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],\"uzllm\":"
+            + extension + "}";
+        Assert.Throws<GatewayRequestException>(() => Parse(json));
+    }
+
+    [Fact]
     public void Chat_parser_accepts_core_tools_and_explicit_output_limit()
     {
         var parsed = Parse("""

@@ -8,6 +8,33 @@ namespace UZLLM.Billing.Tests;
 public sealed class BillingServicesTests
 {
     [Fact]
+    public void Byok_cost_tracks_external_provider_spend_but_charges_only_bounded_platform_fee()
+    {
+        var at = new DateTimeOffset(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
+        var evidence = new PricedUsageEvidence(Guid.NewGuid(), Guid.NewGuid(), 10_000, 0,
+            0, null, 1_000_000, 0, null, "{}", at, at, null);
+        var free = new FeePolicyVersion(Guid.NewGuid(), "byok-free", 0,
+            UsdMicroAmount.Zero, at, null, at);
+        var paid = free with { MarkupBasisPoints = 1_000,
+            FixedFee = new UsdMicroAmount(100) };
+
+        var freeCharge = RequestCostCalculator.CalculateByok([evidence], free,
+            UsdMicroAmount.Zero);
+        Assert.Equal(10_000, freeCharge.ProviderCost.Value);
+        Assert.Equal(10_000, freeCharge.ExternalProviderSpend.Value);
+        Assert.Equal(0, freeCharge.Charged.Value);
+        Assert.Equal(0, freeCharge.PlatformExposure.Value);
+
+        var paidCharge = RequestCostCalculator.CalculateByok([evidence], paid,
+            new UsdMicroAmount(1_050));
+        Assert.Equal(1_100, paidCharge.UncappedCustomerCharge.Value);
+        Assert.Equal(1_050, paidCharge.Charged.Value);
+        Assert.Equal(50, paidCharge.UncollectedCharge.Value);
+        Assert.Equal(0, paidCharge.PlatformExposure.Value);
+        Assert.Equal(10_000, paidCharge.ExternalProviderSpend.Value);
+    }
+
+    [Fact]
     public void Request_cost_rounds_once_and_does_not_double_count_cached_or_reasoning_tokens()
     {
         var at = new DateTimeOffset(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);

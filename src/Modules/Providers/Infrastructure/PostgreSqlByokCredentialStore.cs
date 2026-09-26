@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using System.Text.Json;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Persistence;
 
@@ -168,6 +169,31 @@ public sealed class PostgreSqlByokCredentialStore(FoundationDbContext db) : IByo
             .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.LastTestStatus, result.ToString())
                 .SetProperty(value => value.LastTestedAt, testedAt), cancellationToken) == 1;
 
+    public async Task<bool> SetRestrictionsAsync(Guid organizationId, Guid credentialId,
+        IReadOnlyList<string>? allowedModels, long? spendLimitMicroUsd,
+        DateTimeOffset updatedAt, CancellationToken cancellationToken = default)
+    {
+        var credential = await db.Set<ProviderCredentialEntity>().SingleOrDefaultAsync(value =>
+            value.OrganizationId == organizationId && value.Id == credentialId
+            && value.CredentialType == "BYOK" && value.Status == "Active"
+            && value.DeletedAt == null, cancellationToken);
+        if (credential is null) return false;
+        if (allowedModels is not null)
+        {
+            var supported = await db.Set<CatalogProviderModelEntity>().AsNoTracking()
+                .Where(mapping => mapping.ProviderId == credential.ProviderId
+                    && mapping.Status == "Active" && mapping.Model.Status == "Active")
+                .Select(mapping => mapping.Model.CanonicalCode).ToArrayAsync(cancellationToken);
+            if (allowedModels.Except(supported, StringComparer.Ordinal).Any())
+                throw new ArgumentException("A restricted model has no active mapping for this provider.");
+        }
+        credential.AllowedModelsJson = allowedModels is null ? null : JsonSerializer.Serialize(allowedModels);
+        credential.SpendLimitMicroUsd = spendLimitMicroUsd;
+        credential.UpdatedAt = updatedAt;
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<ProtectedProviderSecret?> FindGrantedSecretAsync(Guid organizationId,
         Guid projectId, Guid credentialId, Guid providerId,
         CancellationToken cancellationToken = default)
@@ -198,5 +224,7 @@ public sealed class PostgreSqlByokCredentialStore(FoundationDbContext db) : IByo
         IReadOnlyList<Guid> grants) => new(row.Id, row.OrganizationId!.Value, row.ProviderId,
             providerCode, row.Name!, row.MaskedKey!, Enum.Parse<ProviderCredentialStatus>(row.Status),
             row.CreatedAt, row.UpdatedAt ?? row.CreatedAt, row.LastTestedAt,
-            row.LastTestStatus, grants);
+            row.LastTestStatus, grants, row.AllowedModelsJson is null ? null
+                : JsonSerializer.Deserialize<string[]>(row.AllowedModelsJson),
+            row.SpendLimitMicroUsd, row.ExternalSpentMicroUsd, row.ExternalReservedMicroUsd);
 }

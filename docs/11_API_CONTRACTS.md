@@ -310,6 +310,7 @@ GET    /management/v1/organizations/{organizationId}/provider-keys/{id}
 POST   /management/v1/organizations/{organizationId}/provider-keys
 PATCH  /management/v1/organizations/{organizationId}/provider-keys/{id}
 POST   /management/v1/organizations/{organizationId}/provider-keys/{id}/test
+PUT    /management/v1/organizations/{organizationId}/provider-keys/{id}/restrictions
 POST   /management/v1/organizations/{organizationId}/provider-keys/{id}/disable
 DELETE /management/v1/organizations/{organizationId}/provider-keys/{id}
 PUT    /management/v1/organizations/{organizationId}/provider-keys/{id}/projects/{projectId}
@@ -324,8 +325,34 @@ Test returns `Valid`, `Invalid`, or `Unavailable` without upstream response
 body; it makes a bounded GET to the provider's fixed model-list endpoint.
 Only active OpenAI/Anthropic catalog providers are supported at this stage.
 Deleting soft-tombstones and crypto-shreds the stored ciphertext; disabled/deleted credentials and
-ungranted projects cannot resolve its secret. BYOK routing, model restrictions,
-spend accounting, and Hybrid fallback remain `BYOK-002` work.
+ungranted projects cannot resolve its secret. `PUT /restrictions` replaces
+`allowedModels` (canonical codes; `null` means unrestricted) and optional
+`spendLimitMicroUsd` (non-negative decimal string; lifetime estimated external
+provider spend). The masked read response includes these fields plus
+`externalSpentMicroUsd` and `externalReservedMicroUsd` as decimal strings.
+Only active mappings for that credential's provider may enter the allowlist.
+The cap is enforced atomically with admission and can be lowered below
+spent-plus-held to block future requests, not invalidate existing holds.
+
+For BYOK chat, the P1 `uzllm` request extension is:
+
+```json
+{"uzllm":{"provider_key_id":"<credential UUID>","allow_managed_fallback":false}}
+```
+
+The key must be active, organization-owned, explicitly granted to the API
+key's project, and allowed for the canonical model. Omitting `uzllm` stays
+Managed. `allow_managed_fallback: true` is explicit Hybrid opt-in; it reserves
+the managed wallet ceiling up front and may use managed capacity only after a
+verified pre-execution transient rejection. Authentication errors, unknown
+outcomes, and partial streams do not fallback. A paused managed-traffic switch
+removes that fallback but does not pause pure BYOK traffic. At most one BYOK
+candidate and one managed candidate are considered for P1 Hybrid; multi-key
+ordering remains advanced routing work. Unknown extension fields are rejected.
+BYOK requires an active operator-published `byok` fee-policy version
+(`Gateway:ByokFeePolicyCode` overrides the code); publish zero markup/fixed
+fee for fee-free BYOK. Request detail exposes `externalProviderSpendMicroUsd`
+and `lateExternalSpendMicroUsd` separately from `chargedMicroUsd`.
 
 ---
 

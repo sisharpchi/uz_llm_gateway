@@ -105,6 +105,28 @@ public sealed class ByokEndpointIntegrationTests(PersistenceIntegrationFixture f
             using (var response = await client.SendAsync(Request(HttpMethod.Get,
                 $"{path}/{credentialId}", outsiderSession, csrf: false)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var restrictionsPath = $"{path}/{credentialId}/restrictions";
+            using (var response = await client.SendAsync(Request(HttpMethod.Put,
+                restrictionsPath, ownerSession, csrf: false,
+                new { allowedModels = (string[]?)null, spendLimitMicroUsd = "50000" })))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Put,
+                restrictionsPath, outsiderSession, csrf: true,
+                new { allowedModels = (string[]?)null, spendLimitMicroUsd = "50000" })))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Put,
+                restrictionsPath, ownerSession, csrf: true,
+                new { allowedModels = (string[]?)null, spendLimitMicroUsd = "-1" })))
+                Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Put,
+                restrictionsPath, ownerSession, csrf: true,
+                new { allowedModels = (string[]?)null, spendLimitMicroUsd = "50000" })))
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var body = await response.Content.ReadAsStringAsync();
+                Assert.Contains("50000", body);
+                Assert.DoesNotContain(secret, body);
+            }
             using (var response = await client.SendAsync(Request(HttpMethod.Put,
                 $"{path}/{credentialId}/projects/{project.Id}", outsiderSession, csrf: true)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
