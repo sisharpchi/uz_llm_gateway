@@ -3,6 +3,7 @@ using System.Text;
 using UZLLM.Modules.Identity.Application;
 using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
+using UZLLM.Persistence;
 
 namespace UZLLM.Identity.Tests;
 
@@ -10,7 +11,8 @@ internal sealed class IdentityFixture
 {
     public IdentityFixture()
     {
-        Service = new IdentityService(Store, new Pbkdf2PasswordHasher(), new TestSecretProtector(), Totp, Clock);
+        Service = new IdentityService(Store, new Pbkdf2PasswordHasher(), new TestSecretProtector(),
+            Totp, Clock, Notifications, new IdentityNoopTransactionCoordinator());
         Csrf = new CsrfTokenValidator(Store, Clock);
     }
 
@@ -19,6 +21,8 @@ internal sealed class IdentityFixture
     public AdjustableTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 9, 24, 12, 0, 0, TimeSpan.Zero));
 
     public TotpAuthenticator Totp { get; } = new();
+
+    public RecordingIdentityNotificationQueue Notifications { get; } = new();
 
     public IIdentityService Service { get; }
 
@@ -30,6 +34,29 @@ internal sealed class IdentityFixture
         Assert.True(await Service.VerifyEmailAsync(registration.VerificationToken));
         return registration;
     }
+}
+
+internal sealed class RecordingIdentityNotificationQueue : IIdentityNotificationQueue
+{
+    public List<IdentityEmailNotification> Sent { get; } = [];
+    public Task QueueAsync(IdentityEmailNotification notification,
+        CancellationToken cancellationToken = default)
+    {
+        Sent.Add(notification);
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class IdentityNoopTransactionCoordinator : ITransactionCoordinator
+{
+    public Task<ITransactionScope> BeginAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<ITransactionScope>(new IdentityNoopTransactionScope());
+}
+
+internal sealed class IdentityNoopTransactionScope : ITransactionScope
+{
+    public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 internal sealed class AdjustableTimeProvider(DateTimeOffset initial) : TimeProvider

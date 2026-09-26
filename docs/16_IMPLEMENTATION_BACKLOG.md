@@ -32,9 +32,16 @@ same-model failover precedes P1 cross-model fallback.
 | OPS-002 | Completed |
 | BUDGET-001 | Completed |
 | APIKEYS-003 | Completed |
+| NOTIFY-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
-`PAYMENT-001`, public Payme documentation and official CLICK protocol examples
+`NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
+register even though the deployed Identity API suppresses verification and
+recovery tokens. It is restored before `TEAM-001` so invitations do not rely
+on an undeliverable email flow. This is a dependency correction, not a new
+product capability.
+
+For `PAYMENT-001`, public Payme documentation and official CLICK protocol examples
 are sufficient for implementation and automated contract fixtures. Live
 merchant verification remains an external paid-launch prerequisite.
 
@@ -82,6 +89,7 @@ usage, reservation, and settlement state that follows this credential task.
 | USAGE-002 | Activity, request detail, rollups, basic analytics | USAGE-001, BILLING-002 | FR-090 read model, FR-092–094 | Cursor, totals, isolation tests |
 | ADMIN-001 | Provider/pricing/payment/ledger/incident controls | AUDIT-001, PAYMENT-001 | FR-120–126 | Operator authorization tests |
 | OPS-002 | Two-node deployment, TLS, secrets, backup/restore, release gates | ADMIN-001, PROVIDER-002 | NFR-001–084 | Recovery and load drills |
+| NOTIFY-001 | Deliver verification/reset email via protected transactional outbox | OPS-001, IDENTITY-001 | FR-001, NFR-045/072 | Retry, duplicate dispatch, expiry and token-redaction tests |
 
 Frontend UI/UX note for subsequent frontend work: inspect the existing root
 `frontend/` mockup before implementation. Keep its recognizable dark,

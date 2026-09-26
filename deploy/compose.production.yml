@@ -55,8 +55,16 @@ x-worker: &worker
   restart: unless-stopped
   environment:
     DOTNET_ENVIRONMENT: Production
+    DataProtection__KeyRingPath: /run/keyring
+    DataProtection__CertificatePath: /run/certs/keyring.pfx
+    Email__SmtpHost: ${UZLLM_SMTP_HOST:?Set UZLLM_SMTP_HOST}
+    Email__SmtpPort: ${UZLLM_SMTP_PORT:-587}
+    Email__FromAddress: ${UZLLM_SMTP_FROM:?Set UZLLM_SMTP_FROM}
     Payments__FeeBasisPoints: ${UZLLM_PAYMENT_FEE_BPS}
     Payments__FixedFeeTiyin: ${UZLLM_PAYMENT_FIXED_FEE_TIYIN}
+  volumes:
+    - ${UZLLM_CERT_DIR}/keyring.pfx:/run/certs/keyring.pfx:ro
+    - ${UZLLM_KEYRING_DIR:?Set UZLLM_KEYRING_DIR}:/run/keyring:rw
   secrets:
     - { source: runtime-postgres, target: ConnectionStrings__Postgres }
     - { source: redis, target: ConnectionStrings__Redis }
@@ -65,6 +73,9 @@ x-worker: &worker
     - { source: click-merchant-id, target: Payments__Click__MerchantId }
     - { source: click-service-id, target: Payments__Click__ServiceId }
     - { source: click-secret-key, target: Payments__Click__SecretKey }
+    - { source: keyring-cert-password, target: DataProtection__CertificatePassword }
+    - { source: email-username, target: Email__Username }
+    - { source: email-password, target: Email__Password }
   networks: [application]
 
 services:
@@ -118,6 +129,8 @@ secrets:
   gateway-cert-password: { file: '${UZLLM_SECRET_DIR}/Kestrel__Certificates__Default__Password.gateway' }
   management-cert-password: { file: '${UZLLM_SECRET_DIR}/Kestrel__Certificates__Default__Password.management' }
   keyring-cert-password: { file: '${UZLLM_SECRET_DIR}/DataProtection__CertificatePassword' }
+  email-username: { file: '${UZLLM_SECRET_DIR}/Email__Username' }
+  email-password: { file: '${UZLLM_SECRET_DIR}/Email__Password' }
   payme-merchant-id: { file: '${UZLLM_SECRET_DIR}/Payments__Payme__MerchantId' }
   payme-key: { file: '${UZLLM_SECRET_DIR}/Payments__Payme__Key' }
   click-merchant-id: { file: '${UZLLM_SECRET_DIR}/Payments__Click__MerchantId' }

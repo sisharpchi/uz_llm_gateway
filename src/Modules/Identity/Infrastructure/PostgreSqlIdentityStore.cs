@@ -13,7 +13,8 @@ public sealed class PostgreSqlIdentityStore(FoundationDbContext dbContext) : IId
         DateTimeOffset verificationExpiresAt,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         dbContext.Set<IdentityAccountEntity>().Add(new IdentityAccountEntity
         {
             Id = account.Id,
@@ -37,12 +38,12 @@ public sealed class PostgreSqlIdentityStore(FoundationDbContext dbContext) : IId
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             return true;
         }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            await transaction.RollbackAsync(cancellationToken);
+            if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
             dbContext.ChangeTracker.Clear();
             return false;
         }
@@ -100,7 +101,8 @@ public sealed class PostgreSqlIdentityStore(FoundationDbContext dbContext) : IId
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken = default)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         await dbContext.Set<IdentityChallengeEntity>()
             .Where(challenge => challenge.AccountId == accountId
                 && challenge.Kind == kind.ToString()
@@ -116,7 +118,7 @@ public sealed class PostgreSqlIdentityStore(FoundationDbContext dbContext) : IId
             ExpiresAt = expiresAt
         });
         await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<bool> TryVerifyEmailAsync(byte[] tokenHash, DateTimeOffset now, CancellationToken cancellationToken = default)

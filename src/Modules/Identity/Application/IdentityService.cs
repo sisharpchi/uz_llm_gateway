@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using UZLLM.Modules.Identity.Contracts;
+using UZLLM.Persistence;
 
 namespace UZLLM.Modules.Identity.Application;
 
@@ -9,7 +10,9 @@ public sealed class IdentityService(
     IPasswordHasher passwordHasher,
     IIdentitySecretProtector secretProtector,
     ITotpAuthenticator totpAuthenticator,
-    TimeProvider timeProvider) : IIdentityService
+    TimeProvider timeProvider,
+    IIdentityNotificationQueue notifications,
+    ITransactionCoordinator transactions) : IIdentityService
 {
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(14);
     private static readonly TimeSpan VerificationLifetime = TimeSpan.FromHours(24);
@@ -30,6 +33,7 @@ public sealed class IdentityService(
             now,
             now);
 
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
         var created = await store.TryCreateAccountAsync(
             account,
             TokenHash.Create(verificationToken),
@@ -39,6 +43,10 @@ public sealed class IdentityService(
         {
             throw new InvalidOperationException("An account already exists for this email address.");
         }
+
+        await notifications.QueueAsync(new IdentityEmailNotification(normalizedEmail, verificationToken,
+            IdentityEmailKind.Verification, now.Add(VerificationLifetime)), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new IdentityRegistration(account.Id, verificationToken);
     }
@@ -110,6 +118,7 @@ public sealed class IdentityService(
 
         var token = OpaqueToken.Create();
         var now = timeProvider.GetUtcNow();
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
         await store.CreateChallengeAsync(
             account.Id,
             IdentityChallengeKind.PasswordRecovery,
@@ -117,6 +126,9 @@ public sealed class IdentityService(
             now,
             now.Add(RecoveryLifetime),
             cancellationToken);
+        await notifications.QueueAsync(new IdentityEmailNotification(account.Email, token,
+            IdentityEmailKind.PasswordRecovery, now.Add(RecoveryLifetime)), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return token;
     }
 

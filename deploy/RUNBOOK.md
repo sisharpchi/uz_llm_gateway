@@ -17,7 +17,9 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
 - A private, shared, durable key-ring filesystem mounted at
   `UZLLM_KEYRING_DIR` on both nodes, writable only by app UID 1654. Back it up
   with the database. Supply a PFX with private key for encryption; preserve old
-  decryption certs during rotation until all protected MFA records have migrated.
+  decryption certs during rotation until all protected MFA records and pending
+  identity-email outbox payloads have migrated. Worker and Management must use
+  the same ring and application name.
 - `UZLLM_CERT_DIR` contains `public.crt`, `public.key`, `internal-ca.crt`,
   `gateway.pfx` (SAN `gateway.internal`), `management.pfx` (SAN
   `management.internal`), and `keyring.pfx`. Both edge replicas verify the
@@ -33,10 +35,22 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   and the four `UZLLM_GATEWAY_*` / `UZLLM_MANAGEMENT_*` address and bind values.
   Remote upstream addresses include port, e.g. `node-b.internal:8445`. The
   default loopback binds are for one-host drills; production binds private IPs.
+- Set `UZLLM_SMTP_HOST`, `UZLLM_SMTP_PORT` (default 587), and
+  `UZLLM_SMTP_FROM`. Put SMTP username/password in
+  `UZLLM_SECRET_DIR/Email__Username` and `Email__Password`. Worker requires
+  STARTTLS and refuses startup without sender configuration. Verify real SMTP
+  delivery, SPF/DKIM/DMARC and mailbox placement before customer launch.
+  Passwords and one-time tokens must never appear in logs or traces.
 
 The Payme/CLICK production merchant IDs, keys, callback IP policy, and
 merchant-account verification remain external launch prerequisites. Do not
 publish checkout until an actual merchant sandbox/live handshake is signed off.
+Identity email is at-least-once: the inbox suppresses replays after recorded
+delivery, but SMTP cannot guarantee exactly once if Worker crashes after the
+remote server accepts a message and before recording completion. Such a retry
+uses the same token and deterministic Message-ID. After token expiry Worker
+skips delivery and marks the event complete; inspect dead-letter/outbox backlog
+for persistent transport failures.
 
 ## Release sequence
 

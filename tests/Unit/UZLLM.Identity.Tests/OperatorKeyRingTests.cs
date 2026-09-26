@@ -3,6 +3,7 @@ using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UZLLM.Modules.Identity.Infrastructure;
+using UZLLM.Modules.Identity.Contracts;
 
 namespace UZLLM.Identity.Tests;
 
@@ -39,12 +40,17 @@ public sealed class OperatorKeyRingTests
             }).Build();
 
             string protectedSecret;
+            string protectedEmail;
             using (var first = new ServiceCollection().AddUzllmOperatorKeyRing(configuration, true)
                 .BuildServiceProvider())
             {
                 var protector = new DataProtectionIdentitySecretProtector(
                     first.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>());
                 protectedSecret = protector.Protect("operator-totp-secret");
+                protectedEmail = new IdentityEmailPayloadCodec(first.GetRequiredService<
+                    Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()).Protect(
+                    new IdentityEmailNotification("person@example.uz", "one-time-test-token",
+                        IdentityEmailKind.Verification, DateTimeOffset.UtcNow.AddHours(1)));
             }
             using (var second = new ServiceCollection().AddUzllmOperatorKeyRing(configuration, true)
                 .BuildServiceProvider())
@@ -52,6 +58,9 @@ public sealed class OperatorKeyRingTests
                 var protector = new DataProtectionIdentitySecretProtector(
                     second.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>());
                 Assert.Equal("operator-totp-secret", protector.Unprotect(protectedSecret));
+                var email = new IdentityEmailPayloadCodec(second.GetRequiredService<
+                    Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()).Unprotect(protectedEmail);
+                Assert.Equal("one-time-test-token", email.Token);
             }
             Assert.Contains("encryptedSecret", File.ReadAllText(Directory.GetFiles(directory, "key-*.xml").Single()));
         }

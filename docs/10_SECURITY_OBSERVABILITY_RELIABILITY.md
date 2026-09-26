@@ -286,6 +286,15 @@ Management uses secure, server-backed browser sessions with `HttpOnly`,
 access is separate from organization roles, requires MFA and recent
 reauthentication for sensitive actions, and is audited.
 
+Verification and recovery token hashes live in Identity challenges. The
+plaintext token and recipient are Data-Protection-encrypted before being
+written to the transactional outbox; Management and Worker share the protected
+key ring. The Worker sends STARTTLS email, retries transient failure, suppresses
+recorded duplicate delivery, and does not send after challenge expiry. SMTP
+cannot make the send/inbox-write boundary exactly once; a crash in that window
+may resend the same token, which remains one-time and time-limited. Never log
+outbox plaintext, protected payloads, SMTP message bodies or tokens.
+
 Tenant scope is enforced in commands, queries, foreign keys, cache keys, and
 worker payloads. Gateway HMAC keys, session-protection material, payment
 secrets, and provider-encryption keys stay outside the database and source

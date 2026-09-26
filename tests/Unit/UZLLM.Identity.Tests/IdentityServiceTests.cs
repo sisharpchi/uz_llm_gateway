@@ -25,6 +25,10 @@ public sealed class IdentityServiceTests
         Assert.NotNull(account);
         Assert.NotEqual("correct horse battery staple", account.PasswordHash);
         Assert.False(account.IsEmailVerified);
+        var notification = Assert.Single(fixture.Notifications.Sent);
+        Assert.Equal(IdentityEmailKind.Verification, notification.Kind);
+        Assert.Equal(registration.VerificationToken, notification.Token);
+        Assert.Equal("person@example.uz", notification.Email);
 
         Assert.True(await fixture.Service.VerifyEmailAsync(registration.VerificationToken));
         Assert.False(await fixture.Service.VerifyEmailAsync(registration.VerificationToken));
@@ -90,6 +94,9 @@ public sealed class IdentityServiceTests
 
         var recoveryToken = await fixture.Service.BeginPasswordRecoveryAsync("person@example.uz");
         Assert.NotNull(recoveryToken);
+        var recoveryEmail = Assert.Single(fixture.Notifications.Sent,
+            value => value.Kind == IdentityEmailKind.PasswordRecovery);
+        Assert.Equal(recoveryToken, recoveryEmail.Token);
         Assert.True(await fixture.Service.ResetPasswordAsync(recoveryToken, "another correct battery staple"));
         Assert.False(await fixture.Service.ResetPasswordAsync(recoveryToken, "third correct battery staple"));
         Assert.Null(await fixture.Service.AuthenticateSessionAsync(session.SessionToken));

@@ -48,6 +48,8 @@ public interface IOutboxStore
 
 public interface IConsumerInboxStore
 {
+    Task<bool> HasProcessedAsync(string consumer, Guid eventId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Records a completed consumer event. Database consumers should write this in the same
     /// transaction as their durable side effect; external consumers also need an idempotency key.
@@ -399,6 +401,13 @@ internal sealed class PostgreSqlOutboxStore(FoundationDbContext dbContext, TimeP
 
 internal sealed class PostgreSqlConsumerInboxStore(FoundationDbContext dbContext, TimeProvider timeProvider) : IConsumerInboxStore
 {
+    public Task<bool> HasProcessedAsync(string consumer, Guid eventId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumer);
+        return dbContext.ConsumerInboxEntries.AsNoTracking()
+            .AnyAsync(value => value.Consumer == consumer && value.EventId == eventId, cancellationToken);
+    }
+
     public async Task<bool> TryRecordProcessedAsync(string consumer, Guid eventId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(consumer);

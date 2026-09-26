@@ -19,5 +19,6 @@ credit, stores a gateway key in browser storage, or displays a secret after the
 creation dialog closes. Top-up quotes and wallet money fields are decimal
 strings to avoid JavaScript precision loss. Configure the backend merchant
 credentials, fee policy and operator-published FX snapshot before accepting
-payments. Registration currently requires an externally delivered email
-verification token; do not treat the UI as a substitute for that delivery.
+payments. Registration verification and password-recovery tokens are delivered
+by the configured Worker SMTP transport. Local preview still needs a mail
+catcher or test SMTP service; registration responses never contain tokens.

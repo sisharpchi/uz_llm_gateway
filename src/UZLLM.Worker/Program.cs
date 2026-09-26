@@ -5,16 +5,20 @@ using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Usage.Infrastructure;
 using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Payments.Infrastructure;
+using UZLLM.Modules.Identity.Infrastructure;
+using UZLLM.Modules.Notifications.Infrastructure;
 using UZLLM.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
+builder.Services.AddUzllmOperatorKeyRing(builder.Configuration, builder.Environment.IsProduction());
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmUsage();
 builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmPayments(builder.Configuration);
+builder.Services.AddUzllmIdentityEmailDelivery(builder.Configuration);
 builder.Services.AddScoped<ILeasedJobHandler, PaymentReconciliationJobHandler>();
 builder.Services.AddScoped<IOutboxHandler>(services => new PaymentEventLogHandler(
     services.GetRequiredService<ILogger<PaymentEventLogHandler>>(),

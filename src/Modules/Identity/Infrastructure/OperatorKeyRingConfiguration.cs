@@ -16,6 +16,7 @@ public static class OperatorKeyRingConfiguration
         {
             if (requireSharedRing)
                 throw new InvalidOperationException("Production Management requires DataProtection:KeyRingPath.");
+            services.AddDataProtection().SetApplicationName("UZLLM.Management");
             return services;
         }
 

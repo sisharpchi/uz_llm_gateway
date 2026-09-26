@@ -13,6 +13,8 @@ public static class IdentityServiceCollectionExtensions
     {
         services.AddDataProtection();
         services.AddScoped<IIdentityStore, PostgreSqlIdentityStore>();
+        services.AddSingleton<IdentityEmailPayloadCodec>();
+        services.AddScoped<IIdentityNotificationQueue, ProtectedIdentityNotificationQueue>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<ICsrfTokenValidator, CsrfTokenValidator>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();

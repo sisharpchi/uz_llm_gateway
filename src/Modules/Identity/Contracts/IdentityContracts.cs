@@ -2,6 +2,17 @@ namespace UZLLM.Modules.Identity.Contracts;
 
 public sealed record IdentityRegistration(Guid AccountId, string VerificationToken);
 
+public enum IdentityEmailKind { Verification, PasswordRecovery }
+
+public sealed record IdentityEmailNotification(string Email, string Token,
+    IdentityEmailKind Kind, DateTimeOffset ExpiresAt);
+
+public interface IIdentityNotificationQueue
+{
+    Task QueueAsync(IdentityEmailNotification notification,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed record BrowserSessionTokens(string SessionToken, string CsrfToken, DateTimeOffset ExpiresAt);
 
 public sealed record AuthenticatedIdentity(
