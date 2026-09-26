@@ -238,7 +238,7 @@ public sealed class InferenceGateway(
                 }
                 foreach (var mapping in mappings)
                 {
-                    if (candidates.Count == 2) break;
+                    if (candidates.Count == 2 && parsed.Routing != "price") break;
                     var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
                         .Select(value => value.ToString()).ToArray();
                     var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
@@ -277,6 +277,19 @@ public sealed class InferenceGateway(
                     catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
                     { logger.LogError(exception, "Unsupported price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
                 }
+            }
+            if (parsed.Routing == "price" && fee is not null)
+            {
+                var managedCandidates = candidates.Where(value => !value.IsByok).ToArray();
+                var options = managedCandidates.Select((candidate, index) =>
+                    new UZLLM.Modules.Routing.Domain.PriceRouteOption(index,
+                        GatewayCostEstimator.EstimatedCustomerCost(model.Model,
+                            candidate.Mapping.Price, fee, parsed.EstimatedInputTokens, outputLimit),
+                        candidate.Mapping.Provider.Code, candidate.Mapping.Mapping.Id)).ToArray();
+                var cheapestManaged = UZLLM.Modules.Routing.Domain.PriceRouteRanker.Rank(options)
+                    .Take(byok is null ? 2 : 1)
+                    .Select(index => managedCandidates[index]).ToArray();
+                candidates = [.. candidates.Where(value => value.IsByok), .. cheapestManaged];
             }
             if (candidates.Count == 0)
             {
@@ -616,8 +629,8 @@ public sealed class InferenceGateway(
                         : writer.Started ? DeliveryState.Partial : DeliveryState.NotStarted,
                     cleanupSucceeded ? httpStatus : 503,
                     fallbackCount == 0
-                        ? $"deterministic:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}"
-                        : $"deterministic:failover:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}", activityToken.Token);
+                        ? $"{(parsed.Routing == "price" ? "price" : "deterministic")}:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}"
+                        : $"{(parsed.Routing == "price" ? "price" : "deterministic")}:failover:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}", activityToken.Token);
             }
             catch (Exception exception)
             { logger.LogError(exception, "Request activity finalization failed for {RequestId}", reservation.RequestId); }

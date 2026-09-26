@@ -309,6 +309,98 @@ public sealed class GatewayExecutionTests
     }
 
     [Fact]
+    public async Task Price_route_selects_cheapest_eligible_mapping_and_keeps_worst_case_hold()
+    {
+        var fixture = new Scenario(twoProviders: true,
+            anthropicInputRate: 500, anthropicOutputRate: 1000);
+        fixture.UsePriceRouting();
+
+        await fixture.RunAsync();
+
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal("price:anthropic", fixture.Usage.RouteStrategy);
+        Assert.Equal(fixture.AnthropicPriceId, fixture.Usage.VerifiedPriceId);
+        Assert.Equal(9, fixture.Finance.LastMaximum!.Value.Value);
+    }
+
+    [Fact]
+    public async Task Price_route_uses_stable_provider_priority_when_estimates_tie()
+    {
+        var fixture = new Scenario(twoProviders: true,
+            anthropicInputRate: 1000, anthropicOutputRate: 2000);
+        fixture.UsePriceRouting();
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal("price:openai", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Price_route_does_not_select_cheaper_incapable_mapping()
+    {
+        var fixture = new Scenario(twoProviders: true,
+            anthropicInputRate: 500, anthropicOutputRate: 1000,
+            openAiTools: true);
+        fixture.UsePriceRouting(withTools: true);
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal("price:openai", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Price_route_excludes_cheaper_open_circuit_before_scoring()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.UsePriceRouting();
+        fixture.Health.OpenPrimary = true;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal("price:anthropic", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Price_route_fails_over_within_same_model_under_one_ceiling()
+    {
+        var fixture = new Scenario(twoProviders: true,
+            anthropicInputRate: 500, anthropicOutputRate: 1000);
+        fixture.UsePriceRouting();
+        fixture.AnthropicAdapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+            "Provider rate limit was reached.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.Finance.Reserves);
+        Assert.Equal(9, fixture.Finance.LastMaximum!.Value.Value);
+        Assert.Equal("price:failover:openai", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Price_route_keeps_explicit_byok_primary_even_if_managed_price_is_lower()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.UseByok(true, priceRouting: true);
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(fixture.ByokCredentialId, fixture.Adapter.LastContext!.CredentialId);
+        Assert.Equal("price:byok:openai", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
     public async Task Open_circuit_excludes_primary_before_reservation_and_attempt()
     {
         var fixture = new Scenario(twoProviders: true);
@@ -472,7 +564,9 @@ public sealed class GatewayExecutionTests
         private readonly InferenceGateway gateway;
 
         public Scenario(bool stream = false, bool twoProviders = false,
-            string modelCode = "gpt-test", int outputTokens = 100)
+            string modelCode = "gpt-test", int outputTokens = 100,
+            long anthropicInputRate = 2000, long anthropicOutputRate = 4000,
+            bool openAiTools = false)
         {
             Finance = new FakeFinance(RequestId, organizationId, projectId, apiKeyId, feeId);
             Usage = new FakeUsage(RequestId);
@@ -483,7 +577,7 @@ public sealed class GatewayExecutionTests
             var price = new ModelPrice(priceId, mappingId, now.AddDays(-1), null,
                 1000, 2000, null, "{}", now);
             var mapping = new ProviderModel(mappingId, providerId, model.Id, "gpt-test", null,
-                CatalogStatus.Active, [], now);
+                CatalogStatus.Active, openAiTools ? [CatalogCapability.Tools] : [], now);
             var provider = new CatalogProvider(providerId, "openai", "OpenAI", CatalogStatus.Active, now);
             var mappings = new List<CatalogProviderModelSummary>
             { new(mapping, provider, price) };
@@ -494,7 +588,7 @@ public sealed class GatewayExecutionTests
                 var anthropicMapping = new ProviderModel(anthropicMappingId, anthropicId, model.Id,
                     "claude-test", null, CatalogStatus.Active, [], now);
                 var anthropicPrice = new ModelPrice(AnthropicPriceId, anthropicMappingId,
-                    now.AddDays(-1), null, 2000, 4000, null, "{}", now);
+                    now.AddDays(-1), null, anthropicInputRate, anthropicOutputRate, null, "{}", now);
                 mappings.Add(new CatalogProviderModelSummary(anthropicMapping,
                     new CatalogProvider(anthropicId, "anthropic", "Anthropic", CatalogStatus.Active, now),
                     anthropicPrice));
@@ -524,16 +618,33 @@ public sealed class GatewayExecutionTests
 
         public Task RunAsync() => gateway.ChatAsync(Context, Context.RequestAborted);
         public Task ListAsync() => gateway.ListModelsAsync(Context, Context.RequestAborted);
-        public void UseByok(bool allowManagedFallback)
+        public void UseByok(bool allowManagedFallback, bool priceRouting = false)
         {
             Reads.Byok = new GatewayByokCredential(ByokCredentialId, providerId);
-            Context.Request.Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(new
-            {
-                model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
-                max_completion_tokens = 100,
-                uzllm = new { provider_key_id = ByokCredentialId,
-                    allow_managed_fallback = allowManagedFallback }
-            }));
+            var request = priceRouting
+                ? JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
+                    max_completion_tokens = 100,
+                    uzllm = new { provider_key_id = ByokCredentialId,
+                        allow_managed_fallback = allowManagedFallback, routing = "price" }
+                })
+                : JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
+                    max_completion_tokens = 100,
+                    uzllm = new { provider_key_id = ByokCredentialId,
+                        allow_managed_fallback = allowManagedFallback }
+                });
+            Context.Request.Body = new MemoryStream(request);
+        }
+
+        public void UsePriceRouting(bool withTools = false)
+        {
+            var json = withTools
+                ? """{"model":"gpt-test","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}}}],"uzllm":{"routing":"price"}}"""
+                : """{"model":"gpt-test","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"routing":"price"}}""";
+            Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
         }
     }
 

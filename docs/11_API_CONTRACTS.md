@@ -125,6 +125,13 @@ Prefer namespace-like extension to reduce collision risk:
 ```
 
 P0 can omit most extensions and use project defaults.
+`ROUTING-003` accepts `{"uzllm":{"routing":"price"}}` without a BYOK key.
+Only `price` is currently supported; unknown routing values return
+`400 unsupported_parameter`. The strategy ranks eligible same-model Managed
+endpoints by a frozen catalog/customer-fee estimate; actual charges still use
+verified usage and the selected price version. An explicit provider prefix
+continues to constrain the eligible set. BYOK/Hybrid may include `routing=price`
+without changing the explicitly requested BYOK-first order.
 
 ---
 

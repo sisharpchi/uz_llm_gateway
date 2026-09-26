@@ -6,6 +6,23 @@ namespace UZLLM.Gateway.Api.Inference;
 
 public static class GatewayCostEstimator
 {
+    // Rank against the catalog price snapshot, never against live provider quotes.
+    // Reservation still uses MaximumCharge across every selected attempt.
+    public static decimal EstimatedCustomerCost(CanonicalModel model, ModelPrice price,
+        FeePolicyVersion fee, int estimatedInputTokens, int outputLimit)
+    {
+        ValidatePriceDimensions(price);
+        if (estimatedInputTokens < 0 || outputLimit <= 0 || outputLimit > model.MaxOutputTokens)
+            throw new ArgumentOutOfRangeException(nameof(outputLimit));
+        var input = Math.Min(estimatedInputTokens, model.ContextLength);
+        var inputRate = Math.Max(price.InputPriceMicroUsdPerMillion,
+            price.CachedInputPriceMicroUsdPerMillion ?? 0);
+        var providerCost = ((decimal)input * inputRate
+            + (decimal)outputLimit * price.OutputPriceMicroUsdPerMillion) / 1_000_000m;
+        return providerCost * (10_000m + fee.MarkupBasisPoints) / 10_000m
+            + fee.FixedFee.Value;
+    }
+
     public static UsdMicroAmount MaximumCharge(CanonicalModel model, ModelPrice price,
         FeePolicyVersion fee, int outputLimit)
     {
@@ -24,10 +41,7 @@ public static class GatewayCostEstimator
     public static UsdMicroAmount MaximumProviderCost(CanonicalModel model, ModelPrice price,
         int outputLimit)
     {
-        using var extras = JsonDocument.Parse(price.ExtraPricingJson);
-        if (extras.RootElement.ValueKind != JsonValueKind.Object
-            || extras.RootElement.EnumerateObject().Any())
-            throw new InvalidOperationException("Provider pricing has unsupported extra dimensions.");
+        ValidatePriceDimensions(price);
         if (outputLimit <= 0 || outputLimit > model.MaxOutputTokens)
             throw new ArgumentOutOfRangeException(nameof(outputLimit));
         var maximumInputRate = Math.Max(price.InputPriceMicroUsdPerMillion,
@@ -36,5 +50,13 @@ public static class GatewayCostEstimator
             ((decimal)model.ContextLength * maximumInputRate
                 + (decimal)outputLimit * price.OutputPriceMicroUsdPerMillion) / 1_000_000m));
         return new UsdMicroAmount(Math.Max(1, maximumProviderCost));
+    }
+
+    private static void ValidatePriceDimensions(ModelPrice price)
+    {
+        using var extras = JsonDocument.Parse(price.ExtraPricingJson);
+        if (extras.RootElement.ValueKind != JsonValueKind.Object
+            || extras.RootElement.EnumerateObject().Any())
+            throw new InvalidOperationException("Provider pricing has unsupported extra dimensions.");
     }
 }

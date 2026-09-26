@@ -38,6 +38,13 @@ Content-Type: application/json
 
 {"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"provider_key_id":"{{providerKeyId}}"}}
 
+### Cheapest eligible Managed route (same canonical model)
+POST {{baseUrl}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"routing":"price"}}
+
 ### Explicit Hybrid: managed fallback only for verified pre-execution rejection
 POST {{baseUrl}}/v1/chat/completions
 Authorization: Bearer {{apiKey}}

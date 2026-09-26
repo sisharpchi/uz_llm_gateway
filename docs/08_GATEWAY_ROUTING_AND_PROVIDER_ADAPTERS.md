@@ -71,6 +71,17 @@ score = estimated_customer_cost
 
 Choose cheapest healthy endpoint.
 
+`ROUTING-003` accepts `uzllm.routing=price` for the requested canonical model.
+It first applies provider/model, capability, credential, quota, and circuit
+eligibility, then scores Managed candidates using the selected catalog price
+version, estimated input tokens, requested output ceiling, and the active
+customer fee policy. Ties retain deterministic provider priority and mapping
+ID order. One request considers at most two same-model attempts under one
+worst-case wallet hold; if the price version changes before an attempt,
+execution fails closed rather than silently repricing. Explicit BYOK remains
+primary for Hybrid, with price ranking applying only to eligible Managed
+fallback candidates. Latency/throughput and cross-model scoring are later tasks.
+
 ### Latency
 Use rolling recent TTFT, preferably percentile/EMA rather than one last request.
 

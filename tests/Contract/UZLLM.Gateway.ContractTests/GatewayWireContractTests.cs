@@ -11,6 +11,42 @@ namespace UZLLM.Gateway.ContractTests;
 public sealed class GatewayWireContractTests
 {
     [Fact]
+    public void Chat_parser_accepts_price_routing_without_byok_credential()
+    {
+        var parsed = Parse("""{"model":"m","messages":[{"role":"user","content":"x"}],"uzllm":{"routing":"price"}}""");
+        Assert.Equal("price", parsed.Routing);
+        Assert.Null(parsed.ProviderKeyId);
+        Assert.False(parsed.AllowManagedFallback);
+    }
+
+    [Theory]
+    [InlineData("cheapest")]
+    [InlineData("latency")]
+    public void Chat_parser_rejects_unimplemented_routing_strategies(string routing)
+    {
+        var json = "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],\"uzllm\":{\"routing\":\""
+            + routing + "\"}}";
+        Assert.Equal("unsupported_parameter",
+            Assert.Throws<GatewayRequestException>(() => Parse(json)).Code);
+    }
+
+    [Fact]
+    public void Price_score_uses_estimated_input_and_frozen_customer_fee_without_shrinking_hold()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var model = new CanonicalModel(Guid.NewGuid(), "m", "M", 1000, 100,
+            [CatalogCapability.Text], CatalogStatus.Active, now);
+        var price = new ModelPrice(Guid.NewGuid(), Guid.NewGuid(), now.AddDays(-1), null,
+            1_000_000, 2_000_000, 3_000_000, "{}", now);
+        var fee = new FeePolicyVersion(Guid.NewGuid(), "default", 1000,
+            new UsdMicroAmount(5), now.AddDays(-1), null, now);
+
+        Assert.Equal(153.5m, GatewayCostEstimator.EstimatedCustomerCost(model, price, fee,
+            estimatedInputTokens: 25, outputLimit: 30));
+        Assert.Equal(3371, GatewayCostEstimator.MaximumCharge(model, price, fee, 30).Value);
+    }
+
+    [Fact]
     public void Chat_parser_requires_explicit_provider_key_for_hybrid_fallback()
     {
         var id = Guid.NewGuid();
