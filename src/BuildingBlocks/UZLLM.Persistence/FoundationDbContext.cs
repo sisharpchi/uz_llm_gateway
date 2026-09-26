@@ -24,6 +24,10 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
     internal DbSet<OrganizationMemberEntity> OrganizationMembers => Set<OrganizationMemberEntity>();
 
+    internal DbSet<OrganizationInvitationEntity> OrganizationInvitations => Set<OrganizationInvitationEntity>();
+
+    internal DbSet<ProjectGrantEntity> ProjectGrants => Set<ProjectGrantEntity>();
+
     internal DbSet<ProjectEntity> Projects => Set<ProjectEntity>();
 
     internal DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
@@ -148,7 +152,11 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
         modelBuilder.Entity<OrganizationMemberEntity>(entity =>
         {
-            entity.ToTable("member", "org");
+            entity.ToTable("member", "org", table =>
+            {
+                table.HasCheckConstraint("CK_org_member_role", "role IN ('Owner', 'Admin', 'Developer', 'BillingViewer', 'ReadOnly')");
+                table.HasCheckConstraint("CK_org_member_status", "status IN ('Active', 'Revoked')");
+            });
             entity.HasKey(member => new { member.OrganizationId, member.AccountId });
             entity.Property(member => member.OrganizationId).HasColumnName("organization_id");
             entity.Property(member => member.AccountId).HasColumnName("account_id");
@@ -164,6 +172,34 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
                 .WithMany()
                 .HasForeignKey(member => member.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OrganizationInvitationEntity>(entity =>
+        {
+            entity.ToTable("invitation", "org", table =>
+            {
+                table.HasCheckConstraint("CK_org_invitation_role", "role IN ('Admin', 'Developer', 'BillingViewer', 'ReadOnly')");
+                table.HasCheckConstraint("CK_org_invitation_expiry", "expires_at > created_at");
+            });
+            entity.HasKey(invitation => invitation.Id);
+            entity.Property(invitation => invitation.Id).HasColumnName("id");
+            entity.Property(invitation => invitation.OrganizationId).HasColumnName("organization_id");
+            entity.Property(invitation => invitation.Email).HasColumnName("email").HasMaxLength(320);
+            entity.Property(invitation => invitation.Role).HasColumnName("role").HasMaxLength(30);
+            entity.Property(invitation => invitation.TokenHash).HasColumnName("token_hash");
+            entity.Property(invitation => invitation.InvitedByAccountId).HasColumnName("invited_by_account_id");
+            entity.Property(invitation => invitation.CreatedAt).HasColumnName("created_at");
+            entity.Property(invitation => invitation.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(invitation => invitation.AcceptedAt).HasColumnName("accepted_at");
+            entity.Property(invitation => invitation.RevokedAt).HasColumnName("revoked_at");
+            entity.HasIndex(invitation => invitation.TokenHash).IsUnique();
+            entity.HasIndex(invitation => new { invitation.OrganizationId, invitation.Email })
+                .IsUnique().HasFilter("accepted_at IS NULL AND revoked_at IS NULL");
+            entity.HasOne(invitation => invitation.Organization)
+                .WithMany(organization => organization.Invitations)
+                .HasForeignKey(invitation => invitation.OrganizationId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<IdentityAccountEntity>().WithMany()
+                .HasForeignKey(invitation => invitation.InvitedByAccountId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ProjectEntity>(entity =>
@@ -183,6 +219,24 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
                 .WithMany(organization => organization.Projects)
                 .HasForeignKey(project => project.OrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProjectGrantEntity>(entity =>
+        {
+            entity.ToTable("project_grant", "org");
+            entity.HasKey(grant => new { grant.OrganizationId, grant.AccountId, grant.ProjectId });
+            entity.Property(grant => grant.OrganizationId).HasColumnName("organization_id");
+            entity.Property(grant => grant.AccountId).HasColumnName("account_id");
+            entity.Property(grant => grant.ProjectId).HasColumnName("project_id");
+            entity.Property(grant => grant.CreatedAt).HasColumnName("created_at");
+            entity.HasOne(grant => grant.Member).WithMany(member => member.ProjectGrants)
+                .HasForeignKey(grant => new { grant.OrganizationId, grant.AccountId })
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(grant => grant.Project).WithMany(project => project.Grants)
+                .HasForeignKey(grant => new { grant.OrganizationId, grant.ProjectId })
+                .HasPrincipalKey(project => new { project.OrganizationId, project.Id })
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(grant => new { grant.OrganizationId, grant.ProjectId });
         });
 
         modelBuilder.Entity<GatewayApiKeyEntity>(entity =>

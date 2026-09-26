@@ -198,6 +198,7 @@ internal sealed class InMemoryOrganizationStore : IOrganizationStore
 {
     private readonly Dictionary<Guid, Organization> organizations = [];
     private readonly Dictionary<(Guid OrganizationId, Guid AccountId), OrganizationMember> memberships = [];
+    private readonly HashSet<(Guid OrganizationId, Guid AccountId, Guid ProjectId)> grants = [];
 
     public Task CreateAsync(Organization organization, OrganizationMember initialOwner, CancellationToken cancellationToken = default)
     {
@@ -217,6 +218,25 @@ internal sealed class InMemoryOrganizationStore : IOrganizationStore
         Task.FromResult(memberships.GetValueOrDefault((organizationId, accountId)) is { Status: OrganizationMemberStatus.Active } membership
             ? membership
             : null);
+
+    public Task<bool> HasProjectGrantAsync(Guid organizationId, Guid accountId, Guid projectId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(grants.Contains((organizationId, accountId, projectId)));
+
+    public Task<IReadOnlyList<Guid>> ListProjectGrantsAsync(Guid organizationId, Guid accountId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>(grants
+            .Where(grant => grant.OrganizationId == organizationId && grant.AccountId == accountId)
+            .Select(grant => grant.ProjectId).ToList());
+
+    public void SetMember(OrganizationMember member) =>
+        memberships[(member.OrganizationId, member.AccountId)] = member;
+
+    public void SetGrant(Guid organizationId, Guid accountId, Guid projectId, bool enabled)
+    {
+        if (enabled) grants.Add((organizationId, accountId, projectId));
+        else grants.Remove((organizationId, accountId, projectId));
+    }
 }
 
 internal sealed class InMemoryProjectStore : IProjectStore

@@ -61,8 +61,14 @@ for persistent transport failures.
 2. Apply migrations **once** with the separate migrator secret:
    `docker compose -f deploy/compose.production.yml --profile migration run --rm migrator`.
    Hosts never auto-migrate. Check backward compatibility before rolling out.
-3. On A: `docker compose -f deploy/compose.production.yml up -d --no-deps gateway-a management-a worker-a edge`.
-   On B use the `-b` names. External LB must target both edges; configure
+3. For releases adding outbox event types (including `team.email.invitation`),
+   roll **both Worker replicas first**, then enable the corresponding Management
+   routes. An old Worker can claim an unknown event and exhaust its retries.
+   On A run `docker compose -f deploy/compose.production.yml up -d --no-deps worker-a`;
+   on B run the equivalent for `worker-b`. Confirm both Workers are healthy and
+   run the image containing the new handler. Then run
+   `docker compose -f deploy/compose.production.yml up -d --no-deps gateway-a management-a edge`
+   on A and the matching `-b` services on B. External LB must target both edges; configure
    `UZLLM_GATEWAY_A/B` and `UZLLM_MANAGEMENT_A/B` to the private node DNS+ports.
    Check each `/health/ready` and edge `/edge/health` before receiving traffic.
 4. Roll one node at a time. Drain streams before replacing Gateway; do not

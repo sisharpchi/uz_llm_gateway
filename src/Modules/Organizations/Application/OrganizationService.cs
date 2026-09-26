@@ -62,4 +62,42 @@ public sealed class OrganizationAuthorizationService(IOrganizationStore store) :
             throw new TenantAccessDeniedException();
         }
     }
+
+    public async Task EnsurePermissionAsync(Guid accountId, Guid organizationId,
+        OrganizationPermission permission, Guid? projectId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (accountId == Guid.Empty || organizationId == Guid.Empty)
+            throw new TenantAccessDeniedException();
+        var member = await store.FindActiveMemberAsync(organizationId, accountId, cancellationToken)
+            ?? throw new TenantAccessDeniedException();
+        if (member.Role == OrganizationMemberRole.Owner) return;
+        var allowed = (member.Role, permission) switch
+        {
+            (OrganizationMemberRole.Admin, _) => true,
+            (OrganizationMemberRole.BillingViewer, OrganizationPermission.ReadBilling or
+                OrganizationPermission.ReadUsage or OrganizationPermission.ReadProjects) => true,
+            (OrganizationMemberRole.Developer, OrganizationPermission.ReadProjects or
+                OrganizationPermission.ReadUsage or OrganizationPermission.ManageApiKeys) =>
+                projectId is { } id && await store.HasProjectGrantAsync(organizationId, accountId, id, cancellationToken),
+            (OrganizationMemberRole.ReadOnly, OrganizationPermission.ReadProjects or
+                OrganizationPermission.ReadUsage) =>
+                projectId is { } id && await store.HasProjectGrantAsync(organizationId, accountId, id, cancellationToken),
+            _ => false
+        };
+        if (!allowed) throw new TenantAccessDeniedException();
+    }
+
+    public async Task<IReadOnlyList<Guid>?> GetReadableProjectIdsAsync(Guid accountId,
+        Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        if (accountId == Guid.Empty || organizationId == Guid.Empty)
+            throw new TenantAccessDeniedException();
+        var member = await store.FindActiveMemberAsync(organizationId, accountId, cancellationToken)
+            ?? throw new TenantAccessDeniedException();
+        return member.Role is OrganizationMemberRole.Owner or OrganizationMemberRole.Admin or
+            OrganizationMemberRole.BillingViewer
+            ? null
+            : await store.ListProjectGrantsAsync(organizationId, accountId, cancellationToken);
+    }
 }

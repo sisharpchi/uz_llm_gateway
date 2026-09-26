@@ -15,10 +15,15 @@ public static class UsageReadEndpoints
             if (!Guid.TryParse(context.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier), out var accountId))
                 return TypedResults.Unauthorized();
             var organizationId = Guid.Parse(context.HttpContext.Request.RouteValues["organizationId"]!.ToString()!);
+            if (context.HttpContext.Request.RouteValues.ContainsKey("requestId"))
+                return await next(context);
             var authorization = context.HttpContext.RequestServices.GetRequiredService<IOrganizationAuthorizationService>();
             try
             {
-                await authorization.EnsureOwnerAsync(accountId, organizationId, context.HttpContext.RequestAborted);
+                Guid? projectId = Guid.TryParse(context.HttpContext.Request.Query["projectId"], out var parsed)
+                    ? parsed : null;
+                await authorization.EnsurePermissionAsync(accountId, organizationId,
+                    OrganizationPermission.ReadUsage, projectId, context.HttpContext.RequestAborted);
                 return await next(context);
             }
             catch (TenantAccessDeniedException) { return TypedResults.StatusCode(StatusCodes.Status403Forbidden); }
@@ -35,10 +40,28 @@ public static class UsageReadEndpoints
                 parameters.Limit, parameters.Cursor, cancellationToken)))
             .WithName("GetUsageActivity").WithSummary("List organization inference requests using a stable cursor.");
 
-        usage.MapGet("/requests/{requestId:guid}", async Task<Results<Ok<UsageRequestDetail>, NotFound>> (
-                Guid organizationId, Guid requestId, IUsageReadService service, CancellationToken cancellationToken) =>
-            (await service.GetDetailAsync(organizationId, requestId, cancellationToken)) is { } detail
-                ? TypedResults.Ok(detail) : TypedResults.NotFound())
+        usage.MapGet("/requests/{requestId:guid}", async (
+                Guid organizationId, Guid requestId, HttpContext context,
+                IUsageReadService service, IOrganizationAuthorizationService authorization,
+                CancellationToken cancellationToken) =>
+        {
+            if (!Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var accountId))
+                return (IResult)TypedResults.Unauthorized();
+            try
+            {
+                var allowedProjectIds = await authorization.GetReadableProjectIdsAsync(accountId,
+                    organizationId, cancellationToken);
+                var detail = await service.GetDetailAsync(organizationId, requestId, cancellationToken);
+                if (detail is null || allowedProjectIds is not null
+                    && !allowedProjectIds.Contains(detail.Request.ProjectId))
+                    return TypedResults.NotFound();
+                return TypedResults.Ok(detail);
+            }
+            catch (TenantAccessDeniedException)
+            {
+                return TypedResults.StatusCode(StatusCodes.Status403Forbidden);
+            }
+        })
             .WithName("GetUsageRequestDetail").WithSummary("Read safe request, attempt, evidence, and settlement metadata.");
 
         usage.MapGet("/summary", async (Guid organizationId, [AsParameters] UsageReadQueryParameters parameters,

@@ -40,6 +40,15 @@ audit
 - status
 - created_at
 
+P1 `org.invitation` stores organization, normalized email, non-owner role,
+inviter, SHA-256 token hash, expiry and accepted/revoked timestamps. A partial
+unique index allows at most one pending invitation per organization/email;
+the token hash is globally unique. `org.project_grant` has composite FKs to
+`org.member(organization_id, account_id)` and
+`gateway.project(organization_id, id)` to prevent cross-tenant grants. Revoking
+membership deletes its grants; role changes to a non-project-scoped role also
+clear grants. Member role/status checks constrain stored values.
+
 ### `gateway.project`
 - id
 - organization_id

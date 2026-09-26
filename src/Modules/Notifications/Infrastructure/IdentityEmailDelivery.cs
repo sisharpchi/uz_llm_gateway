@@ -38,11 +38,20 @@ public sealed class SmtpIdentityEmailSender(IdentitySmtpOptions options) : IIden
     public async Task SendAsync(Guid messageId, IdentityEmailNotification notification,
         CancellationToken cancellationToken = default)
     {
-        var subject = notification.Kind == IdentityEmailKind.Verification
-            ? "Verify your UZLLM account" : "Reset your UZLLM password";
-        var instruction = notification.Kind == IdentityEmailKind.Verification
-            ? "Enter this token on the UZLLM email verification page:"
-            : "Use this token in the UZLLM password recovery flow:";
+        var subject = notification.Kind switch
+        {
+            IdentityEmailKind.Verification => "Verify your UZLLM account",
+            IdentityEmailKind.PasswordRecovery => "Reset your UZLLM password",
+            IdentityEmailKind.TeamInvitation => "Your UZLLM team invitation",
+            _ => throw new ArgumentOutOfRangeException(nameof(notification))
+        };
+        var instruction = notification.Kind switch
+        {
+            IdentityEmailKind.Verification => "Enter this token on the UZLLM email verification page:",
+            IdentityEmailKind.PasswordRecovery => "Use this token in the UZLLM password recovery flow:",
+            IdentityEmailKind.TeamInvitation => "Sign in with this email and accept your team invitation using this token:",
+            _ => throw new ArgumentOutOfRangeException(nameof(notification))
+        };
         var from = new MailAddress(options.FromAddress);
         using var message = new MailMessage(from,
             new MailAddress(notification.Email))
@@ -82,8 +91,13 @@ public sealed class IdentityEmailOutboxHandler(
         if (message.EventType != EventType) throw new ArgumentException("Unexpected identity email event.");
         if (await inbox.HasProcessedAsync(Consumer, message.Id, cancellationToken)) return;
         var notification = codec.Unprotect(message.Payload);
-        var expected = notification.Kind == IdentityEmailKind.Verification
-            ? IdentityEmailEventTypes.Verification : IdentityEmailEventTypes.PasswordRecovery;
+        var expected = notification.Kind switch
+        {
+            IdentityEmailKind.Verification => IdentityEmailEventTypes.Verification,
+            IdentityEmailKind.PasswordRecovery => IdentityEmailEventTypes.PasswordRecovery,
+            IdentityEmailKind.TeamInvitation => IdentityEmailEventTypes.TeamInvitation,
+            _ => throw new InvalidOperationException("Unknown email event kind.")
+        };
         if (expected != EventType) throw new InvalidOperationException("Identity email event kind does not match.");
         if (clock.GetUtcNow() < notification.ExpiresAt)
             await sender.SendAsync(message.Id, notification, cancellationToken);
@@ -107,6 +121,12 @@ public static class IdentityEmailServiceCollectionExtensions
             provider.GetRequiredService<TimeProvider>()));
         services.AddScoped<IOutboxHandler>(provider => new IdentityEmailOutboxHandler(
             IdentityEmailEventTypes.PasswordRecovery,
+            provider.GetRequiredService<IdentityEmailPayloadCodec>(),
+            provider.GetRequiredService<IIdentityEmailSender>(),
+            provider.GetRequiredService<IConsumerInboxStore>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddScoped<IOutboxHandler>(provider => new IdentityEmailOutboxHandler(
+            IdentityEmailEventTypes.TeamInvitation,
             provider.GetRequiredService<IdentityEmailPayloadCodec>(),
             provider.GetRequiredService<IIdentityEmailSender>(),
             provider.GetRequiredService<IConsumerInboxStore>(),

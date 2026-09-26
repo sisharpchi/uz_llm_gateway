@@ -1,6 +1,7 @@
 using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Billing.Domain;
+using UZLLM.Modules.Organizations.Contracts;
 using UZLLM.Modules.Projects.Contracts;
 
 namespace UZLLM.Management.Api.Budgets;
@@ -20,7 +21,8 @@ public sealed class BudgetManagementService(IProjectAccessService projects, IApi
     public async Task<IReadOnlyList<BudgetPolicy>> ListAsync(Guid accountId, Guid projectId,
         CancellationToken cancellationToken = default)
     {
-        var project = await projects.GetOwnedAsync(accountId, projectId, cancellationToken)
+        var project = await projects.GetAuthorizedAsync(accountId, projectId,
+            OrganizationPermission.ReadBilling, cancellationToken)
             ?? throw new KeyNotFoundException("Project not found.");
         return await financial.ListBudgetsAsync(project.OrganizationId, projectId, cancellationToken);
     }
@@ -28,7 +30,8 @@ public sealed class BudgetManagementService(IProjectAccessService projects, IApi
     public async Task<BudgetPolicy?> SetAsync(Guid accountId, Guid projectId, Guid? apiKeyId,
         BudgetPeriod period, UsdMicroAmount limit, CancellationToken cancellationToken = default)
     {
-        var project = await projects.GetOwnedAsync(accountId, projectId, cancellationToken)
+        var project = await projects.GetAuthorizedAsync(accountId, projectId,
+            OrganizationPermission.ManageBilling, cancellationToken)
             ?? throw new KeyNotFoundException("Project not found.");
         if (apiKeyId is { } keyId)
         {

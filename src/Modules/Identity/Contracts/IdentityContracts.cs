@@ -2,7 +2,7 @@ namespace UZLLM.Modules.Identity.Contracts;
 
 public sealed record IdentityRegistration(Guid AccountId, string VerificationToken);
 
-public enum IdentityEmailKind { Verification, PasswordRecovery }
+public enum IdentityEmailKind { Verification, PasswordRecovery, TeamInvitation }
 
 public sealed record IdentityEmailNotification(string Email, string Token,
     IdentityEmailKind Kind, DateTimeOffset ExpiresAt);

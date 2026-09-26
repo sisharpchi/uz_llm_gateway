@@ -33,6 +33,7 @@ same-model failover precedes P1 cross-model fallback.
 | BUDGET-001 | Completed |
 | APIKEYS-003 | Completed |
 | NOTIFY-001 | Completed |
+| TEAM-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -98,6 +99,10 @@ accessibility, and interaction polish beyond the mockup. The production apps
 remain under `frontend/apps`; mock data must not enter the live product.
 
 ## Later tasks
+
+| ID | Objective | Dependencies | Acceptance / test scenarios | Priority |
+|---|---|---|---|---|
+| TEAM-001 | Invitations, role changes and explicit project grants | ORGS-001, NOTIFY-001 | Membership changes affect the next authorization check; invite replay, permission matrix, last-owner and tenant-FK tests | P1 |
 
 P1: `BUDGET-001`, `APIKEYS-003`, `TEAM-001`, `BYOK-001`, `BYOK-002`,
 `ROUTING-003`, `ROUTING-004`, `ROUTING-005`, `NOTIFY-002`, `NOTIFY-003`,

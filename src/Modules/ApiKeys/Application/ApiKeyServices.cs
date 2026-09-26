@@ -1,6 +1,7 @@
 using System.Text.Json;
 using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.Audit.Contracts;
+using UZLLM.Modules.Organizations.Contracts;
 using UZLLM.Modules.Projects.Contracts;
 using UZLLM.Persistence;
 
@@ -12,7 +13,8 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
     {
         ValidateIdentifier(accountId, nameof(accountId));
         ValidateIdentifier(projectId, nameof(projectId));
-        var project = await projectAccess.GetOwnedAsync(accountId, projectId, cancellationToken) ?? throw new KeyNotFoundException("The project does not exist.");
+        var project = await projectAccess.GetAuthorizedAsync(accountId, projectId,
+            OrganizationPermission.ManageApiKeys, cancellationToken) ?? throw new KeyNotFoundException("The project does not exist.");
         if (project.Status is not ProjectStatus.Active)
         {
             throw new InvalidOperationException("Gateway keys cannot be created for an archived project.");
@@ -47,7 +49,8 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
     {
         ValidateIdentifier(accountId, nameof(accountId));
         ValidateIdentifier(projectId, nameof(projectId));
-        _ = await projectAccess.GetOwnedAsync(accountId, projectId, cancellationToken) ?? throw new KeyNotFoundException("The project does not exist.");
+        _ = await projectAccess.GetAuthorizedAsync(accountId, projectId,
+            OrganizationPermission.ManageApiKeys, cancellationToken) ?? throw new KeyNotFoundException("The project does not exist.");
         return await store.ListForProjectAsync(projectId, cancellationToken);
     }
 
@@ -61,7 +64,8 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
             return false;
         }
 
-        var project = await projectAccess.GetOwnedAsync(accountId, apiKey.ProjectId, cancellationToken) ?? throw new KeyNotFoundException("The project does not exist.");
+        var project = await projectAccess.GetAuthorizedAsync(accountId, apiKey.ProjectId,
+            OrganizationPermission.ManageApiKeys, cancellationToken) ?? throw new KeyNotFoundException("The project does not exist.");
         if (apiKey.Status == status)
         {
             return true;
@@ -85,7 +89,8 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
         ValidateIdentifier(apiKeyId, nameof(apiKeyId));
         var apiKey = await store.FindByIdAsync(apiKeyId, cancellationToken)
             ?? throw new KeyNotFoundException("The API key does not exist.");
-        var project = await projectAccess.GetOwnedAsync(accountId, apiKey.ProjectId, cancellationToken)
+        var project = await projectAccess.GetAuthorizedAsync(accountId, apiKey.ProjectId,
+            OrganizationPermission.ManageApiKeys, cancellationToken)
             ?? throw new KeyNotFoundException("The project does not exist.");
         var now = timeProvider.GetUtcNow();
         if (project.Status is not ProjectStatus.Active || apiKey.Status is not GatewayApiKeyStatus.Active

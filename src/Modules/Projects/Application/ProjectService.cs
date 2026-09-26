@@ -18,7 +18,8 @@ public sealed class ProjectService(
         string name,
         CancellationToken cancellationToken = default)
     {
-        await organizationAuthorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
+        await organizationAuthorization.EnsurePermissionAsync(accountId, organizationId,
+            OrganizationPermission.ManageProjects, cancellationToken: cancellationToken);
         var project = new Project(
             Guid.CreateVersion7(),
             organizationId,
@@ -40,8 +41,10 @@ public sealed class ProjectService(
         Guid organizationId,
         CancellationToken cancellationToken = default)
     {
-        await organizationAuthorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
-        return await store.ListAsync(organizationId, cancellationToken);
+        var allowedIds = await organizationAuthorization.GetReadableProjectIdsAsync(accountId,
+            organizationId, cancellationToken);
+        var projects = await store.ListAsync(organizationId, cancellationToken);
+        return allowedIds is null ? projects : projects.Where(project => allowedIds.Contains(project.Id)).ToList();
     }
 
     public async Task<Project?> FindAsync(
@@ -50,7 +53,8 @@ public sealed class ProjectService(
         Guid projectId,
         CancellationToken cancellationToken = default)
     {
-        await organizationAuthorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
+        await organizationAuthorization.EnsurePermissionAsync(accountId, organizationId,
+            OrganizationPermission.ReadProjects, projectId, cancellationToken);
         return await store.FindAsync(organizationId, projectId, cancellationToken);
     }
 
@@ -60,7 +64,8 @@ public sealed class ProjectService(
         Guid projectId,
         CancellationToken cancellationToken = default)
     {
-        await organizationAuthorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
+        await organizationAuthorization.EnsurePermissionAsync(accountId, organizationId,
+            OrganizationPermission.ManageProjects, cancellationToken: cancellationToken);
         await using var transaction = await transactionCoordinator.BeginAsync(cancellationToken);
         var archivedAt = timeProvider.GetUtcNow();
         var archived = await store.ArchiveAsync(organizationId, projectId, archivedAt, cancellationToken);
@@ -109,6 +114,18 @@ public sealed class ProjectAccessService(IProjectStore store, IOrganizationAutho
         }
 
         await organizationAuthorization.EnsureOwnerAsync(accountId, project.OrganizationId, cancellationToken);
+        return project;
+    }
+
+    public async Task<Project?> GetAuthorizedAsync(Guid accountId, Guid projectId,
+        OrganizationPermission permission, CancellationToken cancellationToken = default)
+    {
+        if (accountId == Guid.Empty || projectId == Guid.Empty)
+            throw new TenantAccessDeniedException();
+        var project = await store.FindByIdAsync(projectId, cancellationToken);
+        if (project is null) return null;
+        await organizationAuthorization.EnsurePermissionAsync(accountId, project.OrganizationId,
+            permission, projectId, cancellationToken);
         return project;
     }
 }

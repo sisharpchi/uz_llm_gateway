@@ -263,6 +263,10 @@ internal sealed class InMemoryProjectAccessService(Project project, Guid ownerAc
         if (accountId != ownerAccountId) throw new TenantAccessDeniedException();
         return Task.FromResult<Project?>(project);
     }
+
+    public Task<Project?> GetAuthorizedAsync(Guid accountId, Guid projectId,
+        OrganizationPermission permission, CancellationToken cancellationToken = default) =>
+        GetOwnedAsync(accountId, projectId, cancellationToken);
 }
 
 internal sealed class RecordingApiKeyAuditTrail : IAuditTrail

@@ -295,6 +295,19 @@ cannot make the send/inbox-write boundary exactly once; a crash in that window
 may resend the same token, which remains one-time and time-limited. Never log
 outbox plaintext, protected payloads, SMTP message bodies or tokens.
 
+Team invitations use the same protected transactional email outbox. The
+database stores only a token hash and an expiry; acceptance requires a verified
+account whose normalized email matches the invitation. Organization membership
+and project grants are checked from PostgreSQL on each management request, not
+copied into session claims. Owner/Admin can manage the team, but Admin cannot
+create/change/revoke an Admin or Owner. A locked organization row serializes
+membership changes and prevents demoting or revoking the last active Owner.
+Owner/Admin have all project access; Developer and ReadOnly require an explicit
+project grant. Developer may manage keys only on granted projects; ReadOnly
+cannot mutate. BillingViewer can read billing/usage but cannot top up or alter
+budgets. Team role/grant changes and acceptance are audited in the same
+transaction as their database mutation.
+
 Tenant scope is enforced in commands, queries, foreign keys, cache keys, and
 worker payloads. Gateway HMAC keys, session-protection material, payment
 secrets, and provider-encryption keys stay outside the database and source

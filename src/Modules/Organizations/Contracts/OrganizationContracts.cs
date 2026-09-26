@@ -8,7 +8,11 @@ public enum OrganizationStatus
 
 public enum OrganizationMemberRole
 {
-    Owner
+    Owner,
+    Admin,
+    Developer,
+    BillingViewer,
+    ReadOnly
 }
 
 public enum OrganizationMemberStatus
@@ -45,6 +49,12 @@ public interface IOrganizationStore
         Guid organizationId,
         Guid accountId,
         CancellationToken cancellationToken = default);
+
+    Task<bool> HasProjectGrantAsync(Guid organizationId, Guid accountId,
+        Guid projectId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>> ListProjectGrantsAsync(Guid organizationId,
+        Guid accountId, CancellationToken cancellationToken = default);
 }
 
 public interface IOrganizationService
@@ -65,6 +75,24 @@ public interface IOrganizationAuthorizationService
         Guid accountId,
         Guid organizationId,
         CancellationToken cancellationToken = default);
+
+    Task EnsurePermissionAsync(Guid accountId, Guid organizationId,
+        OrganizationPermission permission, Guid? projectId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Guid>?> GetReadableProjectIdsAsync(Guid accountId,
+        Guid organizationId, CancellationToken cancellationToken = default);
+}
+
+public enum OrganizationPermission
+{
+    ManageTeam,
+    ManageProjects,
+    ReadProjects,
+    ManageApiKeys,
+    ReadUsage,
+    ReadBilling,
+    ManageBilling
 }
 
 public sealed class TenantAccessDeniedException : Exception

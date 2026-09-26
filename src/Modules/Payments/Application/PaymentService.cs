@@ -26,7 +26,8 @@ public sealed class PaymentService(
     {
         if (!Enum.IsDefined(provider))
             throw new ArgumentOutOfRangeException(nameof(provider));
-        await authorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
+        await authorization.EnsurePermissionAsync(accountId, organizationId,
+            OrganizationPermission.ManageBilling, cancellationToken: cancellationToken);
         if (!await platformControls.IsEnabledAsync(PlatformFeature.TopUps, cancellationToken))
             throw new InvalidOperationException("Top-ups are temporarily unavailable.");
         var now = clock.GetUtcNow();
@@ -55,7 +56,8 @@ public sealed class PaymentService(
             ?? throw new KeyNotFoundException("Payment quote was not found.");
         if (quote.OrganizationId != organizationId)
             throw new KeyNotFoundException("Payment quote was not found.");
-        await authorization.EnsureOwnerAsync(accountId, quote.OrganizationId, cancellationToken);
+        await authorization.EnsurePermissionAsync(accountId, quote.OrganizationId,
+            OrganizationPermission.ManageBilling, cancellationToken: cancellationToken);
         var key = idempotencyKey.Trim();
         var existing = await store.FindByIdempotencyKeyAsync(quote.OrganizationId, key, cancellationToken);
         if (existing is not null)
@@ -95,7 +97,8 @@ public sealed class PaymentService(
     public async Task<PaymentIntent?> GetIntentAsync(Guid accountId, Guid organizationId,
         Guid intentId, CancellationToken cancellationToken = default)
     {
-        await authorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
+        await authorization.EnsurePermissionAsync(accountId, organizationId,
+            OrganizationPermission.ReadBilling, cancellationToken: cancellationToken);
         var intent = await store.FindIntentAsync(intentId, cancellationToken);
         return intent?.OrganizationId == organizationId ? intent : null;
     }
@@ -103,7 +106,8 @@ public sealed class PaymentService(
     public async Task<IReadOnlyList<PaymentIntent>> ListIntentsAsync(Guid accountId,
         Guid organizationId, CancellationToken cancellationToken = default)
     {
-        await authorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken);
+        await authorization.EnsurePermissionAsync(accountId, organizationId,
+            OrganizationPermission.ReadBilling, cancellationToken: cancellationToken);
         return await store.ListForOrganizationAsync(organizationId, 100, cancellationToken);
     }
 

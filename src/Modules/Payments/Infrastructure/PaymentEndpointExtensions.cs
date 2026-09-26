@@ -76,7 +76,8 @@ public static class PaymentEndpointExtensions
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
             try
             {
-                await authorization.EnsureOwnerAsync(accountId, organizationId, token);
+                await authorization.EnsurePermissionAsync(accountId, organizationId,
+                    OrganizationPermission.ReadBilling, cancellationToken: token);
                 return await wallet.GetWalletAsync(organizationId, token) is { } value
                     ? Results.Ok(new { value.OrganizationId,
                         postedBalanceMicroUsd = value.PostedBalance.Value.ToString(CultureInfo.InvariantCulture),

@@ -19,6 +19,13 @@ public static class OrganizationServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddUzllmTeam(this IServiceCollection services)
+    {
+        services.AddScoped<ITeamStore, PostgreSqlTeamStore>();
+        services.AddScoped<ITeamService, TeamService>();
+        return services;
+    }
+
     public static IEndpointRouteBuilder MapUzllmOrganizationEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var organizations = endpoints.MapGroup("/management/v1/organizations");

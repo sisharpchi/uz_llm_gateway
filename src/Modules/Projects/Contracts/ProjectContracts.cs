@@ -1,3 +1,5 @@
+using UZLLM.Modules.Organizations.Contracts;
+
 namespace UZLLM.Modules.Projects.Contracts;
 
 public enum ProjectStatus
@@ -61,4 +63,7 @@ public interface IProjectService
 public interface IProjectAccessService
 {
     Task<Project?> GetOwnedAsync(Guid accountId, Guid projectId, CancellationToken cancellationToken = default);
+
+    Task<Project?> GetAuthorizedAsync(Guid accountId, Guid projectId,
+        OrganizationPermission permission, CancellationToken cancellationToken = default);
 }

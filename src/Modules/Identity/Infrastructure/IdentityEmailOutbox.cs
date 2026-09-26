@@ -9,6 +9,7 @@ public static class IdentityEmailEventTypes
 {
     public const string Verification = "identity.email.verification";
     public const string PasswordRecovery = "identity.email.recovery";
+    public const string TeamInvitation = "team.email.invitation";
 }
 
 /// <summary>Protects recipient and one-time token before they enter the durable outbox.</summary>
@@ -42,6 +43,7 @@ public sealed class ProtectedIdentityNotificationQueue(IOutboxStore outbox,
         {
             IdentityEmailKind.Verification => IdentityEmailEventTypes.Verification,
             IdentityEmailKind.PasswordRecovery => IdentityEmailEventTypes.PasswordRecovery,
+            IdentityEmailKind.TeamInvitation => IdentityEmailEventTypes.TeamInvitation,
             _ => throw new ArgumentOutOfRangeException(nameof(notification))
         };
         await outbox.EnqueueAsync(eventType, codec.Protect(notification),

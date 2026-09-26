@@ -222,6 +222,30 @@ Every project operation is authorized against its path organization. `POST`
 archive is a P0 terminal state transition; project settings and unarchive are
 not part of the initial contract.
 
+### Team (P1)
+
+```text
+GET    /management/v1/organizations/{organizationId}/team/members
+GET    /management/v1/organizations/{organizationId}/team/invitations
+POST   /management/v1/organizations/{organizationId}/team/invitations
+POST   /management/v1/team/invitations/accept
+PATCH  /management/v1/organizations/{organizationId}/team/members/{accountId}/role
+DELETE /management/v1/organizations/{organizationId}/team/members/{accountId}
+PUT    /management/v1/organizations/{organizationId}/team/members/{accountId}/projects/{projectId}
+DELETE /management/v1/organizations/{organizationId}/team/members/{accountId}/projects/{projectId}
+```
+
+Invite takes `{ "email": "member@example.uz", "role": "Developer" }` and
+returns `201` with safe invitation metadata and a Location header; the token
+is delivered only by protected email outbox. Acceptance takes `{ "token": "..." }`
+on an authenticated, verified session for the exact invited email. A used,
+expired, revoked, or mismatched token returns `404`. All mutations require the
+session CSRF proof. Role names are `Owner`, `Admin`, `Developer`,
+`BillingViewer`, and `ReadOnly`; invitation cannot directly grant `Owner`.
+Members/invitations are visible only to Owner/Admin. Team mutations return
+`403` for insufficient privilege, `404` for missing targets, and `409` for
+duplicate invitation, last-owner or invalid role-transition conflicts.
+
 ### API Keys
 
 ```text

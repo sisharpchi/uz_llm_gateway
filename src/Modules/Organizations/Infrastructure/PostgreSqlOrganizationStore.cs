@@ -62,4 +62,16 @@ public sealed class PostgreSqlOrganizationStore(FoundationDbContext dbContext) :
                 Enum.Parse<OrganizationMemberStatus>(member.Status, false),
                 member.CreatedAt)
             : null;
+
+    public Task<bool> HasProjectGrantAsync(Guid organizationId, Guid accountId,
+        Guid projectId, CancellationToken cancellationToken = default) =>
+        dbContext.Set<ProjectGrantEntity>().AsNoTracking()
+            .AnyAsync(grant => grant.OrganizationId == organizationId
+                && grant.AccountId == accountId && grant.ProjectId == projectId, cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> ListProjectGrantsAsync(Guid organizationId,
+        Guid accountId, CancellationToken cancellationToken = default) =>
+        await dbContext.Set<ProjectGrantEntity>().AsNoTracking()
+            .Where(grant => grant.OrganizationId == organizationId && grant.AccountId == accountId)
+            .Select(grant => grant.ProjectId).ToListAsync(cancellationToken);
 }

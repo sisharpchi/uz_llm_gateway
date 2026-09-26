@@ -1,0 +1,54 @@
+@baseUrl = http://localhost:5063
+@organizationId = 00000000-0000-0000-0000-000000000001
+@accountId = 00000000-0000-0000-0000-000000000002
+@projectId = 00000000-0000-0000-0000-000000000003
+@session = replace-with-browser-session-cookie
+@csrf = replace-with-csrf-cookie-and-header-value
+@invitationToken = replace-with-emailed-invitation-token
+
+### List members
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/team/members
+Cookie: __Host-uzllm-session={{session}}
+
+### List invitations
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/team/invitations
+Cookie: __Host-uzllm-session={{session}}
+
+### Invite member
+POST {{baseUrl}}/management/v1/organizations/{{organizationId}}/team/invitations
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{"email":"member@example.uz","role":"Developer"}
+
+### Accept invitation as matching verified account
+POST {{baseUrl}}/management/v1/team/invitations/accept
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{"token":"{{invitationToken}}"}
+
+### Change role
+PATCH {{baseUrl}}/management/v1/organizations/{{organizationId}}/team/members/{{accountId}}/role
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{"role":"ReadOnly"}
+
+### Grant project
+PUT {{baseUrl}}/management/v1/organizations/{{organizationId}}/team/members/{{accountId}}/projects/{{projectId}}
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+### Revoke project grant
+DELETE {{baseUrl}}/management/v1/organizations/{{organizationId}}/team/members/{{accountId}}/projects/{{projectId}}
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+### Revoke member
+DELETE {{baseUrl}}/management/v1/organizations/{{organizationId}}/team/members/{{accountId}}
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
