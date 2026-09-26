@@ -669,6 +669,33 @@ public sealed class GatewayExecutionTests
         Assert.False(known.Writer.Completed);
     }
 
+    [Fact]
+    public async Task Payload_capture_failure_releases_reservation_before_provider_dispatch()
+    {
+        var scenario = new Scenario();
+        scenario.Reads.RetainPayload = true;
+        scenario.PayloadRetention.FailCapture = true;
+
+        await scenario.RunAsync();
+
+        Assert.Equal(1, scenario.PayloadRetention.RequestCaptures);
+        Assert.Equal(1, scenario.Finance.Releases);
+        Assert.Equal(0, scenario.Usage.Attempts);
+        Assert.Equal(DeliveryState.NotStarted, scenario.Usage.Delivery);
+        Assert.Equal(503, scenario.Context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Default_payload_policy_does_not_capture_or_add_response_work()
+    {
+        var scenario = new Scenario();
+
+        await scenario.RunAsync();
+
+        Assert.Equal(0, scenario.PayloadRetention.RequestCaptures);
+        Assert.Equal(1, scenario.Usage.Attempts);
+    }
+
     private sealed class Scenario
     {
         public readonly Guid RequestId = Guid.NewGuid();
@@ -692,6 +719,7 @@ public sealed class GatewayExecutionTests
         public readonly FakeAdapter AnthropicAdapter = new("anthropic");
         public readonly FakeHealth Health;
         public readonly FakePlatformControls PlatformControls = new();
+        public readonly FakePayloadRetention PayloadRetention = new();
         public readonly FakeWriter Writer = new();
         private readonly CancellationTokenSource abort = new();
         public readonly FakeReadStore Reads;
@@ -761,7 +789,7 @@ public sealed class GatewayExecutionTests
             Writer.AbortSource = abort;
             gateway = new InferenceGateway(new FakeAuthenticator(apiKeyId, projectId), Reads,
                 catalog, Limiter, new FakeQuota(), new RequestConstraintValidator(), Finance,
-                Usage, new FakeAdapterSelector(Adapter, AnthropicAdapter), Health,
+                Usage, PayloadRetention, new FakeAdapterSelector(Adapter, AnthropicAdapter), Health,
                 new FakeWriterFactory(Writer), PlatformControls,
                 new GatewayOptions("default", 1_048_576, TimeSpan.FromMinutes(2),
                     TimeSpan.FromMinutes(15), new LimitPolicy(60, 600, 8, 64, TimeSpan.FromMinutes(15))),
@@ -811,6 +839,30 @@ public sealed class GatewayExecutionTests
         }
     }
 
+    private sealed class FakePayloadRetention : IPayloadRetentionService
+    {
+        public bool FailCapture;
+        public int RequestCaptures;
+        public Task<PayloadRetentionPolicy> GetPolicyAsync(Guid organizationId, Guid projectId,
+            CancellationToken cancellationToken) => Task.FromResult(new PayloadRetentionPolicy(false, 1440));
+        public Task<PayloadRetentionPolicy?> SetPolicyAsync(Guid organizationId, Guid projectId,
+            Guid accountId, bool enabled, int retentionMinutes, CancellationToken cancellationToken) =>
+            Task.FromResult<PayloadRetentionPolicy?>(null);
+        public Task<bool> CaptureRequestAsync(Guid organizationId, Guid projectId, Guid requestId,
+            byte[] payload, CancellationToken cancellationToken)
+        {
+            RequestCaptures++;
+            if (FailCapture) throw new InvalidOperationException("Encryption unavailable");
+            return Task.FromResult(false);
+        }
+        public Task CaptureResponseAsync(Guid organizationId, Guid projectId, Guid requestId,
+            byte[] payload, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<RetainedPayload?> GetPayloadAsync(Guid organizationId, Guid projectId,
+            Guid requestId, CancellationToken cancellationToken) => Task.FromResult<RetainedPayload?>(null);
+        public Task<int> DeleteExpiredAsync(int batchSize, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+    }
+
     private sealed class FakeAuthenticator(Guid keyId, Guid projectId) : IApiKeyAuthenticator
     {
         public Task<GatewayApiKeyAuthentication?> AuthenticateAsync(string? presentedKey,
@@ -823,9 +875,11 @@ public sealed class GatewayExecutionTests
         : IGatewayReadStore
     {
         public bool Active = true;
+        public bool RetainPayload;
         public GatewayByokCredential? Byok;
         public Task<GatewayTenantScope?> FindTenantAsync(Guid projectId, CancellationToken cancellationToken) =>
-            Task.FromResult<GatewayTenantScope?>(Active && projectId == tenant.ProjectId ? tenant : null);
+            Task.FromResult<GatewayTenantScope?>(Active && projectId == tenant.ProjectId
+                ? tenant with { RetainPayload = RetainPayload } : null);
         public Task<FeePolicyVersion?> FindFeePolicyAsync(string policyCode, DateTimeOffset at,
             CancellationToken cancellationToken) => Task.FromResult<FeePolicyVersion?>(fee);
         public Task<Guid?> FindPlatformCredentialAsync(Guid providerId, CancellationToken cancellationToken) =>

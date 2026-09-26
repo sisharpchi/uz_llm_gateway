@@ -46,6 +46,7 @@ app.MapUzllmProjectEndpoints();
 app.MapUzllmApiKeyEndpoints();
 app.MapUzllmPaymentEndpoints();
 app.MapUzllmUsageReadEndpoints();
+app.MapUzllmPayloadRetentionEndpoints();
 app.MapUzllmAdminEndpoints();
 app.MapUzllmBudgetEndpoints();
 app.MapUzllmByokEndpoints();

@@ -270,6 +270,15 @@ Keep separate so metadata retention can differ from prompt/response retention.
 - encrypted_response_payload
 - expires_at
 
+`PRIVACY-001` implements this as a one-to-one, tenant-bound row with separate
+wrapped data keys and key-version fields for request and response. The FK uses
+`(request_id, organization_id, project_id)` so a payload cannot be attached to
+another tenant's request. An expiry index supports bounded Worker deletion.
+`usage.payload_retention_policy` is keyed by organization/project and stores
+the explicit opt-in, 60–10080 minute lifetime, and updater metadata. No row
+means retention disabled. Payload deletion does not remove `usage.request`,
+usage evidence, wallet entries, or audit history.
+
 ---
 
 ## 7. Alerts

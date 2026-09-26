@@ -24,6 +24,31 @@ public sealed class UsageRequestEntity
     public ICollection<UsageAttemptEntity> Attempts { get; set; } = [];
 }
 
+public sealed class UsagePayloadRetentionPolicyEntity
+{
+    public Guid OrganizationId { get; set; }
+    public Guid ProjectId { get; set; }
+    public bool Enabled { get; set; }
+    public int RetentionMinutes { get; set; }
+    public Guid UpdatedByAccountId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class UsagePayloadEntity
+{
+    public Guid RequestId { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid ProjectId { get; set; }
+    public byte[] EncryptedRequestPayload { get; set; } = [];
+    public byte[] WrappedRequestKey { get; set; } = [];
+    public string RequestKeyVersion { get; set; } = null!;
+    public byte[]? EncryptedResponsePayload { get; set; }
+    public byte[]? WrappedResponseKey { get; set; }
+    public string? ResponseKeyVersion { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+}
+
 public sealed class UsageIdempotencyClaimEntity
 {
     public Guid OrganizationId { get; set; }

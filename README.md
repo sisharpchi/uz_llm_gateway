@@ -50,6 +50,10 @@ active catalog provider/model/price, platform credential, effective `default`
 fee policy, and funded organization wallet. See
 [`gateway.http`](src/UZLLM.Gateway.Api/gateway.http) for request examples.
 
+Opt-in payload retention additionally requires a separate 32-byte base64
+`PAYLOADSECRETS__KEYS__v1` and `PAYLOADSECRETS__ACTIVEKEYVERSION=v1` on Gateway
+and Management. Without opt-in, no request or response bodies are persisted.
+
 ## Read first
 
 - [Design pack index](docs/00_README.md)

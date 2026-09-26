@@ -20,7 +20,7 @@ public sealed class InferenceGateway(
     IApiKeyAuthenticator authenticator, IGatewayReadStore readStore,
     ICatalogService catalog, IDistributedAdmissionLimiter limiter,
     IProviderQuotaProtection quota, IRequestConstraintValidator constraints,
-    IFinancialService finance, IUsageService usage,
+    IFinancialService finance, IUsageService usage, IPayloadRetentionService payloadRetention,
     IProviderAdapterSelector adapters, IProviderHealthService health,
     ICompletionWriterFactory writerFactory,
     IPlatformControlStore platformControls,
@@ -385,10 +385,70 @@ public sealed class InferenceGateway(
             SetGatewayRequestId(context, admission.RequestId.Value);
             context.Response.Headers["X-Uzllm-Model"] = model.Model.CanonicalCode;
             context.Response.Headers["X-Uzllm-Requested-Model"] = model.Model.CanonicalCode;
-            await ExecuteReservedAsync(context, parsed, model.Model.CanonicalCode, candidates,
-                pinnedProvider is not null && !parsed.AllowManagedFallback
-                    && parsed.FallbackModels is not { Count: > 0 },
-                admission.Reservation, cancellationToken);
+            ResponseCaptureStream? responseCapture = null;
+            Stream? originalResponseBody = null;
+            if (tenant.RetainPayload)
+            {
+                try
+                {
+                    if (await payloadRetention.CaptureRequestAsync(tenant.OrganizationId, tenant.ProjectId,
+                        admission.RequestId.Value, raw, cancellationToken))
+                    {
+                        originalResponseBody = context.Response.Body;
+                        responseCapture = new ResponseCaptureStream(originalResponseBody, 1024 * 1024);
+                        context.Response.Body = responseCapture;
+                    }
+                }
+                catch
+                {
+                    try
+                    {
+                        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                        var released = await finance.ReleaseUndispatchedAsync(admission.Reservation.Id,
+                            cleanup.Token);
+                        if (released.Status is FinalizationStatus.Released or FinalizationStatus.AlreadyFinalized)
+                            await usage.FinishRequestAsync(admission.RequestId.Value, ExecutionState.Failed,
+                                DeliveryState.NotStarted, 503, "payload-retention", cleanup.Token);
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogError(exception,
+                            "Payload admission cleanup failed for {RequestId}; reconciliation remains scheduled",
+                            admission.RequestId.Value);
+                    }
+                    throw;
+                }
+            }
+            var delivered = false;
+            try
+            {
+                delivered = await ExecuteReservedAsync(context, parsed, model.Model.CanonicalCode, candidates,
+                    pinnedProvider is not null && !parsed.AllowManagedFallback
+                        && parsed.FallbackModels is not { Count: > 0 },
+                    admission.Reservation, cancellationToken);
+            }
+            finally
+            {
+                if (responseCapture is not null)
+                {
+                    context.Response.Body = originalResponseBody!;
+                    if (delivered && !context.RequestAborted.IsCancellationRequested
+                        && responseCapture.CompletePayload is { Length: > 0 } response)
+                    {
+                        try
+                        {
+                            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                            await payloadRetention.CaptureResponseAsync(tenant.OrganizationId, tenant.ProjectId,
+                                admission.RequestId.Value, response, cleanup.Token);
+                        }
+                        catch (Exception exception)
+                        {
+                            logger.LogWarning(exception, "Payload response retention failed for {RequestId}",
+                                admission.RequestId.Value);
+                        }
+                    }
+                }
+            }
         }
         catch (GatewayRequestException exception)
         {
@@ -418,7 +478,7 @@ public sealed class InferenceGateway(
         }
     }
 
-    private async Task ExecuteReservedAsync(HttpContext context, ParsedChatRequest parsed,
+    private async Task<bool> ExecuteReservedAsync(HttpContext context, ParsedChatRequest parsed,
         string requestedModelCode, IReadOnlyList<RouteCandidate> candidates, bool pinned,
         Reservation reservation, CancellationToken cancellationToken)
     {
@@ -656,7 +716,7 @@ public sealed class InferenceGateway(
         var delivered = false;
         try
         {
-            if (disconnected) return;
+            if (disconnected) return false;
             if (!cleanupSucceeded)
             {
                 if (writer.Started)
@@ -664,7 +724,7 @@ public sealed class InferenceGateway(
                         "finalization_pending", CancellationToken.None);
                 else await WriteErrorAsync(context, new(503, "finalization_pending", "server_error",
                     "Finalization is pending reconciliation."), CancellationToken.None);
-                return;
+                return false;
             }
             if (providerError is not null)
             {
@@ -672,7 +732,7 @@ public sealed class InferenceGateway(
                     await writer.WriteStreamErrorAsync(providerError.SafeMessage, "provider_error", CancellationToken.None);
                 else await WriteErrorAsync(context, new(httpStatus, "provider_error", "upstream_error",
                     providerError.SafeMessage), CancellationToken.None);
-                return;
+                return false;
             }
             if (parsed.Stream)
                 await writer.FinishStreamAsync(cancellationToken);
@@ -709,6 +769,7 @@ public sealed class InferenceGateway(
             catch (Exception exception)
             { logger.LogError(exception, "Request activity finalization failed for {RequestId}", reservation.RequestId); }
         }
+        return delivered;
     }
 
     private async Task RecordHealthAsync(Guid mappingId, ProviderError? error, bool completed)

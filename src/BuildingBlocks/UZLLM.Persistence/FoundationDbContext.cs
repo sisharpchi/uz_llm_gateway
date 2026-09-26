@@ -59,6 +59,8 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
     internal DbSet<CatalogModelPriceEntity> CatalogModelPrices => Set<CatalogModelPriceEntity>();
 
     internal DbSet<UsageRequestEntity> UsageRequests => Set<UsageRequestEntity>();
+    internal DbSet<UsagePayloadRetentionPolicyEntity> UsagePayloadRetentionPolicies => Set<UsagePayloadRetentionPolicyEntity>();
+    internal DbSet<UsagePayloadEntity> UsagePayloads => Set<UsagePayloadEntity>();
 
     internal DbSet<UsageIdempotencyClaimEntity> UsageIdempotencyClaims => Set<UsageIdempotencyClaimEntity>();
 
@@ -468,6 +470,48 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.HasOne(request => request.Project).WithMany().HasForeignKey(request => new { request.OrganizationId, request.ProjectId }).HasPrincipalKey(project => new { project.OrganizationId, project.Id }).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(request => request.ApiKey).WithMany().HasForeignKey(request => new { request.ProjectId, request.ApiKeyId }).HasPrincipalKey(apiKey => new { apiKey.ProjectId, apiKey.Id }).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(request => request.CanonicalModel).WithMany().HasForeignKey(request => request.CanonicalModelId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UsagePayloadRetentionPolicyEntity>(entity =>
+        {
+            entity.ToTable("payload_retention_policy", "usage", table =>
+                table.HasCheckConstraint("CK_usage_payload_retention_minutes",
+                    "retention_minutes BETWEEN 60 AND 10080"));
+            entity.HasKey(value => new { value.OrganizationId, value.ProjectId });
+            entity.Property(value => value.OrganizationId).HasColumnName("organization_id");
+            entity.Property(value => value.ProjectId).HasColumnName("project_id");
+            entity.Property(value => value.Enabled).HasColumnName("enabled");
+            entity.Property(value => value.RetentionMinutes).HasColumnName("retention_minutes");
+            entity.Property(value => value.UpdatedByAccountId).HasColumnName("updated_by_account_id");
+            entity.Property(value => value.UpdatedAt).HasColumnName("updated_at");
+            entity.HasOne<ProjectEntity>().WithMany()
+                .HasForeignKey(value => new { value.OrganizationId, value.ProjectId })
+                .HasPrincipalKey(project => new { project.OrganizationId, project.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UsagePayloadEntity>(entity =>
+        {
+            entity.ToTable("payload", "usage", table =>
+                table.HasCheckConstraint("CK_usage_payload_expiry", "expires_at > created_at"));
+            entity.HasKey(value => value.RequestId);
+            entity.Property(value => value.RequestId).HasColumnName("request_id");
+            entity.Property(value => value.OrganizationId).HasColumnName("organization_id");
+            entity.Property(value => value.ProjectId).HasColumnName("project_id");
+            entity.Property(value => value.EncryptedRequestPayload).HasColumnName("encrypted_request_payload");
+            entity.Property(value => value.WrappedRequestKey).HasColumnName("wrapped_request_key");
+            entity.Property(value => value.RequestKeyVersion).HasColumnName("request_key_version").HasMaxLength(40);
+            entity.Property(value => value.EncryptedResponsePayload).HasColumnName("encrypted_response_payload");
+            entity.Property(value => value.WrappedResponseKey).HasColumnName("wrapped_response_key");
+            entity.Property(value => value.ResponseKeyVersion).HasColumnName("response_key_version").HasMaxLength(40);
+            entity.Property(value => value.CreatedAt).HasColumnName("created_at");
+            entity.Property(value => value.ExpiresAt).HasColumnName("expires_at");
+            entity.HasIndex(value => value.ExpiresAt);
+            entity.HasIndex(value => new { value.OrganizationId, value.ProjectId, value.ExpiresAt });
+            entity.HasOne<UsageRequestEntity>().WithOne()
+                .HasForeignKey<UsagePayloadEntity>(value => new { value.RequestId, value.OrganizationId, value.ProjectId })
+                .HasPrincipalKey<UsageRequestEntity>(value => new { value.Id, value.OrganizationId, value.ProjectId })
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<UsageIdempotencyClaimEntity>(entity =>

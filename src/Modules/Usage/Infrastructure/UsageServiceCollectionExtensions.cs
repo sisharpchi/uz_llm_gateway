@@ -12,6 +12,8 @@ public static class UsageServiceCollectionExtensions
         services.AddScoped<IUsageService, UsageService>();
         services.AddScoped<IUsageReadStore, PostgreSqlUsageReadStore>();
         services.AddScoped<IUsageReadService, UsageReadService>();
+        services.AddSingleton<PayloadEnvelopeProtector>();
+        services.AddScoped<IPayloadRetentionService, PostgreSqlPayloadRetentionService>();
         return services;
     }
 }

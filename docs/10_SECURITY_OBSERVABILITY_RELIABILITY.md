@@ -329,3 +329,18 @@ retention needs an approved legal schedule. Operational alerts are mandatory for
 settlement/evidence failures, stale known-evidence reservations, payment
 mismatches, debt/exposure, Redis admission failure, provider authentication
 failure, and outbox backlog. Customer threshold/Telegram alerts are P1.
+
+`PRIVACY-001` adds project-scoped, owner-only opt-in payload retention (one hour
+to seven days; default off). Request and bounded complete response bodies live
+only in `usage.payload`, separately from request/usage/financial metadata.
+Each body has its own AES-GCM data key, wrapped by a versioned
+`PayloadSecrets:Keys:<version>` 32-byte base64 key; authenticated data binds
+organization, project, request, purpose, and key version. Supply
+`PayloadSecrets:ActiveKeyVersion` and the active key to Gateway and Management
+through secret files. Keep retired keys until all encrypted rows using them
+expire; never reuse provider credential keys. Disabling retention deletes that
+project's stored payload rows transactionally. The Worker removes expired
+rows in bounded batches every five minutes; reads reject expired rows
+immediately. Only an organization owner may change policy or retrieve a
+retained body, and both actions create metadata-only audit events. The normal
+usage detail API remains payload-free; prompts and responses are never logged.

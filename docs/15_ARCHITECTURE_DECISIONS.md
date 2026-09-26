@@ -35,7 +35,7 @@ Use .NET 10 LTS for backend services.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** FRONTEND-001 customer/admin baseline implemented
 
 ### Decision
 Use React + TypeScript for dashboard/admin.
@@ -160,7 +160,7 @@ This prevents vendor coupling.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** Implemented by `PRIVACY-001` (project opt-in, separate encrypted payload rows, bounded expiry)
 
 Default product should work with request metadata even when prompt/response body retention is disabled.
 

@@ -522,6 +522,26 @@ attempt and evidence metadata, never prompt/response bodies or credentials.
 These reads aggregate directly from authoritative rows over the bounded window;
 no gateway hot-path rollup write is required.
 
+### Opt-in payload retention (`PRIVACY-001`)
+
+Organization-owner-only routes; session authentication is required and the
+mutation also requires the management CSRF token:
+
+```text
+GET /management/v1/organizations/{organizationId}/projects/{projectId}/payload-retention
+PUT /management/v1/organizations/{organizationId}/projects/{projectId}/payload-retention
+GET /management/v1/organizations/{organizationId}/projects/{projectId}/payload-retention/requests/{requestId}
+```
+
+`PUT` accepts `{ "enabled": true, "retentionMinutes": 1440 }` (60–10080
+minutes). The policy response contains `enabled` and `retentionMinutes`; no
+policy means disabled with a 1440-minute default. Disabling deletes existing
+project payloads. The request-specific read returns `requestId`, `projectId`,
+`request` (raw JSON string), nullable `response` (exact completed JSON/SSE
+bytes when at most 1 MiB), and `expiresAt`, or `404` when missing/expired or
+outside the tenant/project. All responses use `Cache-Control: no-store`.
+Metadata APIs never return bodies.
+
 For supported inference requests, `Idempotency-Key` is scoped to organization,
 key identity, and operation for 24 hours. A repeat returns `409` with the
 original request ID; mismatched request content also conflicts. The API stores

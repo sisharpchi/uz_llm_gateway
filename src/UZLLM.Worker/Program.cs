@@ -53,5 +53,6 @@ builder.Services.AddScoped<OutboxDispatchCycle>();
 builder.Services.AddScoped<LeasedJobDispatchCycle>();
 builder.Services.AddHostedService<OutboxDispatchWorker>();
 builder.Services.AddHostedService<LeasedJobDispatchWorker>();
+builder.Services.AddHostedService<ExpiredPayloadDeletionWorker>();
 var host = builder.Build();
 await host.RunAsync();

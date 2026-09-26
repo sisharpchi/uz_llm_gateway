@@ -38,6 +38,7 @@ same-model failover precedes P1 cross-model fallback.
 | BYOK-002 | Completed |
 | ROUTING-003 | Completed |
 | ROUTING-005 | Completed |
+| PRIVACY-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -123,6 +124,11 @@ P1: `BUDGET-001`, `APIKEYS-003`, `TEAM-001`, `BYOK-001`, `BYOK-002`,
 `ROUTING-003`, `ROUTING-004`, `ROUTING-005`, `NOTIFY-002`, `NOTIFY-003`,
 `USAGE-005`, `PRIVACY-001`, `GATEWAY-005`, Gemini/DeepSeek adapters, and
 `REFUND-001`.
+
+`PRIVACY-001` uses project-owner opt-in with a separate payload key ring,
+tenant-bound authenticated encryption, a one-hour to seven-day lifetime,
+bounded response capture, immediate opt-out deletion, and Worker expiry
+deletion. Request metadata and financial/audit records remain independent.
 
 P2: SSO/SCIM, ZDR routing, custom endpoints, guardrails, management automation,
 and additional modalities.

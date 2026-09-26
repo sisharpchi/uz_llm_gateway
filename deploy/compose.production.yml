@@ -17,6 +17,8 @@ x-gateway: &gateway
     - { source: api-fingerprint, target: ApiKeys__FingerprintKey }
     - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
     - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
+    - { source: payload-active-version, target: PayloadSecrets__ActiveKeyVersion }
+    - { source: payload-key-v1, target: PayloadSecrets__Keys__v1 }
     - { source: gateway-cert-password, target: Kestrel__Certificates__Default__Password }
   networks: [application]
 
@@ -41,6 +43,8 @@ x-management: &management
     - { source: api-fingerprint, target: ApiKeys__FingerprintKey }
     - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
     - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
+    - { source: payload-active-version, target: PayloadSecrets__ActiveKeyVersion }
+    - { source: payload-key-v1, target: PayloadSecrets__Keys__v1 }
     - { source: management-cert-password, target: Kestrel__Certificates__Default__Password }
     - { source: keyring-cert-password, target: DataProtection__CertificatePassword }
     - { source: payme-merchant-id, target: Payments__Payme__MerchantId }
@@ -126,6 +130,8 @@ secrets:
   api-fingerprint: { file: '${UZLLM_SECRET_DIR}/ApiKeys__FingerprintKey' }
   provider-active-version: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__ActiveKeyVersion' }
   provider-key-v1: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__Keys__v1' }
+  payload-active-version: { file: '${UZLLM_SECRET_DIR}/PayloadSecrets__ActiveKeyVersion' }
+  payload-key-v1: { file: '${UZLLM_SECRET_DIR}/PayloadSecrets__Keys__v1' }
   gateway-cert-password: { file: '${UZLLM_SECRET_DIR}/Kestrel__Certificates__Default__Password.gateway' }
   management-cert-password: { file: '${UZLLM_SECRET_DIR}/Kestrel__Certificates__Default__Password.management' }
   keyring-cert-password: { file: '${UZLLM_SECRET_DIR}/DataProtection__CertificatePassword' }
