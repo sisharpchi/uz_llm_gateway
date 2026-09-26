@@ -394,9 +394,23 @@ non-thinking mode for predictable sampling, and provider-specific
 `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`; the two must sum to
 `prompt_tokens`. Reasoning tokens, if reported, are a subset of output tokens
 and never added again. Missing or inconsistent counters remain unknown
-financial evidence. This bounded non-stream adapter supports text and JSON
-object mode; tools, vision, JSON Schema, streaming, and DeepSeek BYOK are not
-advertised. Streaming/reasoning features remain `PROVIDER-009`.
+financial evidence. The bounded adapter supports text and JSON object mode;
+tools, vision, JSON Schema, and DeepSeek BYOK are not advertised. It requests
+non-thinking mode; because DeepSeek ignores `top_p` in that mode, non-default
+`top_p` requests are rejected before dispatch rather than silently altered.
+
+`PROVIDER-009` enables DeepSeek Chat Completions SSE with
+`stream_options.include_usage=true`. It forwards text deltas immediately while
+keeping provider `reasoning_content` private. The final cache-hit, cache-miss,
+output, and reasoning counters are validated as one authoritative cumulative
+usage snapshot; reasoning is never added to billable output a second time.
+The adapter emits finish and usage only after a valid `[DONE]` with terminal
+usage. Missing/malformed usage, changed response IDs, duplicate final usage,
+mid-stream errors, timeout, and disconnect leave execution unknown and never
+trigger replay. Client cancellation stops upstream I/O; Gateway cleanup remains
+independent. The SSE reader has bounded lines/frames and does not buffer the
+whole completion. A future explicit thinking-mode request contract is separate
+from normalizing any reasoning tokens returned by the provider.
 
 DeepSeek's [published prices](https://api-docs.deepseek.com/quick_start/pricing/)
 include distinct cache-hit, cache-miss, output, and recurring peak/off-peak

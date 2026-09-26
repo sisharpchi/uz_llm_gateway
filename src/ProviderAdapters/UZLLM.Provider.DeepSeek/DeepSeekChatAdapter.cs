@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using UZLLM.Modules.Providers.Contracts;
 
@@ -21,7 +22,7 @@ public sealed class DeepSeekChatAdapter(HttpClient client, IProviderCredentialRe
         Validate(context);
         byte[] body;
         try { body = DeepSeekWireMapper.BuildRequest(request, context.UpstreamModelCode,
-            request.MaxOutputTokens ?? 1024); }
+            request.MaxOutputTokens ?? 1024, false); }
         catch (Exception ex) when (ex is ArgumentException or JsonException)
         { throw InvalidRequest(); }
 
@@ -66,9 +67,90 @@ public sealed class DeepSeekChatAdapter(HttpClient client, IProviderCredentialRe
         { throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(requestId)); }
     }
 
-    public IAsyncEnumerable<ProviderStreamEvent> StreamAsync(ProviderChatRequest request,
-        ProviderExecutionContext context, CancellationToken cancellationToken = default) =>
-        throw InvalidRequest();
+    public async IAsyncEnumerable<ProviderStreamEvent> StreamAsync(ProviderChatRequest request,
+        ProviderExecutionContext context,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        Validate(context);
+        byte[] body;
+        try { body = DeepSeekWireMapper.BuildRequest(request, context.UpstreamModelCode,
+            request.MaxOutputTokens ?? 1024, true); }
+        catch (Exception ex) when (ex is ArgumentException or JsonException)
+        { throw InvalidRequest(); }
+
+        var secret = await credentials.ResolveSecretAsync(context, cancellationToken);
+        if (string.IsNullOrWhiteSpace(secret))
+            throw new ProviderExecutionException(new ProviderError(ProviderErrorCategory.Authentication,
+                ProviderExecutionCertainty.NotDispatched, false, false, null, null,
+                "Provider credential is unavailable."));
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(context.Timeout);
+        using var message = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+        { Content = new ByteArrayContent(body) };
+        message.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+        message.Headers.TryAddWithoutValidation("X-Client-Request-Id", context.RequestId.ToString("N"));
+        message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        HttpResponseMessage response;
+        try { response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { throw new ProviderExecutionException(DeepSeekErrorClassifier.Timeout(null)); }
+        catch (HttpRequestException)
+        { throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(null)); }
+        using (response)
+        {
+            var requestId = response.Headers.TryGetValues("x-request-id", out var values)
+                ? values.FirstOrDefault() : null;
+            if (!response.IsSuccessStatusCode)
+                throw new ProviderExecutionException(DeepSeekErrorClassifier.FromHttp(
+                    (int)response.StatusCode, requestId));
+            if (!string.Equals(response.Content.Headers.ContentType?.MediaType,
+                "text/event-stream", StringComparison.OrdinalIgnoreCase))
+                throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(requestId));
+
+            Stream stream;
+            try { stream = await response.Content.ReadAsStreamAsync(timeout.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            { throw new ProviderExecutionException(DeepSeekErrorClassifier.Timeout(requestId)); }
+            catch (HttpRequestException)
+            { throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(requestId)); }
+
+            var parser = new DeepSeekStreamParser(requestId);
+            await using var frames = DeepSeekSseReader.ReadAsync(stream, timeout.Token)
+                .GetAsyncEnumerator(timeout.Token);
+            while (true)
+            {
+                bool hasFrame;
+                try { hasFrame = await frames.MoveNextAsync(); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                { throw new ProviderExecutionException(DeepSeekErrorClassifier.Timeout(parser.ProviderRequestId)); }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or HttpRequestException)
+                { throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(parser.ProviderRequestId)); }
+                if (!hasFrame) break;
+                if (frames.Current.Data == "[DONE]")
+                {
+                    IReadOnlyList<ProviderStreamEvent> terminal;
+                    try { terminal = parser.Complete(); }
+                    catch (JsonException)
+                    { throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(parser.ProviderRequestId)); }
+                    foreach (var item in terminal) yield return item;
+                    yield break;
+                }
+                IReadOnlyList<ProviderStreamEvent> events;
+                try { events = parser.Parse(frames.Current); }
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException
+                    or OverflowException or FormatException)
+                { throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(parser.ProviderRequestId)); }
+                foreach (var item in events)
+                {
+                    yield return item;
+                    if (item.Kind == ProviderStreamKind.Error) yield break;
+                }
+            }
+            throw new ProviderExecutionException(DeepSeekErrorClassifier.Unknown(parser.ProviderRequestId));
+        }
+    }
 
     private static ProviderExecutionException InvalidRequest() => new(new ProviderError(
         ProviderErrorCategory.InvalidRequest, ProviderExecutionCertainty.NotDispatched, false, false,

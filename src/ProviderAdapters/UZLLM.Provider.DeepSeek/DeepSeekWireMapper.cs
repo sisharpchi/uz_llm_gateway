@@ -6,9 +6,10 @@ namespace UZLLM.Provider.DeepSeek;
 internal static class DeepSeekWireMapper
 {
     public static bool Supports(ProviderChatRequest request, bool stream) =>
-        !stream && request.Messages is { Count: > 0 }
+        request.Messages is { Count: > 0 }
         && request.Temperature is not < 0 and not > 2
-        && request.TopP is not <= 0 and not > 1
+        // DeepSeek ignores top_p in non-thinking mode. Never silently accept a sampling policy it cannot honor.
+        && request.TopP is null or 1m
         && request.Stop is not { Count: > 4 }
         && request.Stop?.Any(string.IsNullOrEmpty) != true
         && request.Tools is not { Count: > 0 }
@@ -23,9 +24,9 @@ internal static class DeepSeekWireMapper
         && request.ResponseFormat is null or { Kind: ProviderResponseFormatKind.Text or
             ProviderResponseFormatKind.JsonObject };
 
-    public static byte[] BuildRequest(ProviderChatRequest request, string model, int outputLimit)
+    public static byte[] BuildRequest(ProviderChatRequest request, string model, int outputLimit, bool stream)
     {
-        if (!Supports(request, false) || string.IsNullOrWhiteSpace(model) || outputLimit <= 0)
+        if (!Supports(request, stream) || string.IsNullOrWhiteSpace(model) || outputLimit <= 0)
             throw new ArgumentException("DeepSeek request contains unsupported features.");
         var messages = request.Messages.Select(message => new
         {
@@ -36,13 +37,13 @@ internal static class DeepSeekWireMapper
         {
             ["model"] = model,
             ["messages"] = messages,
-            ["stream"] = false,
+            ["stream"] = stream,
             ["max_tokens"] = outputLimit,
             // P1 non-stream uses non-thinking mode so sampling parameters are not silently ignored.
             ["thinking"] = new { type = "disabled" }
         };
+        if (stream) body["stream_options"] = new { include_usage = true };
         if (request.Temperature is not null) body["temperature"] = request.Temperature;
-        if (request.TopP is not null) body["top_p"] = request.TopP;
         if (request.Stop is { Count: > 0 }) body["stop"] = request.Stop;
         if (request.ResponseFormat is { Kind: ProviderResponseFormatKind.JsonObject })
             body["response_format"] = new { type = "json_object" };

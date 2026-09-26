@@ -148,7 +148,7 @@ Every usage record must be tied to the price used for billing.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Implemented for OpenAI, Anthropic, Gemini, and DeepSeek non-stream adapters; DeepSeek streaming remains planned
+**Implementation status:** Implemented for OpenAI, Anthropic, Gemini, and DeepSeek chat adapters, including bounded provider-specific streaming
 
 No provider SDK types in Domain/Application modules.
 
