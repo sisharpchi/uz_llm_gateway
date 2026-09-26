@@ -55,8 +55,8 @@ public static class ChatRequestParser
                 if (extension.TryGetProperty("routing", out _))
                 {
                     routing = RequiredString(extension, "routing", 32);
-                    if (routing != "price")
-                        throw new GatewayRequestException("Only uzllm.routing=price is supported.",
+                    if (routing is not ("price" or "latency" or "throughput" or "auto"))
+                        throw new GatewayRequestException("Unsupported uzllm.routing strategy.",
                             "unsupported_parameter");
                 }
                 if (extension.TryGetProperty("fallback_models", out var fallbacks))

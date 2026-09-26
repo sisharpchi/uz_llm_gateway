@@ -43,6 +43,7 @@ same-model failover precedes P1 cross-model fallback.
 | PROVIDER-007 | Completed |
 | PROVIDER-008 | Completed |
 | PROVIDER-009 | Completed |
+| ROUTING-004 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -117,6 +118,7 @@ remain under `frontend/apps`; mock data must not enter the live product.
 | PROVIDER-007 | Gemini native SSE streaming normalization | PROVIDER-006, GATEWAY-001 | Prompt first chunks; normalize cumulative usage/finish; partial, malformed, timeout and disconnect are unknown and never replayed | P1 |
 | PROVIDER-008 | DeepSeek native non-stream and cache-aware metering | PROVIDER-001, CATALOG-001 | OpenAI-style wire does not bypass provider-specific cache/reasoning accounting; explicit cached rate and effective tariff price required; response/error fixtures | P1 |
 | PROVIDER-009 | DeepSeek streaming and reasoning normalization | PROVIDER-008, GATEWAY-001 | Reasoning/cache counters normalized without duplication; partial or malformed streams retain unknown-charge semantics | P1 |
+| ROUTING-004 | Recent latency/throughput windows and weighted routing | ROUTING-003, GATEWAY-001 | Only already-eligible mappings ranked; bounded samples, minimum count, stale-data fallback and hysteresis tested | P1 |
 
 The original execution plan named `SECURITY-001` as a BYOK prerequisite; the
 platform envelope encryption and key-version foundation was delivered in
@@ -151,6 +153,12 @@ tariffs must be represented by published effective price windows; the adapter
 does not infer live prices from an HTTP response.
 The original plan's `GATEWAY-003` prerequisite for `PROVIDER-009` maps to the
 completed `GATEWAY-001` SSE transport task.
+The original `ROUTING-004` dependency on `USAGE-004` assumed its hourly usage
+rollup would provide route-performance observations. The current `USAGE-002`
+read model is daily/on-demand and is not misrepresented as that hourly task.
+`ROUTING-004` instead owns short-lived advisory Redis performance samples from
+the existing Gateway attempt lifecycle; durable usage and financial records
+remain independent. Missing/stale Redis samples restore deterministic routing.
 
 P2: SSO/SCIM, ZDR routing, custom endpoints, guardrails, management automation,
 and additional modalities.

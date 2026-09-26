@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using UZLLM.Modules.ApiKeys.Contracts;
@@ -5,6 +6,8 @@ using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Routing.Contracts;
+using UZLLM.Modules.Routing.Domain;
+using UZLLM.Modules.Routing.Infrastructure;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Persistence;
 
@@ -22,6 +25,7 @@ public sealed class InferenceGateway(
     IProviderQuotaProtection quota, IRequestConstraintValidator constraints,
     IFinancialService finance, IUsageService usage, IPayloadRetentionService payloadRetention,
     IProviderAdapterSelector adapters, IProviderHealthService health,
+    IProviderPerformanceService performance, ProviderPerformanceOptions performanceOptions,
     ICompletionWriterFactory writerFactory,
     IPlatformControlStore platformControls,
     GatewayOptions options, TimeProvider clock, ILogger<InferenceGateway> logger) : IInferenceGateway
@@ -246,7 +250,7 @@ public sealed class InferenceGateway(
                 }
                 foreach (var mapping in mappings)
                 {
-                    if (candidates.Count == 2 && parsed.Routing != "price") break;
+                    if (candidates.Count == 2 && parsed.Routing is null) break;
                     if (!ProviderPriceReady(mapping)) { pricingFailure = true; continue; }
                     if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
                     {
@@ -305,6 +309,14 @@ public sealed class InferenceGateway(
                     .Take(byok is null ? 2 : 1)
                     .Select(index => managedCandidates[index]).ToArray();
                 candidates = [.. candidates.Where(value => value.IsByok), .. cheapestManaged];
+            }
+            else if (parsed.Routing is "latency" or "throughput" or "auto" && fee is not null)
+            {
+                var managedCandidates = candidates.Where(value => !value.IsByok).ToArray();
+                var ranked = await RankByPerformanceAsync(managedCandidates, parsed.Routing,
+                    fee, parsed.EstimatedInputTokens, parsed.Stream, cancellationToken);
+                candidates = [.. candidates.Where(value => value.IsByok),
+                    .. ranked.Take(byok is null ? 2 : 1)];
             }
             if (parsed.FallbackModels is { Count: > 0 } && includeManaged && fee is not null)
             {
@@ -366,6 +378,9 @@ public sealed class InferenceGateway(
                         eligible = UZLLM.Modules.Routing.Domain.PriceRouteRanker.Rank(fallbackOptions)
                             .Select(index => eligible[index]).ToList();
                     }
+                    else if (parsed.Routing is "latency" or "throughput" or "auto")
+                        eligible = (await RankByPerformanceAsync(eligible, parsed.Routing,
+                            fee, parsed.EstimatedInputTokens, parsed.Stream, cancellationToken)).ToList();
                     if (eligible.Count != 0) candidates.Add(eligible[0]);
                 }
             }
@@ -519,6 +534,7 @@ public sealed class InferenceGateway(
         var httpStatus = 200;
         var execution = ExecutionState.Succeeded;
         var fallbackCount = 0;
+        var performanceObservations = new List<ProviderPerformanceObservation>();
         var executionStartedAt = clock.GetUtcNow();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(options.ProviderTimeout);
@@ -582,6 +598,9 @@ public sealed class InferenceGateway(
                     candidate.IsByok ? reservation.ProjectId : null);
                 context.Response.Headers["X-Uzllm-Billing-Mode"] = candidate.IsByok ? "byok" : "managed";
                 var adapterRequest = parsed.ProviderRequest with { MaxOutputTokens = candidate.OutputLimit };
+                var attemptTimer = Stopwatch.StartNew();
+                long? firstTokenMs = null;
+                long? lastProviderEventMs = null;
                 try
                 {
                     if (parsed.Stream)
@@ -589,6 +608,11 @@ public sealed class InferenceGateway(
                         await foreach (var item in adapter.StreamAsync(adapterRequest,
                             providerContext, deadline.Token))
                         {
+                            // Measure upstream arrival, not downstream client backpressure.
+                            lastProviderEventMs = Math.Max(1, attemptTimer.ElapsedMilliseconds);
+                            if (firstTokenMs is null && item.Kind is (ProviderStreamKind.TextDelta
+                                or ProviderStreamKind.ToolCallDelta or ProviderStreamKind.Refusal))
+                                firstTokenMs = lastProviderEventMs;
                             providerRequestId ??= item.ProviderRequestId;
                             if (item.Kind == ProviderStreamKind.Usage) providerUsage = item.Usage;
                             if (item.Kind == ProviderStreamKind.Error)
@@ -618,6 +642,7 @@ public sealed class InferenceGateway(
                         providerUsage = completion.Usage;
                         providerRequestId = completion.ProviderRequestId;
                         completed = true;
+                        firstTokenMs = Math.Max(1, attemptTimer.ElapsedMilliseconds);
                     }
                 }
                 catch (ProviderExecutionException exception)
@@ -625,7 +650,14 @@ public sealed class InferenceGateway(
                     providerError = exception.Error;
                     providerRequestId = exception.Error.ProviderRequestId;
                 }
+                attemptTimer.Stop();
                 await RecordHealthAsync(mapping.Mapping.Id, providerError, completed);
+                if (!candidate.IsByok)
+                    performanceObservations.Add(new ProviderPerformanceObservation(attempt.Id,
+                        mapping.Mapping.Id, parsed.Stream, completed && providerError is null, firstTokenMs,
+                        providerUsage?.OutputTokens, Math.Max(1,
+                            parsed.Stream ? lastProviderEventMs ?? attemptTimer.ElapsedMilliseconds
+                                : attemptTimer.ElapsedMilliseconds)));
                 if (!pinned && providerError is { FallbackEligible: true,
                         Certainty: ProviderExecutionCertainty.RejectedBeforeExecution }
                     && providerError.Category is ProviderErrorCategory.RateLimited
@@ -781,7 +813,7 @@ public sealed class InferenceGateway(
                         : delivered ? DeliveryState.Completed
                         : writer.Started ? DeliveryState.Partial : DeliveryState.NotStarted,
                     cleanupSucceeded ? httpStatus : 503,
-                    $"{(parsed.Routing == "price" ? "price" : "deterministic")}:" +
+                    $"{parsed.Routing ?? "deterministic"}:" +
                     (fallbackCount == 0 ? "" : "failover:") +
                     (selectedCandidate.Model.CanonicalCode == requestedModelCode
                         ? "" : "model-fallback:") +
@@ -790,6 +822,9 @@ public sealed class InferenceGateway(
             }
             catch (Exception exception)
             { logger.LogError(exception, "Request activity finalization failed for {RequestId}", reservation.RequestId); }
+            // Advisory telemetry cannot delay evidence, wallet settlement, or request activity finalization.
+            foreach (var observation in performanceObservations)
+                await RecordPerformanceAsync(observation);
         }
         return delivered;
     }
@@ -806,6 +841,31 @@ public sealed class InferenceGateway(
         }
         catch (Exception exception)
         { logger.LogWarning(exception, "Provider health update failed for mapping {MappingId}", mappingId); }
+    }
+
+    private async Task RecordPerformanceAsync(ProviderPerformanceObservation observation)
+    {
+        try { await performance.RecordAsync(observation, CancellationToken.None); }
+        catch (Exception exception)
+        { logger.LogWarning(exception, "Provider performance update failed for mapping {MappingId}",
+            observation.ProviderModelId); }
+    }
+
+    private async Task<IReadOnlyList<RouteCandidate>> RankByPerformanceAsync(
+        IReadOnlyList<RouteCandidate> candidates, string strategy, FeePolicyVersion fee,
+        int estimatedInputTokens, bool isStream, CancellationToken cancellationToken)
+    {
+        if (candidates.Count < 2) return candidates;
+        var snapshots = await Task.WhenAll(candidates.Select(candidate =>
+            performance.ReadAsync(candidate.Mapping.Mapping.Id, isStream, cancellationToken)));
+        var rankOptions = candidates.Select((candidate, index) => new PerformanceRouteOption(index,
+            GatewayCostEstimator.EstimatedCustomerCost(candidate.Model,
+                candidate.Mapping.Price, fee, estimatedInputTokens, candidate.OutputLimit),
+            snapshots[index])).ToArray();
+        return PerformanceRouteRanker.Rank(strategy, rankOptions, clock.GetUtcNow(),
+                performanceOptions.Window, performanceOptions.MinimumSamples,
+                performanceOptions.Hysteresis, performanceOptions.Weights)
+            .Select(index => candidates[index]).ToArray();
     }
 
     private static bool SupportedProvider(string code) => code is "openai" or "anthropic" or "google" or "deepseek";

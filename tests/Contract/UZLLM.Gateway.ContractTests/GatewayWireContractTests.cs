@@ -53,8 +53,8 @@ public sealed class GatewayWireContractTests
 
     [Theory]
     [InlineData("cheapest")]
-    [InlineData("latency")]
-    public void Chat_parser_rejects_unimplemented_routing_strategies(string routing)
+    [InlineData("random")]
+    public void Chat_parser_rejects_unsupported_routing_strategies(string routing)
     {
         var json = "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],\"uzllm\":{\"routing\":\""
             + routing + "\"}}";

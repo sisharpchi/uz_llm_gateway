@@ -202,7 +202,7 @@ Financial state is strongly consistent. Analytics rollups may lag briefly.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** PROVIDER-002 deterministic same-model healthy failover, ROUTING-003 explicit price ranking, and ROUTING-005 opt-in bounded cross-model fallback implemented
+**Implementation status:** PROVIDER-002 deterministic same-model healthy failover, ROUTING-003 explicit price ranking, ROUTING-004 advisory latency/throughput/weighted ranking, and ROUTING-005 opt-in bounded cross-model fallback implemented
 
 MVP:
 - explicit provider/model;

@@ -80,7 +80,7 @@ ID order. One request considers at most two same-model attempts under one
 worst-case wallet hold; if the price version changes before an attempt,
 execution fails closed rather than silently repricing. Explicit BYOK remains
 primary for Hybrid, with price ranking applying only to eligible Managed
-fallback candidates. Latency/throughput and cross-model scoring are later tasks.
+fallback candidates. Explicit cross-model fallback is `ROUTING-005`.
 
 ### Latency
 Use rolling recent TTFT, preferably percentile/EMA rather than one last request.
@@ -102,6 +102,23 @@ score =
 Lower score wins.
 
 Weights are configuration, not hard-coded domain law.
+
+`ROUTING-004` accepts `uzllm.routing=latency`, `throughput`, or `auto` for
+already-authorized, priced, credentialed, quota-available, healthy mappings.
+Gateway writes bounded, mapping- and stream-mode-scoped attempt measurements to a five-minute
+Redis window (default 256 samples). Latency uses median time to first visible
+token; throughput uses median verified output tokens per second. `auto` blends
+normalized customer price, recent error rate, latency and throughput using
+configurable weights. All candidates need at least ten complete recent
+samples; sparse/stale/unavailable performance data restores deterministic
+provider priority rather than bypassing eligibility. A ten-percent hysteresis
+margin keeps the deterministic primary when a measured gain is small. The
+Redis samples are advisory, not usage evidence or a financial source of truth.
+Only Managed attempts feed this global ranking window; tenant-owned BYOK
+credential performance cannot influence another customer's route.
+BYOK stays primary under explicit Hybrid routing, and reservation still holds
+the worst eligible customer charge. The sampled window intentionally differs
+from customer-facing usage analytics, which read durable PostgreSQL facts.
 
 ---
 

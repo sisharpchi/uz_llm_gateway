@@ -28,7 +28,7 @@ builder.Services.AddUzllmOpenAiAdapter(builder.Configuration);
 builder.Services.AddUzllmAnthropicAdapter(builder.Configuration);
 builder.Services.AddUzllmGoogleAdapter(builder.Configuration);
 builder.Services.AddUzllmDeepSeekAdapter(builder.Configuration);
-builder.Services.AddUzllmRouting();
+builder.Services.AddUzllmRouting(builder.Configuration);
 builder.Services.AddSingleton(GatewayOptions.FromConfiguration(builder.Configuration));
 builder.Services.AddScoped<IGatewayReadStore, PostgreSqlGatewayReadStore>();
 builder.Services.AddScoped<IInferenceGateway, InferenceGateway>();

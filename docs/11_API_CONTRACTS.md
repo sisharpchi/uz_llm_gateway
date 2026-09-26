@@ -126,12 +126,14 @@ Prefer namespace-like extension to reduce collision risk:
 
 P0 can omit most extensions and use project defaults.
 `ROUTING-003` accepts `{"uzllm":{"routing":"price"}}` without a BYOK key.
-Only `price` is currently supported; unknown routing values return
+`ROUTING-004` additionally accepts `latency`, `throughput`, and `auto`; unknown routing values return
 `400 unsupported_parameter`. The strategy ranks eligible same-model Managed
-endpoints by a frozen catalog/customer-fee estimate; actual charges still use
-verified usage and the selected price version. An explicit provider prefix
-continues to constrain the eligible set. BYOK/Hybrid may include `routing=price`
-without changing the explicitly requested BYOK-first order.
+endpoints. `price` uses a frozen catalog/customer-fee estimate; performance
+strategies use a bounded recent window and revert to deterministic priority
+when samples are insufficient or stale. Actual charges still use verified
+usage and the selected price version. An explicit provider prefix continues
+to constrain the eligible set. BYOK/Hybrid preserves the explicitly requested
+BYOK-first order under every strategy.
 `ROUTING-005` also accepts `uzllm.fallback_models` with one or two distinct
 canonical codes, for example `{"fallback_models":["model-y","model-z"]}`.
 It is opt-in, ordered, and limited to at most four total attempts: two

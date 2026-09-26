@@ -10,6 +10,7 @@ using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Routing.Contracts;
+using UZLLM.Modules.Routing.Infrastructure;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Persistence;
 
@@ -492,6 +493,62 @@ public sealed class GatewayExecutionTests
         Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
         Assert.Equal(fixture.ByokCredentialId, fixture.Adapter.LastContext!.CredentialId);
         Assert.Equal("price:byok:openai", fixture.Usage.RouteStrategy);
+        Assert.Empty(fixture.Performance.Observations);
+    }
+
+    [Theory]
+    [InlineData("latency")]
+    [InlineData("throughput")]
+    [InlineData("auto")]
+    public async Task Performance_route_uses_complete_recent_windows_after_eligibility(string strategy)
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.UsePerformanceRouting(strategy);
+        fixture.SetPerformanceWindows(primary: new(20, 20, 100m, 10m, 0m, DateTimeOffset.UtcNow),
+            secondary: new(20, 20, 20m, 50m, 0m, DateTimeOffset.UtcNow));
+
+        await fixture.RunAsync();
+
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal($"{strategy}:anthropic", fixture.Usage.RouteStrategy);
+        Assert.Equal(17, fixture.Finance.LastMaximum!.Value.Value);
+        Assert.Single(fixture.Performance.Observations);
+        Assert.True(fixture.Performance.Observations[0].Succeeded);
+    }
+
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(20, true)]
+    public async Task Performance_route_uses_deterministic_priority_when_samples_sparse_or_stale(
+        int secondarySamples, bool stale)
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.UsePerformanceRouting("latency");
+        fixture.SetPerformanceWindows(primary: new(20, 20, 100m, 10m, 0m, DateTimeOffset.UtcNow),
+            secondary: new(secondarySamples, secondarySamples, 10m, 50m, 0m,
+                stale ? DateTimeOffset.UtcNow.AddMinutes(-10) : DateTimeOffset.UtcNow));
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal("latency:openai", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Performance_route_excludes_open_circuit_even_when_metrics_favor_it()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.UsePerformanceRouting("latency");
+        fixture.Health.OpenPrimary = true;
+        fixture.SetPerformanceWindows(primary: new(20, 20, 1m, 100m, 0m, DateTimeOffset.UtcNow),
+            secondary: new(20, 20, 100m, 10m, 0m, DateTimeOffset.UtcNow));
+
+        await fixture.RunAsync();
+
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
     }
 
     [Fact]
@@ -815,6 +872,7 @@ public sealed class GatewayExecutionTests
         public readonly FakeAdapter GoogleAdapter = new("google");
         public readonly FakeAdapter DeepSeekAdapter = new("deepseek");
         public readonly FakeHealth Health;
+        public readonly FakePerformance Performance = new();
         public readonly FakePlatformControls PlatformControls = new();
         public readonly FakePayloadRetention PayloadRetention = new();
         public readonly FakeWriter Writer = new();
@@ -912,7 +970,8 @@ public sealed class GatewayExecutionTests
             gateway = new InferenceGateway(new FakeAuthenticator(apiKeyId, projectId), Reads,
                 catalog, Limiter, new FakeQuota(), new RequestConstraintValidator(), Finance,
                 Usage, PayloadRetention, new FakeAdapterSelector(Adapter, AnthropicAdapter,
-                    GoogleAdapter, DeepSeekAdapter), Health,
+                    GoogleAdapter, DeepSeekAdapter), Health, Performance,
+                ProviderPerformanceOptions.Default,
                 new FakeWriterFactory(Writer), PlatformControls,
                 new GatewayOptions("default", 1_048_576, TimeSpan.FromMinutes(2),
                     TimeSpan.FromMinutes(15), new LimitPolicy(60, 600, 8, 64, TimeSpan.FromMinutes(15))),
@@ -948,6 +1007,23 @@ public sealed class GatewayExecutionTests
                 ? """{"model":"gpt-test","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}}}],"uzllm":{"routing":"price"}}"""
                 : """{"model":"gpt-test","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"routing":"price"}}""";
             Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        }
+
+        public void UsePerformanceRouting(string strategy)
+        {
+            var json = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
+                max_completion_tokens = 100, uzllm = new { routing = strategy }
+            });
+            Context.Request.Body = new MemoryStream(json);
+        }
+
+        public void SetPerformanceWindows(ProviderPerformanceWindow primary,
+            ProviderPerformanceWindow secondary)
+        {
+            Performance.Windows[mappingId] = primary;
+            Performance.Windows[anthropicMappingId] = secondary;
         }
 
         public void UseFallbackModel(bool withTools = false, int outputTokens = 100,
@@ -1067,6 +1143,18 @@ public sealed class GatewayExecutionTests
         public Task RecordTransientFailureAsync(Guid providerModelId,
             CancellationToken cancellationToken = default)
         { Failures++; return Task.CompletedTask; }
+    }
+
+    private sealed class FakePerformance : IProviderPerformanceService
+    {
+        public readonly Dictionary<Guid, ProviderPerformanceWindow> Windows = new();
+        public readonly List<ProviderPerformanceObservation> Observations = [];
+        public Task<ProviderPerformanceWindow?> ReadAsync(Guid providerModelId, bool isStream,
+            CancellationToken cancellationToken = default) => Task.FromResult(
+                Windows.TryGetValue(providerModelId, out var value) ? value : null);
+        public Task RecordAsync(ProviderPerformanceObservation observation,
+            CancellationToken cancellationToken = default)
+        { Observations.Add(observation); return Task.CompletedTask; }
     }
 
     private sealed class FakeFinance(Guid requestId, Guid organizationId, Guid projectId,
