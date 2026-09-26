@@ -23,6 +23,17 @@ public sealed class ProviderEnvelopeSecretProtector : IProviderSecretProtector
     }
 
     public ProtectedProviderSecret Protect(Guid credentialId, Guid providerId, string secret)
+        => ProtectCore(null, credentialId, providerId, secret);
+
+    public ProtectedProviderSecret ProtectForOrganization(Guid organizationId, Guid credentialId,
+        Guid providerId, string secret)
+    {
+        if (organizationId == Guid.Empty) throw new ArgumentException("Organization ID is required.");
+        return ProtectCore(organizationId, credentialId, providerId, secret);
+    }
+
+    private ProtectedProviderSecret ProtectCore(Guid? organizationId, Guid credentialId,
+        Guid providerId, string secret)
     {
         ValidateIds(credentialId, providerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(secret);
@@ -30,7 +41,7 @@ public sealed class ProviderEnvelopeSecretProtector : IProviderSecretProtector
         var plaintext = Encoding.UTF8.GetBytes(secret);
         try
         {
-            var aad = AssociatedData(credentialId, providerId, activeVersion);
+            var aad = AssociatedData(organizationId, credentialId, providerId, activeVersion);
             var encrypted = Encrypt(dataKey, plaintext, aad);
             var wrappedKey = Encrypt(keys[activeVersion], dataKey, aad);
             return new ProtectedProviderSecret(encrypted, wrappedKey, activeVersion);
@@ -43,12 +54,23 @@ public sealed class ProviderEnvelopeSecretProtector : IProviderSecretProtector
     }
 
     public string Unprotect(Guid credentialId, Guid providerId, ProtectedProviderSecret protectedSecret)
+        => UnprotectCore(null, credentialId, providerId, protectedSecret);
+
+    public string UnprotectForOrganization(Guid organizationId, Guid credentialId,
+        Guid providerId, ProtectedProviderSecret protectedSecret)
+    {
+        if (organizationId == Guid.Empty) throw new ArgumentException("Organization ID is required.");
+        return UnprotectCore(organizationId, credentialId, providerId, protectedSecret);
+    }
+
+    private string UnprotectCore(Guid? organizationId, Guid credentialId, Guid providerId,
+        ProtectedProviderSecret protectedSecret)
     {
         ValidateIds(credentialId, providerId);
         ArgumentNullException.ThrowIfNull(protectedSecret);
         if (!keys.TryGetValue(protectedSecret.KeyVersion, out var key))
             throw new InvalidOperationException("The provider-secret key version is unavailable.");
-        var aad = AssociatedData(credentialId, providerId, protectedSecret.KeyVersion);
+        var aad = AssociatedData(organizationId, credentialId, providerId, protectedSecret.KeyVersion);
         var dataKey = Decrypt(key, protectedSecret.WrappedDataKey, aad);
         try
         {
@@ -90,8 +112,10 @@ public sealed class ProviderEnvelopeSecretProtector : IProviderSecretProtector
         }
     }
 
-    private static byte[] AssociatedData(Guid credentialId, Guid providerId, string version) =>
-        Encoding.UTF8.GetBytes($"uzllm:provider-secret:{credentialId:N}:{providerId:N}:{version}");
+    private static byte[] AssociatedData(Guid? organizationId, Guid credentialId,
+        Guid providerId, string version) => organizationId is { } tenantId
+        ? Encoding.UTF8.GetBytes($"uzllm:byok-secret:{tenantId:N}:{credentialId:N}:{providerId:N}:{version}")
+        : Encoding.UTF8.GetBytes($"uzllm:provider-secret:{credentialId:N}:{providerId:N}:{version}");
 
     private static void ValidateIds(Guid credentialId, Guid providerId)
     {

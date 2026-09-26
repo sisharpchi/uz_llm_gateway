@@ -82,6 +82,75 @@ public interface IProviderSecretProtector
 {
     ProtectedProviderSecret Protect(Guid credentialId, Guid providerId, string secret);
     string Unprotect(Guid credentialId, Guid providerId, ProtectedProviderSecret protectedSecret);
+    ProtectedProviderSecret ProtectForOrganization(Guid organizationId, Guid credentialId,
+        Guid providerId, string secret);
+    string UnprotectForOrganization(Guid organizationId, Guid credentialId,
+        Guid providerId, ProtectedProviderSecret protectedSecret);
+}
+
+public sealed record ByokCredential(Guid Id, Guid OrganizationId, Guid ProviderId,
+    string ProviderCode, string Name, string MaskedKey, ProviderCredentialStatus Status,
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? LastTestedAt,
+    string? LastTestStatus, IReadOnlyList<Guid> ProjectIds);
+
+public sealed record StoredByokCredential(ByokCredential Credential,
+    ProtectedProviderSecret ProtectedSecret);
+
+public enum ByokTestStatus { Valid, Invalid, Unavailable }
+
+public interface IByokCredentialVerifier
+{
+    Task<ByokTestStatus> VerifyAsync(string providerCode, string secret,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IByokCredentialStore
+{
+    Task<bool> LockOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default);
+    Task<string?> GetActiveProviderCodeAsync(Guid providerId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ByokCredential>> ListAsync(Guid organizationId,
+        CancellationToken cancellationToken = default);
+    Task<StoredByokCredential?> FindAsync(Guid organizationId, Guid credentialId,
+        CancellationToken cancellationToken = default);
+    Task CreateAsync(StoredByokCredential credential, CancellationToken cancellationToken = default);
+    Task<bool> UpdateAsync(Guid organizationId, Guid credentialId, string? name,
+        string? maskedKey, ProtectedProviderSecret? protectedSecret, DateTimeOffset updatedAt,
+        CancellationToken cancellationToken = default);
+    Task<bool> SetStatusAsync(Guid organizationId, Guid credentialId,
+        ProviderCredentialStatus status, bool deleted, DateTimeOffset updatedAt,
+        CancellationToken cancellationToken = default);
+    Task<bool> SetProjectGrantAsync(Guid organizationId, Guid credentialId, Guid projectId,
+        bool enabled, DateTimeOffset createdAt, CancellationToken cancellationToken = default);
+    Task<bool> SetTestResultAsync(Guid organizationId, Guid credentialId,
+        ByokTestStatus result, DateTimeOffset testedAt, CancellationToken cancellationToken = default);
+    Task<ProtectedProviderSecret?> FindGrantedSecretAsync(Guid organizationId, Guid projectId,
+        Guid credentialId, Guid providerId, CancellationToken cancellationToken = default);
+}
+
+public interface IByokCredentialService
+{
+    Task<IReadOnlyList<ByokCredential>> ListAsync(Guid actorId, Guid organizationId,
+        CancellationToken cancellationToken = default);
+    Task<ByokCredential?> FindAsync(Guid actorId, Guid organizationId, Guid credentialId,
+        CancellationToken cancellationToken = default);
+    Task<ByokCredential> CreateAsync(Guid actorId, Guid organizationId, Guid providerId,
+        string name, string secret, CancellationToken cancellationToken = default);
+    Task<ByokCredential?> UpdateAsync(Guid actorId, Guid organizationId, Guid credentialId,
+        string? name, string? secret, CancellationToken cancellationToken = default);
+    Task<bool> DisableAsync(Guid actorId, Guid organizationId, Guid credentialId,
+        CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(Guid actorId, Guid organizationId, Guid credentialId,
+        CancellationToken cancellationToken = default);
+    Task<bool> SetProjectGrantAsync(Guid actorId, Guid organizationId, Guid credentialId,
+        Guid projectId, bool enabled, CancellationToken cancellationToken = default);
+    Task<ByokTestStatus?> TestAsync(Guid actorId, Guid organizationId, Guid credentialId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IByokCredentialResolver
+{
+    Task<string?> ResolveGrantedSecretAsync(Guid organizationId, Guid projectId,
+        Guid credentialId, Guid providerId, CancellationToken cancellationToken = default);
 }
 
 public interface IProviderCredentialStore

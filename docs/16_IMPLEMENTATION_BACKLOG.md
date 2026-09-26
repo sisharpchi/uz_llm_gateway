@@ -34,6 +34,7 @@ same-model failover precedes P1 cross-model fallback.
 | APIKEYS-003 | Completed |
 | NOTIFY-001 | Completed |
 | TEAM-001 | Completed |
+| BYOK-001 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -103,6 +104,17 @@ remain under `frontend/apps`; mock data must not enter the live product.
 | ID | Objective | Dependencies | Acceptance / test scenarios | Priority |
 |---|---|---|---|---|
 | TEAM-001 | Invitations, role changes and explicit project grants | ORGS-001, NOTIFY-001 | Membership changes affect the next authorization check; invite replay, permission matrix, last-owner and tenant-FK tests | P1 |
+| BYOK-001 | Encrypted organization provider credentials and explicit project grants | ADMIN-001, PROVIDER-001, TEAM-001 | Masked CRUD/test/disable against fixed provider endpoints; tenant-bound encryption and cross-project denial | P1 |
+
+The original execution plan named `SECURITY-001` as a BYOK prerequisite; the
+platform envelope encryption and key-version foundation was delivered in
+`ADMIN-001` instead. `BYOK-001` adds organization-bound authenticated data and
+grant enforcement. This mapping restores the omitted dependency without
+silently treating platform-only encryption as tenant-safe BYOK encryption.
+FR-056 model restrictions and BYOK spend-cap enforcement remain `BYOK-002`
+work; the `BYOK-001` UI/API must not claim they are active. Live testing with
+customer-owned provider secrets is an external launch prerequisite, not a CI
+fixture.
 
 P1: `BUDGET-001`, `APIKEYS-003`, `TEAM-001`, `BYOK-001`, `BYOK-002`,
 `ROUTING-003`, `ROUTING-004`, `ROUTING-005`, `NOTIFY-002`, `NOTIFY-003`,

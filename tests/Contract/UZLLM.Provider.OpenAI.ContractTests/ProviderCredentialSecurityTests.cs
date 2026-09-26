@@ -42,6 +42,42 @@ public sealed class ProviderCredentialSecurityTests
         Assert.Throws<InvalidOperationException>(() => new ProviderEnvelopeSecretProtector(config));
     }
 
+    [Fact]
+    public void Byok_secret_is_tenant_provider_bound_and_key_version_survives_rotation()
+    {
+        var firstKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var nextKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var tenantId = Guid.NewGuid();
+        var credentialId = Guid.NewGuid();
+        var providerId = Guid.NewGuid();
+        var oldProtector = CreateProtector("v1", firstKey, nextKey);
+        var ciphertext = oldProtector.ProtectForOrganization(tenantId, credentialId,
+            providerId, "sk-tenant-secret-012345");
+
+        Assert.Equal("v1", ciphertext.KeyVersion);
+        Assert.DoesNotContain("sk-tenant-secret-012345",
+            Encoding.UTF8.GetString(ciphertext.EncryptedSecret));
+        Assert.Equal("sk-tenant-secret-012345", CreateProtector("v2", firstKey, nextKey)
+            .UnprotectForOrganization(tenantId, credentialId, providerId, ciphertext));
+        var rotated = CreateProtector("v2", firstKey, nextKey).ProtectForOrganization(
+            tenantId, Guid.NewGuid(), providerId, "sk-new-key-version-987654");
+        Assert.Equal("v2", rotated.KeyVersion);
+        Assert.ThrowsAny<CryptographicException>(() => oldProtector.UnprotectForOrganization(
+            Guid.NewGuid(), credentialId, providerId, ciphertext));
+        Assert.ThrowsAny<CryptographicException>(() => oldProtector.UnprotectForOrganization(
+            tenantId, credentialId, Guid.NewGuid(), ciphertext));
+        Assert.ThrowsAny<CryptographicException>(() => oldProtector.UnprotectForOrganization(
+            tenantId, Guid.NewGuid(), providerId, ciphertext));
+        Assert.ThrowsAny<CryptographicException>(() => oldProtector.Unprotect(
+            credentialId, providerId, ciphertext));
+        var wrongKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        Assert.ThrowsAny<CryptographicException>(() => CreateProtector("v1", wrongKey, nextKey)
+            .UnprotectForOrganization(tenantId, credentialId, providerId, ciphertext));
+        ciphertext.WrappedDataKey[^1] ^= 1;
+        Assert.ThrowsAny<CryptographicException>(() => oldProtector.UnprotectForOrganization(
+            tenantId, credentialId, providerId, ciphertext));
+    }
+
     private static ProviderEnvelopeSecretProtector CreateProtector(string active, string first, string next)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

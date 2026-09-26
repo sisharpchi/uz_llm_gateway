@@ -294,9 +294,14 @@ List:
 Create:
 - provider;
 - key;
-- custom base URL where supported;
-- allow models;
-- spend limit.
+- name;
+- explicit allowed projects.
+
+`BYOK-001` exposes only fixed official OpenAI/Anthropic endpoints and
+organization credential-to-project grants. Do not show a custom base URL yet:
+approved custom endpoints belong to P2 `PROVIDER-010`. Model restrictions,
+spend and last-used displays stay hidden until their backend contracts are
+implemented; never imply that an unenforced restriction is active.
 
 Actions:
 - test;

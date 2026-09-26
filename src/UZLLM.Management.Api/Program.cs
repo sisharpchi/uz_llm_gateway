@@ -48,4 +48,5 @@ app.MapUzllmPaymentEndpoints();
 app.MapUzllmUsageReadEndpoints();
 app.MapUzllmAdminEndpoints();
 app.MapUzllmBudgetEndpoints();
+app.MapUzllmByokEndpoints();
 app.Run();

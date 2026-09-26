@@ -1,0 +1,46 @@
+@baseUrl = https://localhost:7150
+@orgId = 00000000-0000-0000-0000-000000000001
+@providerId = 00000000-0000-0000-0000-000000000002
+@credentialId = 00000000-0000-0000-0000-000000000003
+@projectId = 00000000-0000-0000-0000-000000000004
+@csrf = replace-with-session-csrf
+
+### List masked keys (browser session cookie required)
+GET {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys
+
+### Get one masked key
+GET {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}
+
+### Create OpenAI/Anthropic key; use a real secret locally, never commit it
+POST {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys
+Content-Type: application/json
+X-CSRF-Token: {{csrf}}
+
+{"providerId":"{{providerId}}","name":"Primary","secret":"replace-locally-with-provider-secret"}
+
+### Rename or rotate
+PATCH {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}
+Content-Type: application/json
+X-CSRF-Token: {{csrf}}
+
+{"name":"Rotated"}
+
+### Test against fixed official provider host
+POST {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}/test
+X-CSRF-Token: {{csrf}}
+
+### Grant a project
+PUT {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}/projects/{{projectId}}
+X-CSRF-Token: {{csrf}}
+
+### Revoke a project
+DELETE {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}/projects/{{projectId}}
+X-CSRF-Token: {{csrf}}
+
+### Disable
+POST {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}/disable
+X-CSRF-Token: {{csrf}}
+
+### Soft-delete
+DELETE {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}
+X-CSRF-Token: {{csrf}}

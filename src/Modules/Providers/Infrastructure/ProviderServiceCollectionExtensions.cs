@@ -11,6 +11,15 @@ public static class ProviderServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.AddScoped<IProviderCredentialStore, PostgreSqlProviderCredentialStore>();
+        services.AddScoped<IByokCredentialStore, PostgreSqlByokCredentialStore>();
+        services.AddScoped<IByokCredentialService, ByokCredentialService>();
+        services.AddScoped<IByokCredentialResolver, ByokCredentialResolver>();
+        services.AddHttpClient<IByokCredentialVerifier, FixedEndpointByokVerifier>()
+            .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(5))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false, UseCookies = false
+            });
         services.AddScoped<IPlatformCredentialService, PlatformCredentialService>();
         services.AddScoped<IProviderCredentialResolver, ProviderCredentialResolver>();
         services.AddSingleton<IProviderSecretProtector>(new ProviderEnvelopeSecretProtector(configuration));

@@ -72,6 +72,15 @@ Requirements:
 - audit create/update/delete;
 - never return full secret after creation.
 
+`BYOK-001` binds AES-GCM authenticated data to organization, credential,
+provider, and key version. Old KEK versions remain available while ciphertext
+is rotated. Credential-to-project grants have composite tenant FKs; inactive,
+deleted, or ungranted credentials do not resolve. Verification sends the key
+only to the fixed official provider model-list endpoint, with redirects
+disabled; upstream bodies are discarded. Credential mutations and safe test
+outcomes are audited in the same database transaction. Managed/Hybrid
+execution is not enabled by this storage/control-plane task.
+
 The P0 platform credential store uses AES-GCM envelope encryption bound to the
 credential and provider IDs. Configure `ProviderSecrets:ActiveKeyVersion` and
 `ProviderSecrets:Keys:<version>` (base64-encoded 32-byte KEKs) through a secret
