@@ -386,3 +386,25 @@ never replayed. Client cancellation closes upstream I/O while Gateway cleanup
 persists usage evidence and finalizes the reservation independently. The
 provider-specific SSE reader is bounded per line/frame; no database transaction
 spans streaming.
+
+`PROVIDER-008` adds a separate DeepSeek
+[Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)
+adapter. The wire format resembles OpenAI but uses `max_tokens`, explicit
+non-thinking mode for predictable sampling, and provider-specific
+`prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`; the two must sum to
+`prompt_tokens`. Reasoning tokens, if reported, are a subset of output tokens
+and never added again. Missing or inconsistent counters remain unknown
+financial evidence. This bounded non-stream adapter supports text and JSON
+object mode; tools, vision, JSON Schema, streaming, and DeepSeek BYOK are not
+advertised. Streaming/reasoning features remain `PROVIDER-009`.
+
+DeepSeek's [published prices](https://api-docs.deepseek.com/quick_start/pricing/)
+include distinct cache-hit, cache-miss, output, and recurring peak/off-peak
+rates. Every active DeepSeek mapping requires an explicit cached-input rate;
+otherwise Gateway refuses reservation. Operators must publish separate,
+non-overlapping effective Catalog price versions for each tariff window and
+verify current model access before enabling Managed traffic. The adapter
+never guesses a live rate from token usage. If supplier prices change outside
+the published windows, disable the mapping and reconcile provider invoices;
+the existing cost model cannot assert exact external spend without a matching
+price snapshot.

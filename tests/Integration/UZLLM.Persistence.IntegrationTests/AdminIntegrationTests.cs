@@ -156,9 +156,18 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             Assert.Equal(2, prices.Count);
             Assert.InRange(Math.Abs((future - Assert.Single(prices, item => item.Id == first.Id).EffectiveTo!.Value).Ticks), 0, 9);
             Assert.Null(Assert.Single(prices, item => item.Id == secondId).EffectiveTo);
+            var thirdStart = future.AddDays(1);
+            var thirdId = await service.SchedulePriceAsync(actor,
+                new CreateAdminPriceRequest(mappingId, thirdStart, 5000, 6000, 1000,
+                    "second future tariff window"), default);
+            prices = await service.ListPricesAsync(mappingId, default);
+            Assert.Equal(3, prices.Count);
+            Assert.InRange(Math.Abs((thirdStart - Assert.Single(prices, item => item.Id == secondId).EffectiveTo!.Value).Ticks), 0, 9);
+            Assert.Null(Assert.Single(prices, item => item.Id == thirdId).EffectiveTo);
             await Assert.ThrowsAsync<InvalidOperationException>(() => service.SchedulePriceAsync(actor,
-                new CreateAdminPriceRequest(mappingId, future.AddDays(1), 5000, 6000, null, "second future price"), default));
-            Assert.Equal(2, (await service.ListPricesAsync(mappingId, default)).Count);
+                new CreateAdminPriceRequest(mappingId, future.AddHours(12), 7000, 8000, null,
+                    "out of order future price"), default));
+            Assert.Equal(3, (await service.ListPricesAsync(mappingId, default)).Count);
 
             var credentialId = await service.CreateCredentialAsync(actor,
                 new CreateAdminCredentialRequest(providerId, "platform-secret-123", "credential rotation"), default);

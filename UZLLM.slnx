@@ -51,6 +51,7 @@
   <Folder Name="/src/ProviderAdapters/">
     <Project Path="src/ProviderAdapters/UZLLM.Provider.Anthropic/UZLLM.Provider.Anthropic.csproj" />
     <Project Path="src/ProviderAdapters/UZLLM.Provider.Google/UZLLM.Provider.Google.csproj" />
+    <Project Path="src/ProviderAdapters/UZLLM.Provider.DeepSeek/UZLLM.Provider.DeepSeek.csproj" />
     <Project Path="src/ProviderAdapters/UZLLM.Provider.OpenAI/UZLLM.Provider.OpenAI.csproj" />
   </Folder>
   <Folder Name="/tests/" />
@@ -58,6 +59,7 @@
     <Project Path="tests/Contract/UZLLM.Gateway.ContractTests/UZLLM.Gateway.ContractTests.csproj" />
     <Project Path="tests/Contract/UZLLM.Provider.Anthropic.ContractTests/UZLLM.Provider.Anthropic.ContractTests.csproj" />
     <Project Path="tests/Contract/UZLLM.Provider.Google.ContractTests/UZLLM.Provider.Google.ContractTests.csproj" />
+    <Project Path="tests/Contract/UZLLM.Provider.DeepSeek.ContractTests/UZLLM.Provider.DeepSeek.ContractTests.csproj" />
     <Project Path="tests/Contract/UZLLM.Provider.OpenAI.ContractTests/UZLLM.Provider.OpenAI.ContractTests.csproj" />
   </Folder>
   <Folder Name="/tests/Integration/">

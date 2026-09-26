@@ -74,7 +74,7 @@ public interface IAdminReadStore
     Task<IReadOnlyList<AdminLedgerEntryResponse>> ListLedgerAsync(Guid organizationId, int limit, CancellationToken cancellationToken);
     Task<IReadOnlyList<AdminPaymentResponse>> ListPaymentsAsync(Guid? organizationId, int limit, CancellationToken cancellationToken);
     Task<IReadOnlyList<AdminAuditResponse>> ListAuditAsync(int limit, CancellationToken cancellationToken);
-    Task CloseCurrentPriceAsync(Guid mappingId, DateTimeOffset effectiveFrom, DateTimeOffset now,
+    Task CloseCurrentPriceAsync(Guid mappingId, DateTimeOffset effectiveFrom,
         CancellationToken cancellationToken);
 }
 

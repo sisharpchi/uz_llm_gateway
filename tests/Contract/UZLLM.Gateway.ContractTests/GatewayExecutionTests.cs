@@ -356,6 +356,39 @@ public sealed class GatewayExecutionTests
     }
 
     [Fact]
+    public async Task DeepSeek_missing_cached_input_rate_fails_before_wallet_reservation()
+    {
+        var fixture = new Scenario(deepSeekProvider: true,
+            deepSeekCachedInputRate: null, modelCode: "deepseek/gpt-test");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(503, fixture.Context.Response.StatusCode);
+        Assert.Equal(0, fixture.Finance.Reserves);
+        Assert.Equal(0, fixture.DeepSeekAdapter.CompleteCalls);
+        Assert.Equal(0, fixture.Usage.Attempts);
+    }
+
+    [Fact]
+    public async Task DeepSeek_with_frozen_cached_rate_records_usage_and_settles()
+    {
+        var fixture = new Scenario(deepSeekProvider: true,
+            deepSeekCachedInputRate: 500, modelCode: "deepseek/gpt-test");
+        fixture.DeepSeekAdapter.Completion = new ProviderCompletion("ds_001", "deepseek-flash",
+            new ProviderMessage("assistant", [new ProviderContentPart(ProviderContentKind.Text, "ok")]),
+            "stop", new ProviderUsage(20, 9, 8, 4), "ds_001");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.DeepSeekAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Finance.Reserves);
+        Assert.Equal(1, fixture.Finance.Finalizes);
+        Assert.Equal(1, fixture.Usage.VerifiedEvidence);
+        Assert.Equal(0, fixture.Usage.UnknownEvidence);
+        Assert.Equal("deepseek", fixture.Context.Response.Headers["X-Uzllm-Provider"]);
+    }
+
+    [Fact]
     public async Task Adapter_capability_rejection_happens_before_financial_reservation()
     {
         var fixture = new Scenario(twoProviders: true, modelCode: "anthropic/gpt-test");
@@ -766,6 +799,7 @@ public sealed class GatewayExecutionTests
         private readonly Guid mappingId = Guid.NewGuid();
         private readonly Guid anthropicMappingId = Guid.NewGuid();
         private readonly Guid googleMappingId = Guid.NewGuid();
+        private readonly Guid deepSeekMappingId = Guid.NewGuid();
         public readonly Guid FallbackPriceId = Guid.NewGuid();
         private readonly Guid credentialId = Guid.NewGuid();
         public readonly Guid ByokCredentialId = Guid.NewGuid();
@@ -779,6 +813,7 @@ public sealed class GatewayExecutionTests
         public readonly FakeAdapter Adapter = new("openai");
         public readonly FakeAdapter AnthropicAdapter = new("anthropic");
         public readonly FakeAdapter GoogleAdapter = new("google");
+        public readonly FakeAdapter DeepSeekAdapter = new("deepseek");
         public readonly FakeHealth Health;
         public readonly FakePlatformControls PlatformControls = new();
         public readonly FakePayloadRetention PayloadRetention = new();
@@ -791,7 +826,8 @@ public sealed class GatewayExecutionTests
             string modelCode = "gpt-test", int outputTokens = 100,
             long anthropicInputRate = 2000, long anthropicOutputRate = 4000,
             bool openAiTools = false, bool fallbackModel = false,
-            bool fallbackTools = false, bool googleProvider = false)
+            bool fallbackTools = false, bool googleProvider = false,
+            bool deepSeekProvider = false, long? deepSeekCachedInputRate = 500)
         {
             Finance = new FakeFinance(RequestId, organizationId, projectId, apiKeyId, feeId);
             Usage = new FakeUsage(RequestId);
@@ -831,6 +867,18 @@ public sealed class GatewayExecutionTests
                     googlePrice));
                 prices[googleMappingId] = googlePrice;
             }
+            if (deepSeekProvider)
+            {
+                var deepSeekId = Guid.NewGuid();
+                var deepSeekMapping = new ProviderModel(deepSeekMappingId, deepSeekId, model.Id,
+                    "deepseek-flash", null, CatalogStatus.Active, [], now);
+                var deepSeekPrice = new ModelPrice(Guid.NewGuid(), deepSeekMappingId,
+                    now.AddDays(-1), null, 1500, 3000, deepSeekCachedInputRate, "{}", now);
+                mappings.Add(new CatalogProviderModelSummary(deepSeekMapping,
+                    new CatalogProvider(deepSeekId, "deepseek", "DeepSeek", CatalogStatus.Active, now),
+                    deepSeekPrice));
+                prices[deepSeekMappingId] = deepSeekPrice;
+            }
             var summaries = new List<CatalogModelSummary> { new(model, mappings) };
             if (fallbackModel)
             {
@@ -863,7 +911,8 @@ public sealed class GatewayExecutionTests
             Writer.AbortSource = abort;
             gateway = new InferenceGateway(new FakeAuthenticator(apiKeyId, projectId), Reads,
                 catalog, Limiter, new FakeQuota(), new RequestConstraintValidator(), Finance,
-                Usage, PayloadRetention, new FakeAdapterSelector(Adapter, AnthropicAdapter, GoogleAdapter), Health,
+                Usage, PayloadRetention, new FakeAdapterSelector(Adapter, AnthropicAdapter,
+                    GoogleAdapter, DeepSeekAdapter), Health,
                 new FakeWriterFactory(Writer), PlatformControls,
                 new GatewayOptions("default", 1_048_576, TimeSpan.FromMinutes(2),
                     TimeSpan.FromMinutes(15), new LimitPolicy(60, 600, 8, 64, TimeSpan.FromMinutes(15))),
@@ -1171,13 +1220,14 @@ public sealed class GatewayExecutionTests
     }
 
     private sealed class FakeAdapterSelector(FakeAdapter openAi, FakeAdapter anthropic,
-        FakeAdapter google)
+        FakeAdapter google, FakeAdapter deepSeek)
         : IProviderAdapterSelector
     {
         public ILlmProviderAdapter Get(string providerCode) => providerCode switch
         {
             "anthropic" => anthropic,
             "google" => google,
+            "deepseek" => deepSeek,
             _ => openAi
         };
     }

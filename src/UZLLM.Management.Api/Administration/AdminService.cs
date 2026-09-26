@@ -55,7 +55,7 @@ public sealed class AdminService(
         {
             if (request.EffectiveFrom <= clock.GetUtcNow())
                 throw new ArgumentException("Price must take effect in the future.");
-            await reads.CloseCurrentPriceAsync(request.ProviderModelId, request.EffectiveFrom, clock.GetUtcNow(), ct);
+            await reads.CloseCurrentPriceAsync(request.ProviderModelId, request.EffectiveFrom, ct);
             return (await catalog.AddPriceAsync(request.ProviderModelId, request.EffectiveFrom, null,
                 request.InputPriceMicroUsdPerMillion, request.OutputPriceMicroUsdPerMillion,
                 request.CachedInputPriceMicroUsdPerMillion, null, ct)).Id;

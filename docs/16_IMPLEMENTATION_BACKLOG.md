@@ -41,6 +41,7 @@ same-model failover precedes P1 cross-model fallback.
 | PRIVACY-001 | Completed |
 | PROVIDER-006 | Completed |
 | PROVIDER-007 | Completed |
+| PROVIDER-008 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -113,6 +114,8 @@ remain under `frontend/apps`; mock data must not enter the live product.
 | BYOK-001 | Encrypted organization provider credentials and explicit project grants | ADMIN-001, PROVIDER-001, TEAM-001 | Masked CRUD/test/disable against fixed provider endpoints; tenant-bound encryption and cross-project denial | P1 |
 | PROVIDER-006 | Gemini native non-stream adapter and billable usage normalization | PROVIDER-001, CATALOG-001 | Capability and usage fixtures; unsupported pricing dimensions fail closed | P1 |
 | PROVIDER-007 | Gemini native SSE streaming normalization | PROVIDER-006, GATEWAY-001 | Prompt first chunks; normalize cumulative usage/finish; partial, malformed, timeout and disconnect are unknown and never replayed | P1 |
+| PROVIDER-008 | DeepSeek native non-stream and cache-aware metering | PROVIDER-001, CATALOG-001 | OpenAI-style wire does not bypass provider-specific cache/reasoning accounting; explicit cached rate and effective tariff price required; response/error fixtures | P1 |
+| PROVIDER-009 | DeepSeek streaming and reasoning normalization | PROVIDER-008, GATEWAY-001 | Reasoning/cache counters normalized without duplication; partial or malformed streams retain unknown-charge semantics | P1 |
 
 The original execution plan named `SECURITY-001` as a BYOK prerequisite; the
 platform envelope encryption and key-version foundation was delivered in
@@ -141,6 +144,12 @@ streaming remains the separate later `PROVIDER-007` task.
 The earlier execution plan calls the SSE prerequisite `GATEWAY-003`; the
 current `GATEWAY-001` task explicitly delivered SSE transport, cancellation,
 and evidence/finalization, so no separate gateway prerequisite remains.
+The earlier `CATALOG-002` pricing prerequisite for `PROVIDER-008` is included
+in the current `CATALOG-001` mapping/price-history task. DeepSeek peak/off-peak
+tariffs must be represented by published effective price windows; the adapter
+does not infer live prices from an HTTP response.
+The original plan's `GATEWAY-003` prerequisite for `PROVIDER-009` maps to the
+completed `GATEWAY-001` SSE transport task.
 
 P2: SSO/SCIM, ZDR routing, custom endpoints, guardrails, management automation,
 and additional modalities.

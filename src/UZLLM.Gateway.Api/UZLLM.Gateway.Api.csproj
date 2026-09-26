@@ -17,6 +17,7 @@
     <ProjectReference Include="..\ProviderAdapters\UZLLM.Provider.OpenAI\UZLLM.Provider.OpenAI.csproj" />
     <ProjectReference Include="..\ProviderAdapters\UZLLM.Provider.Anthropic\UZLLM.Provider.Anthropic.csproj" />
     <ProjectReference Include="..\ProviderAdapters\UZLLM.Provider.Google\UZLLM.Provider.Google.csproj" />
+    <ProjectReference Include="..\ProviderAdapters\UZLLM.Provider.DeepSeek\UZLLM.Provider.DeepSeek.csproj" />
   </ItemGroup>
 
 </Project>

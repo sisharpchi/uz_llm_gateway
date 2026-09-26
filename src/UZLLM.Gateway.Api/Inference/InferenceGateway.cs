@@ -165,6 +165,7 @@ public sealed class InferenceGateway(
             var candidates = new List<RouteCandidate>();
             var constraintAllowed = false;
             RequestConstraintOutcome? constraintFailure = null;
+            var pricingFailure = false;
             var mappings = model.ProviderMappings
                 .Where(value => SupportedProvider(value.Provider.Code)
                     && (pinnedProvider is null || value.Provider.Code == pinnedProvider))
@@ -192,6 +193,7 @@ public sealed class InferenceGateway(
                 }
                 foreach (var mapping in mappings.Where(value => value.Provider.Id == byok.ProviderId))
                 {
+                    if (!ProviderPriceReady(mapping)) { pricingFailure = true; continue; }
                     if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
                     {
                         constraintFailure ??= RequestConstraintOutcome.UnsupportedCapability;
@@ -245,6 +247,7 @@ public sealed class InferenceGateway(
                 foreach (var mapping in mappings)
                 {
                     if (candidates.Count == 2 && parsed.Routing != "price") break;
+                    if (!ProviderPriceReady(mapping)) { pricingFailure = true; continue; }
                     if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
                     {
                         constraintFailure ??= RequestConstraintOutcome.UnsupportedCapability;
@@ -320,6 +323,7 @@ public sealed class InferenceGateway(
                         .OrderBy(value => ProviderPriority(value.Provider.Code))
                         .ThenBy(value => value.Mapping.Id))
                     {
+                        if (!ProviderPriceReady(mapping)) { pricingFailure = true; continue; }
                         if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
                             continue;
                         var supported = fallbackModel.Model.Capabilities
@@ -367,6 +371,12 @@ public sealed class InferenceGateway(
             }
             if (candidates.Count == 0)
             {
+                if (pricingFailure)
+                {
+                    await WriteErrorAsync(context, new(503, "pricing_unavailable", "server_error",
+                        "Provider pricing is unavailable."), cancellationToken);
+                    return;
+                }
                 var constraintError = !constraintAllowed && constraintFailure is not null;
                 await WriteErrorAsync(context, constraintError
                     ? new GatewayError(400, constraintFailure == RequestConstraintOutcome.ContextExceeded
@@ -798,12 +808,15 @@ public sealed class InferenceGateway(
         { logger.LogWarning(exception, "Provider health update failed for mapping {MappingId}", mappingId); }
     }
 
-    private static bool SupportedProvider(string code) => code is "openai" or "anthropic" or "google";
+    private static bool SupportedProvider(string code) => code is "openai" or "anthropic" or "google" or "deepseek";
+    private static bool ProviderPriceReady(CatalogProviderModelSummary mapping) =>
+        mapping.Provider.Code != "deepseek" || mapping.Price.CachedInputPriceMicroUsdPerMillion is not null;
     private static int ProviderPriority(string code) => code switch
     {
         "openai" => 0,
         "anthropic" => 1,
         "google" => 2,
+        "deepseek" => 3,
         _ => int.MaxValue
     };
 

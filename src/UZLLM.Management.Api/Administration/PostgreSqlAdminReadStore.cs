@@ -122,7 +122,7 @@ public sealed class PostgreSqlAdminReadStore(FoundationDbContext db) : IAdminRea
                 value.OccurredAt)).ToListAsync(cancellationToken);
 
     public async Task CloseCurrentPriceAsync(Guid mappingId, DateTimeOffset effectiveFrom,
-        DateTimeOffset now, CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         // Lock the mapping first so concurrent operator schedules for the same mapping serialize.
         var mapping = await db.Set<CatalogProviderModelEntity>()
@@ -133,8 +133,8 @@ public sealed class PostgreSqlAdminReadStore(FoundationDbContext db) : IAdminRea
             .Where(value => value.ProviderModelId == mappingId)
             .OrderByDescending(value => value.EffectiveFrom).FirstOrDefaultAsync(cancellationToken);
         if (latest is null) return;
-        if (latest.EffectiveFrom > now || latest.EffectiveFrom >= effectiveFrom)
-            throw new InvalidOperationException("A future price is already scheduled for this mapping.");
+        if (latest.EffectiveFrom >= effectiveFrom)
+            throw new InvalidOperationException("Prices must be scheduled in increasing effective-time order.");
         if (latest.EffectiveTo is { } end)
         {
             if (end != effectiveFrom)

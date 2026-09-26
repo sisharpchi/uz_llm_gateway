@@ -57,6 +57,22 @@ public sealed class BillingServicesTests
     }
 
     [Fact]
+    public void DeepSeek_cache_hit_and_reasoning_usage_use_frozen_tariff_without_double_charge()
+    {
+        var at = new DateTimeOffset(2026, 9, 26, 3, 0, 0, TimeSpan.Zero);
+        var fee = new FeePolicyVersion(Guid.CreateVersion7(), "managed", 0,
+            UsdMicroAmount.Zero, at, null, at);
+        var evidence = new PricedUsageEvidence(Guid.CreateVersion7(), Guid.CreateVersion7(),
+            20, 9, 8, 4, 1_000_000, 2_000_000, 250_000, "{}",
+            at, at.AddMinutes(-1), at.AddMinutes(1));
+
+        var charge = RequestCostCalculator.Calculate([evidence], fee, new UsdMicroAmount(100));
+
+        Assert.Equal(32, charge.ProviderCost.Value); // 12 miss + 8 cached at 0.25 + 9 output.
+        Assert.Equal(32, charge.Charged.Value);
+    }
+
+    [Fact]
     public void Request_cost_rejects_stale_price_and_unknown_extra_pricing()
     {
         var at = new DateTimeOffset(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
