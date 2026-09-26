@@ -132,6 +132,30 @@ public sealed class UsageReadIntegrationTests(PersistenceIntegrationFixture fixt
     }
 
     [Fact]
+    public async Task Cross_model_attempt_keeps_requested_model_and_exposes_selected_model_in_activity_and_detail()
+    {
+        var seed = await ResetAndSeedAsync(crossModel: true);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var fallback = await db.Set<CatalogProviderModelEntity>().AsNoTracking()
+            .Where(value => value.Model.CanonicalCode == "model-other")
+            .Select(value => new { value.Id, value.ModelId }).SingleAsync();
+        var read = Read(scope.ServiceProvider);
+
+        var activity = await read.GetActivityAsync(seed.OrganizationId,
+            Query() with { RequestId = FirstRequestId });
+        var item = Assert.Single(activity.Items);
+        Assert.Equal(seed.MainModelId, item.ModelId);
+        Assert.Equal("model-main", item.ModelCode);
+        Assert.Equal(fallback.ModelId, item.SelectedModelId);
+        Assert.Equal("model-other", item.SelectedModelCode);
+        var detail = await read.GetDetailAsync(seed.OrganizationId, FirstRequestId);
+        Assert.Equal("model-other", detail!.Attempts[1].ModelCode);
+        Assert.Null(await read.GetDetailAsync(seed.ForeignOrganizationId, FirstRequestId));
+    }
+
+    [Fact]
     public async Task Tenant_authorization_and_filters_never_expose_foreign_rows()
     {
         var seed = await ResetAndSeedAsync();
@@ -179,7 +203,7 @@ public sealed class UsageReadIntegrationTests(PersistenceIntegrationFixture fixt
         new PostgreSqlUsageReadStore(services.GetRequiredService<FoundationDbContext>()),
         new FixedClock(AsOf));
 
-    private async Task<ReadSeed> ResetAndSeedAsync()
+    private async Task<ReadSeed> ResetAndSeedAsync(bool crossModel = false)
     {
         await fixture.ResetMigrationsAsync();
         await fixture.ApplyMigrationsAsync();
@@ -263,14 +287,17 @@ public sealed class UsageReadIntegrationTests(PersistenceIntegrationFixture fixt
                 Start, Start.AddSeconds(2), "Succeeded", "Completed", "Settled", 200, false, null));
         db.Set<UsageAttemptEntity>().AddRange(
             Attempt(firstAttemptId, FirstRequestId, 1, openAiMappingId, "RejectedBeforeExecution"),
-            Attempt(successAttemptId, FirstRequestId, 2, openAiMappingId, "Succeeded"),
+            Attempt(successAttemptId, FirstRequestId, 2,
+                crossModel ? anthropicMappingId : openAiMappingId, "Succeeded"),
             Attempt(failedAttemptId, SecondRequestId, 1, anthropicMappingId, "Failed"),
             Attempt(unknownAttemptId, UnknownRequestId, 1, openAiMappingId, "OutcomeUnknown"),
             Attempt(foreignAttemptId, foreignRequestId, 1, openAiMappingId, "Succeeded"));
         await db.SaveChangesAsync();
 
         db.Set<UsageEvidenceEntity>().AddRange(
-            Evidence(FirstRequestId, successAttemptId, openAiMappingId, priceId, 100, 20),
+            Evidence(FirstRequestId, successAttemptId,
+                crossModel ? anthropicMappingId : openAiMappingId,
+                crossModel ? otherPriceId : priceId, 100, 20),
             Evidence(SecondRequestId, failedAttemptId, anthropicMappingId, otherPriceId, 20, 5),
             Evidence(foreignRequestId, foreignAttemptId, openAiMappingId, priceId, 900, 90),
             new UsageEvidenceEntity { Id = Guid.CreateVersion7(), RequestId = UnknownRequestId,

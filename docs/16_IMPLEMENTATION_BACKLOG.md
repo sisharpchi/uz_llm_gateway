@@ -37,6 +37,7 @@ same-model failover precedes P1 cross-model fallback.
 | BYOK-001 | Completed |
 | BYOK-002 | Completed |
 | ROUTING-003 | Completed |
+| ROUTING-005 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this

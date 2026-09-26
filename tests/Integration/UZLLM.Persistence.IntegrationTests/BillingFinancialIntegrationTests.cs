@@ -271,6 +271,69 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     }
 
     [Fact]
+    public async Task Cross_model_fallback_settles_selected_price_under_one_requested_model_reservation()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 30_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var providerId = await db.Set<CatalogProviderModelEntity>().AsNoTracking()
+            .Where(value => value.Id == seed.ProviderModelId)
+            .Select(value => value.ProviderId).SingleAsync();
+        var fallbackModelId = Guid.CreateVersion7();
+        var fallbackMappingId = Guid.CreateVersion7();
+        var fallbackPriceId = Guid.CreateVersion7();
+        db.Set<CatalogModelEntity>().Add(new CatalogModelEntity
+        {
+            Id = fallbackModelId, CanonicalCode = "billing-fallback-model",
+            DisplayName = "Fallback", ContextLength = 100_000,
+            MaxOutputTokens = 50_000, CapabilitiesJson = "[]",
+            Status = "Active", CreatedAt = Start
+        });
+        db.Set<CatalogProviderModelEntity>().Add(new CatalogProviderModelEntity
+        {
+            Id = fallbackMappingId, ProviderId = providerId, ModelId = fallbackModelId,
+            UpstreamModelCode = "fallback", Status = "Active",
+            CapabilityOverridesJson = "{}", CreatedAt = Start
+        });
+        db.Set<CatalogModelPriceEntity>().Add(new CatalogModelPriceEntity
+        {
+            Id = fallbackPriceId, ProviderModelId = fallbackMappingId,
+            EffectiveFrom = Start, InputPriceMicroUsdPerMillion = 2_000_000,
+            OutputPriceMicroUsdPerMillion = 2_000_000,
+            ExtraPricingJson = "{}", CreatedAt = Start
+        });
+        await db.SaveChangesAsync();
+        var financial = Financial(scope.ServiceProvider, new MutableFinancialClock(Start));
+        var admitted = await financial.ReserveAsync(Admission(seed, 30_000));
+        Assert.Equal(AdmissionStatus.Reserved, admitted.Status);
+        var usage = Usage(scope.ServiceProvider, new MutableFinancialClock(Start));
+        var rejected = await usage.StartAttemptAsync(admitted.RequestId!.Value,
+            seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(rejected.Id));
+        Assert.True(await usage.FinishAttemptAsync(rejected.Id,
+            ExecutionState.RejectedBeforeExecution, null, "RateLimited"));
+        var fallback = await usage.StartAttemptAsync(admitted.RequestId.Value,
+            fallbackMappingId);
+        Assert.True(await usage.MarkDispatchedAsync(fallback.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(
+            admitted.RequestId.Value, fallback.Id, EvidenceSource.Provider,
+            10_000, 0, 0, null, fallbackPriceId, null)));
+        var final = await financial.FinalizeAsync(admitted.Reservation!.Id);
+        Assert.Equal(FinalizationStatus.Settled, final.Status);
+        Assert.Equal(20_000, final.Settlement!.ProviderCost.Value);
+        Assert.Equal(20_000, final.Settlement.Charged.Value);
+        Assert.Equal(10_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.PostedBalance.Value);
+        var detail = await new PostgreSqlUsageReadStore(db).FindDetailAsync(
+            seed.OrganizationId, admitted.RequestId.Value);
+        Assert.Equal("billing-test-model", detail!.Request.ModelCode);
+        Assert.Equal("billing-fallback-model", detail.Request.SelectedModelCode);
+    }
+
+    [Fact]
     public async Task Fifty_concurrent_thirty_cent_holds_on_one_dollar_admit_only_thirty_three()
     {
         await ResetAsync();

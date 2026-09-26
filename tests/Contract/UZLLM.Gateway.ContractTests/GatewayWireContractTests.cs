@@ -19,6 +19,38 @@ public sealed class GatewayWireContractTests
         Assert.False(parsed.AllowManagedFallback);
     }
 
+    [Fact]
+    public void Chat_parser_accepts_ordered_explicit_fallback_models()
+    {
+        var parsed = Parse("""{"model":"m","messages":[{"role":"user","content":"x"}],"uzllm":{"fallback_models":["m2","m3"]}}""");
+        Assert.Equal(["m2", "m3"], parsed.FallbackModels);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("[\"m\"]")]
+    [InlineData("[\"m2\",\"m2\"]")]
+    [InlineData("[\"provider/m2\"]")]
+    [InlineData("[\"m2\",\"m3\",\"m4\"]")]
+    public void Chat_parser_rejects_invalid_fallback_model_list(string list)
+    {
+        var json = "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],\"uzllm\":{\"fallback_models\":"
+            + list + "}}";
+        Assert.Throws<GatewayRequestException>(() => Parse(json));
+    }
+
+    [Fact]
+    public void Chat_parser_rejects_byok_only_cross_model_fallback()
+    {
+        var json = JsonSerializer.Serialize(new
+        {
+            model = "m", messages = new[] { new { role = "user", content = "x" } },
+            uzllm = new { provider_key_id = Guid.NewGuid(),
+                fallback_models = new[] { "m2" } }
+        });
+        Assert.Throws<GatewayRequestException>(() => Parse(json));
+    }
+
     [Theory]
     [InlineData("cheapest")]
     [InlineData("latency")]

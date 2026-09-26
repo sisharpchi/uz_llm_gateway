@@ -170,6 +170,7 @@ Columns:
 - Project
 - API key
 - Model
+- Selected model when explicit cross-model fallback changed it
 - Provider
 - Input tokens
 - Output tokens
@@ -203,6 +204,7 @@ Sections:
 
 ### Routing
 - requested model;
+- selected model and each attempt's model (when different);
 - selected provider;
 - fallback attempts;
 - routing strategy.

@@ -21,7 +21,8 @@ public sealed record UsageActivityItem(
     DateTimeOffset StartedAt, DateTimeOffset? CompletedAt,
     string ExecutionState, string DeliveryState, string FinancialState,
     int? HttpStatus, bool IsStream, int AttemptCount, long? DurationMs,
-    long? InputTokens, long? OutputTokens, string? ChargedMicroUsd);
+    long? InputTokens, long? OutputTokens, string? ChargedMicroUsd,
+    Guid? SelectedModelId = null, string? SelectedModelCode = null);
 
 /// <summary>A stable keyset page ordered by start time and request ID, newest first.</summary>
 public sealed record UsageActivityPage(
@@ -60,7 +61,8 @@ public sealed record UsageTimeSeries(
 public sealed record UsageAttemptDetail(
     Guid AttemptId, int Number, Guid ProviderModelId, string ProviderCode,
     DateTimeOffset StartedAt, DateTimeOffset? CompletedAt,
-    string ExecutionState, string? ProviderRequestId, string? ErrorCategory);
+    string ExecutionState, string? ProviderRequestId, string? ErrorCategory,
+    string? ModelCode = null);
 
 /// <summary>Immutable accounting evidence for one attempt.</summary>
 public sealed record UsageEvidenceDetail(

@@ -137,14 +137,26 @@ P1 request may contain:
 ```json
 {
   "model": "primary-model",
-  "fallback_models": [
-    "fallback-model-a",
-    "fallback-model-b"
-  ]
+  "uzllm": {"fallback_models": ["fallback-model-a", "fallback-model-b"]}
 }
 ```
 
 or an OpenRouter-compatible `models`-style extension later.
+
+`ROUTING-005` accepts one or two distinct active canonical fallback model
+codes. The gateway tries up to two eligible primary-model mappings first,
+then at most one eligible mapping per fallback model in client-supplied order;
+the total is bounded to four attempts under one deadline and one reservation.
+Each model must satisfy request capabilities, context/output limits, credential
+eligibility, quota, and health. The hold is the maximum charge across all
+selected mappings, using each model's own catalog price and output limit.
+Provider calls remain outside the transaction. A price-version change before
+dispatch fails closed. Only verified pre-execution transient rejection permits
+the next model; unknown outcomes and partial streams never do. BYOK-only
+cross-model fallback is rejected; Hybrid may use explicitly opted-in Managed
+fallback. A provider-prefixed primary model can change only because the
+fallback list explicitly authorizes it. Response headers and usage detail show
+the selected model separately from the originally requested model.
 
 ### Do not infinite retry
 
@@ -324,7 +336,8 @@ next mapping only before downstream output; 5xx, timeout, transport ambiguity,
 and mid-stream errors remain unknown financial outcomes and are not retried.
 The Redis circuit opens after three transient failures in one minute for 30
 seconds; an unavailable health dependency fails new managed admission closed.
-Detailed latency/throughput scoring and cross-model fallback remain P1.
+Detailed latency/throughput scoring remains later P1 work; explicit bounded
+cross-model fallback is delivered by `ROUTING-005`.
 
 `BYOK-002` selects one explicitly requested, project-granted BYOK credential
 before an optional managed same-model candidate. Managed fallback requires

@@ -6,7 +6,7 @@ namespace UZLLM.Gateway.Api.Inference;
 public sealed record ParsedChatRequest(string Model, bool Stream, ProviderChatRequest ProviderRequest,
     IReadOnlyCollection<string> RequiredCapabilities, int EstimatedInputTokens,
     Guid? ProviderKeyId = null, bool AllowManagedFallback = false,
-    string? Routing = null);
+    string? Routing = null, IReadOnlyList<string>? FallbackModels = null);
 
 public sealed class GatewayRequestException(string message, string code = "invalid_request") : Exception(message)
 {
@@ -34,11 +34,12 @@ public static class ChatRequestParser
             Guid? providerKeyId = null;
             var allowManagedFallback = false;
             string? routing = null;
+            IReadOnlyList<string> fallbackModels = [];
             if (root.TryGetProperty("uzllm", out var extension))
             {
                 RequireObject(extension, "uzllm");
                 foreach (var property in extension.EnumerateObject())
-                    if (property.Name is not ("provider_key_id" or "allow_managed_fallback" or "routing"))
+                    if (property.Name is not ("provider_key_id" or "allow_managed_fallback" or "routing" or "fallback_models"))
                         throw new GatewayRequestException($"Unsupported uzllm parameter: {property.Name}.",
                             "unsupported_parameter");
                 if (extension.TryGetProperty("provider_key_id", out _))
@@ -58,6 +59,30 @@ public static class ChatRequestParser
                         throw new GatewayRequestException("Only uzllm.routing=price is supported.",
                             "unsupported_parameter");
                 }
+                if (extension.TryGetProperty("fallback_models", out var fallbacks))
+                {
+                    if (fallbacks.ValueKind != JsonValueKind.Array
+                        || fallbacks.GetArrayLength() is < 1 or > 2)
+                        throw new GatewayRequestException("uzllm.fallback_models requires one or two model codes.");
+                    var codes = fallbacks.EnumerateArray().Select(value =>
+                    {
+                        if (value.ValueKind != JsonValueKind.String)
+                            throw new GatewayRequestException("Fallback models must be canonical model codes.");
+                        var code = value.GetString()!;
+                        if (string.IsNullOrWhiteSpace(code) || code.Length > 200 || code.Contains('/'))
+                            throw new GatewayRequestException("Fallback models must be canonical model codes.");
+                        return code;
+                    }).ToArray();
+                    var requestedCanonical = model.Contains('/')
+                        ? model[(model.IndexOf('/') + 1)..] : model;
+                    if (codes.Distinct(StringComparer.Ordinal).Count() != codes.Length
+                        || codes.Contains(requestedCanonical, StringComparer.Ordinal))
+                        throw new GatewayRequestException("Fallback models must be distinct from the requested model.");
+                    fallbackModels = codes;
+                }
+                if (fallbackModels.Count != 0 && providerKeyId is not null && !allowManagedFallback)
+                    throw new GatewayRequestException(
+                        "BYOK cross-model fallback requires explicit Managed fallback opt-in.");
             }
             if (root.TryGetProperty("stream_options", out var options))
             {
@@ -104,7 +129,7 @@ public static class ChatRequestParser
                 .Count(part => part.Kind == ProviderContentKind.ImageUrl);
             var estimated = checked((int)Math.Min(int.MaxValue, (textLength + 1) / 2 + imageCount * 1_000L));
             return new ParsedChatRequest(model, stream, request, capabilities, estimated,
-                providerKeyId, allowManagedFallback, routing);
+                providerKeyId, allowManagedFallback, routing, fallbackModels);
         }
         catch (JsonException)
         { throw new GatewayRequestException("Request body must be valid JSON."); }

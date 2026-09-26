@@ -216,7 +216,8 @@ public sealed class InferenceGateway(
                         var external = GatewayCostEstimator.MaximumProviderCost(model.Model,
                             mapping.Price, outputLimit);
                         candidates.Add(new RouteCandidate(mapping, byok.Id,
-                            GatewayCostEstimator.MaximumByokFee(external, byokFee), true, external));
+                            GatewayCostEstimator.MaximumByokFee(external, byokFee),
+                            model.Model, outputLimit, true, external));
                         break;
                     }
                     catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
@@ -272,7 +273,8 @@ public sealed class InferenceGateway(
                     {
                         var maximumCharge = GatewayCostEstimator.MaximumCharge(model.Model, mapping.Price,
                             fee, outputLimit);
-                        candidates.Add(new RouteCandidate(mapping, credentialId.Value, maximumCharge));
+                        candidates.Add(new RouteCandidate(mapping, credentialId.Value,
+                            maximumCharge, model.Model, outputLimit));
                     }
                     catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
                     { logger.LogError(exception, "Unsupported price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
@@ -290,6 +292,66 @@ public sealed class InferenceGateway(
                     .Take(byok is null ? 2 : 1)
                     .Select(index => managedCandidates[index]).ToArray();
                 candidates = [.. candidates.Where(value => value.IsByok), .. cheapestManaged];
+            }
+            if (parsed.FallbackModels is { Count: > 0 } && includeManaged && fee is not null)
+            {
+                foreach (var fallbackCode in parsed.FallbackModels)
+                {
+                    var fallbackModel = models.SingleOrDefault(value =>
+                        value.Model.CanonicalCode == fallbackCode);
+                    if (fallbackModel is null)
+                        throw new GatewayRequestException(
+                            $"Fallback model {fallbackCode} is unavailable.", "fallback_model_unavailable");
+                    var fallbackOutput = parsed.ProviderRequest.MaxOutputTokens
+                        ?? fallbackModel.Model.MaxOutputTokens;
+                    var eligible = new List<RouteCandidate>();
+                    foreach (var mapping in fallbackModel.ProviderMappings
+                        .Where(value => SupportedProvider(value.Provider.Code))
+                        .OrderBy(value => value.Provider.Code == "openai" ? 0 : 1)
+                        .ThenBy(value => value.Mapping.Id))
+                    {
+                        var supported = fallbackModel.Model.Capabilities
+                            .Concat(mapping.Mapping.CapabilityOverrides)
+                            .Select(value => value.ToString()).ToArray();
+                        if (constraints.Validate(new RequestConstraintInput(
+                            fallbackModel.Model.ContextLength, fallbackModel.Model.MaxOutputTokens,
+                            fallbackOutput, parsed.EstimatedInputTokens,
+                            parsed.RequiredCapabilities, supported)).Outcome
+                            != RequestConstraintOutcome.Allowed) continue;
+                        var credentialId = await readStore.FindPlatformCredentialAsync(
+                            mapping.Provider.Id, cancellationToken);
+                        if (credentialId is null) continue;
+                        var quotaDecision = await quota.CheckAsync(credentialId.Value, cancellationToken);
+                        if (quotaDecision.Outcome == ProviderQuotaOutcome.DependencyUnavailable)
+                            throw new InvalidOperationException("Provider eligibility is unavailable.");
+                        if (quotaDecision.Outcome != ProviderQuotaOutcome.Available) continue;
+                        var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                        if (healthState == ProviderHealthState.DependencyUnavailable)
+                            throw new InvalidOperationException("Provider eligibility is unavailable.");
+                        if (healthState == ProviderHealthState.Open) continue;
+                        try
+                        {
+                            eligible.Add(new RouteCandidate(mapping, credentialId.Value,
+                                GatewayCostEstimator.MaximumCharge(fallbackModel.Model,
+                                    mapping.Price, fee, fallbackOutput), fallbackModel.Model,
+                                fallbackOutput));
+                        }
+                        catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
+                        { logger.LogError(exception, "Unsupported fallback price for mapping {MappingId}", mapping.Mapping.Id); }
+                    }
+                    if (parsed.Routing == "price")
+                    {
+                        var fallbackOptions = eligible.Select((candidate, index) =>
+                            new UZLLM.Modules.Routing.Domain.PriceRouteOption(index,
+                                GatewayCostEstimator.EstimatedCustomerCost(fallbackModel.Model,
+                                    candidate.Mapping.Price, fee, parsed.EstimatedInputTokens,
+                                    fallbackOutput), candidate.Mapping.Provider.Code,
+                                candidate.Mapping.Mapping.Id)).ToArray();
+                        eligible = UZLLM.Modules.Routing.Domain.PriceRouteRanker.Rank(fallbackOptions)
+                            .Select(index => eligible[index]).ToList();
+                    }
+                    if (eligible.Count != 0) candidates.Add(eligible[0]);
+                }
             }
             if (candidates.Count == 0)
             {
@@ -322,8 +384,10 @@ public sealed class InferenceGateway(
             }
             SetGatewayRequestId(context, admission.RequestId.Value);
             context.Response.Headers["X-Uzllm-Model"] = model.Model.CanonicalCode;
-            await ExecuteReservedAsync(context, parsed, model.Model, candidates,
-                pinnedProvider is not null && !parsed.AllowManagedFallback, outputLimit,
+            context.Response.Headers["X-Uzllm-Requested-Model"] = model.Model.CanonicalCode;
+            await ExecuteReservedAsync(context, parsed, model.Model.CanonicalCode, candidates,
+                pinnedProvider is not null && !parsed.AllowManagedFallback
+                    && parsed.FallbackModels is not { Count: > 0 },
                 admission.Reservation, cancellationToken);
         }
         catch (GatewayRequestException exception)
@@ -355,11 +419,11 @@ public sealed class InferenceGateway(
     }
 
     private async Task ExecuteReservedAsync(HttpContext context, ParsedChatRequest parsed,
-        CanonicalModel model, IReadOnlyList<RouteCandidate> candidates, bool pinned,
-        int outputLimit,
+        string requestedModelCode, IReadOnlyList<RouteCandidate> candidates, bool pinned,
         Reservation reservation, CancellationToken cancellationToken)
     {
         var writer = writerFactory.Create(context);
+        var selectedCandidate = candidates[0];
         var mapping = candidates[0].Mapping;
         var credentialId = candidates[0].CredentialId;
         UsageAttempt? attempt = null;
@@ -409,7 +473,7 @@ public sealed class InferenceGateway(
                         providerError = new ProviderError(ProviderErrorCategory.Capacity,
                             ProviderExecutionCertainty.NotDispatched, false, false, null, null,
                             "Fallback provider is unavailable.");
-                        break;
+                        continue;
                     }
                 }
                 var remaining = options.ProviderTimeout - (clock.GetUtcNow() - executionStartedAt);
@@ -417,6 +481,7 @@ public sealed class InferenceGateway(
                     throw new ProviderExecutionException(new ProviderError(ProviderErrorCategory.Timeout,
                         ProviderExecutionCertainty.NotDispatched, false, false, null, null,
                         "Provider attempt deadline expired."));
+                selectedCandidate = candidate;
                 attempt = await usage.StartAttemptAsync(reservation.RequestId, mapping.Mapping.Id,
                     credentialId, cancellationToken);
                 var effectivePrice = await catalog.FindEffectivePriceAsync(mapping.Mapping.Id,
@@ -427,13 +492,14 @@ public sealed class InferenceGateway(
                 dispatched = await usage.MarkDispatchedAsync(attempt.Id, cancellationToken);
                 if (!dispatched) throw new InvalidOperationException("Attempt dispatch could not be persisted.");
                 context.Response.Headers["X-Uzllm-Provider"] = mapping.Provider.Code;
+                context.Response.Headers["X-Uzllm-Model"] = candidate.Model.CanonicalCode;
                 var providerContext = new ProviderExecutionContext(reservation.RequestId,
                     mapping.Provider.Id, mapping.Mapping.Id, credentialId,
                     mapping.Mapping.UpstreamModelCode, remaining,
                     candidate.IsByok ? reservation.OrganizationId : null,
                     candidate.IsByok ? reservation.ProjectId : null);
                 context.Response.Headers["X-Uzllm-Billing-Mode"] = candidate.IsByok ? "byok" : "managed";
-                var adapterRequest = parsed.ProviderRequest with { MaxOutputTokens = outputLimit };
+                var adapterRequest = parsed.ProviderRequest with { MaxOutputTokens = candidate.OutputLimit };
                 try
                 {
                     if (parsed.Stream)
@@ -456,7 +522,9 @@ public sealed class InferenceGateway(
                                 };
                                 break;
                             }
-                            await writer.WriteStreamEventAsync(item, model.CanonicalCode,
+                            await writer.WriteStreamEventAsync(item,
+                                candidate.Model.CanonicalCode == requestedModelCode
+                                    ? parsed.Model : candidate.Model.CanonicalCode,
                                 reservation.RequestId, deadline.Token);
                         }
                         completed = providerError is null;
@@ -609,7 +677,10 @@ public sealed class InferenceGateway(
             if (parsed.Stream)
                 await writer.FinishStreamAsync(cancellationToken);
             else if (completion is not null)
-                await writer.WriteCompletionAsync(completion, parsed.Model, reservation.RequestId, cancellationToken);
+                await writer.WriteCompletionAsync(completion,
+                    selectedCandidate.Model.CanonicalCode == requestedModelCode
+                        ? parsed.Model : selectedCandidate.Model.CanonicalCode,
+                    reservation.RequestId, cancellationToken);
             delivered = true;
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
@@ -628,9 +699,12 @@ public sealed class InferenceGateway(
                         : delivered ? DeliveryState.Completed
                         : writer.Started ? DeliveryState.Partial : DeliveryState.NotStarted,
                     cleanupSucceeded ? httpStatus : 503,
-                    fallbackCount == 0
-                        ? $"{(parsed.Routing == "price" ? "price" : "deterministic")}:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}"
-                        : $"{(parsed.Routing == "price" ? "price" : "deterministic")}:failover:{(candidates.First(value => value.CredentialId == credentialId).IsByok ? "byok:" : "")}{mapping.Provider.Code}", activityToken.Token);
+                    $"{(parsed.Routing == "price" ? "price" : "deterministic")}:" +
+                    (fallbackCount == 0 ? "" : "failover:") +
+                    (selectedCandidate.Model.CanonicalCode == requestedModelCode
+                        ? "" : "model-fallback:") +
+                    (selectedCandidate.IsByok ? "byok:" : "") +
+                    selectedCandidate.Mapping.Provider.Code, activityToken.Token);
             }
             catch (Exception exception)
             { logger.LogError(exception, "Request activity finalization failed for {RequestId}", reservation.RequestId); }
@@ -654,7 +728,8 @@ public sealed class InferenceGateway(
     private static bool SupportedProvider(string code) => code is "openai" or "anthropic";
 
     private sealed record RouteCandidate(CatalogProviderModelSummary Mapping, Guid CredentialId,
-        UsdMicroAmount MaximumCharge, bool IsByok = false,
+        UsdMicroAmount MaximumCharge, CanonicalModel Model, int OutputLimit,
+        bool IsByok = false,
         UsdMicroAmount MaximumExternalSpend = default);
 
     private Task<GatewayApiKeyAuthentication?> AuthenticateAsync(HttpContext context,

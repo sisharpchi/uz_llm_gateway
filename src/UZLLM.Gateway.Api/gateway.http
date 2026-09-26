@@ -45,6 +45,13 @@ Content-Type: application/json
 
 {"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"routing":"price"}}
 
+### Explicit ordered model fallback (use real active canonical model codes)
+POST {{baseUrl}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"fallback_models":["fallback-model-a","fallback-model-b"]}}
+
 ### Explicit Hybrid: managed fallback only for verified pre-execution rejection
 POST {{baseUrl}}/v1/chat/completions
 Authorization: Bearer {{apiKey}}

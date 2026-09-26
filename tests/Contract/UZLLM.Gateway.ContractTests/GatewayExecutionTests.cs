@@ -306,6 +306,7 @@ public sealed class GatewayExecutionTests
         Assert.Equal(1, fixture.Usage.Attempts);
         Assert.Equal("anthropic", fixture.Context.Response.Headers["X-Uzllm-Provider"]);
         Assert.Equal("deterministic:anthropic", fixture.Usage.RouteStrategy);
+        Assert.Equal("anthropic/gpt-test", fixture.Writer.Model);
     }
 
     [Fact]
@@ -398,6 +399,138 @@ public sealed class GatewayExecutionTests
         Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
         Assert.Equal(fixture.ByokCredentialId, fixture.Adapter.LastContext!.CredentialId);
         Assert.Equal("price:byok:openai", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Explicit_cross_model_fallback_reserves_changed_price_and_reports_selected_model()
+    {
+        var fixture = new Scenario(fallbackModel: true);
+        fixture.UseFallbackModel();
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+            "Provider rate limit was reached.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Finance.Reserves);
+        Assert.Equal(43, fixture.Finance.LastMaximum!.Value.Value);
+        Assert.Equal(fixture.FallbackPriceId, fixture.Usage.VerifiedPriceId);
+        Assert.Equal("gpt-test", fixture.Context.Response.Headers["X-Uzllm-Requested-Model"]);
+        Assert.Equal("other-test", fixture.Context.Response.Headers["X-Uzllm-Model"]);
+        Assert.Equal("other-test", fixture.Writer.Model);
+        Assert.Equal("deterministic:failover:model-fallback:anthropic", fixture.Usage.RouteStrategy);
+    }
+
+    [Fact]
+    public async Task Cross_model_fallback_does_not_bypass_capability_or_output_eligibility()
+    {
+        var fixture = new Scenario(openAiTools: true, fallbackModel: true);
+        fixture.UseFallbackModel(withTools: true);
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+            "Provider rate limit was reached.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(9, fixture.Finance.LastMaximum!.Value.Value);
+
+        var tooSmall = new Scenario(fallbackModel: true);
+        tooSmall.UseFallbackModel(outputTokens: 200);
+        tooSmall.Adapter.Error = fixture.Adapter.Error;
+        await tooSmall.RunAsync();
+        Assert.Equal(0, tooSmall.AnthropicAdapter.CompleteCalls);
+    }
+
+    [Fact]
+    public async Task Cross_model_fallback_never_replays_unknown_execution()
+    {
+        var fixture = new Scenario(fallbackModel: true);
+        fixture.UseFallbackModel();
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.Timeout,
+            ProviderExecutionCertainty.Unknown, true, true, null, null,
+            "Provider outcome is unknown.");
+        fixture.Finance.NextFinalization = FinalizationStatus.PendingEvidence;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Usage.UnknownEvidence);
+    }
+
+    [Fact]
+    public async Task Unknown_fallback_model_rejects_before_wallet_reservation()
+    {
+        var fixture = new Scenario();
+        fixture.UseFallbackModel();
+
+        await fixture.RunAsync();
+
+        Assert.Equal(400, fixture.Context.Response.StatusCode);
+        Assert.Equal(0, fixture.Finance.Reserves);
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+    }
+
+    [Fact]
+    public async Task Cross_model_stream_falls_back_only_before_output_and_labels_selected_model()
+    {
+        var fixture = new Scenario(stream: true, fallbackModel: true);
+        fixture.UseFallbackModel(stream: true);
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+            "Provider rate limit was reached.");
+        fixture.AnthropicAdapter.StreamItems =
+        [new ProviderStreamEvent(ProviderStreamKind.TextDelta, Text: "answer"),
+            new ProviderStreamEvent(ProviderStreamKind.Usage,
+                Usage: new ProviderUsage(2, 1, 0, null))];
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.StreamCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.StreamCalls);
+        Assert.Equal("other-test", fixture.Writer.Model);
+        Assert.True(fixture.Writer.StreamFinished);
+        Assert.Equal(1, fixture.Usage.VerifiedEvidence);
+        Assert.Equal("other-test", fixture.Context.Response.Headers["X-Uzllm-Model"]);
+    }
+
+    [Fact]
+    public async Task Cross_model_stream_never_falls_back_after_partial_output()
+    {
+        var fixture = new Scenario(stream: true, fallbackModel: true);
+        fixture.UseFallbackModel(stream: true);
+        fixture.Adapter.StreamItems =
+            [new ProviderStreamEvent(ProviderStreamKind.TextDelta, Text: "partial")];
+        fixture.Adapter.FailAfterStreamItems = true;
+        fixture.Finance.NextFinalization = FinalizationStatus.PendingEvidence;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.StreamCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.StreamCalls);
+        Assert.Equal(1, fixture.Usage.UnknownEvidence);
+        Assert.False(fixture.Writer.StreamFinished);
+    }
+
+    [Fact]
+    public async Task Cross_model_fallback_uses_selected_models_default_output_limit()
+    {
+        var fixture = new Scenario(fallbackModel: true);
+        fixture.Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes("""
+            {"model":"gpt-test","messages":[{"role":"user","content":"Hello"}],"uzllm":{"fallback_models":["other-test"]}}
+            """));
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+            ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null,
+            "Provider rate limit was reached.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(128, fixture.AnthropicAdapter.LastMaxOutputTokens);
+        Assert.Equal(44, fixture.Finance.LastMaximum!.Value.Value);
     }
 
     [Fact]
@@ -545,6 +678,7 @@ public sealed class GatewayExecutionTests
         private readonly Guid providerId = Guid.NewGuid();
         private readonly Guid mappingId = Guid.NewGuid();
         private readonly Guid anthropicMappingId = Guid.NewGuid();
+        public readonly Guid FallbackPriceId = Guid.NewGuid();
         private readonly Guid credentialId = Guid.NewGuid();
         public readonly Guid ByokCredentialId = Guid.NewGuid();
         private readonly Guid feeId = Guid.NewGuid();
@@ -566,7 +700,8 @@ public sealed class GatewayExecutionTests
         public Scenario(bool stream = false, bool twoProviders = false,
             string modelCode = "gpt-test", int outputTokens = 100,
             long anthropicInputRate = 2000, long anthropicOutputRate = 4000,
-            bool openAiTools = false)
+            bool openAiTools = false, bool fallbackModel = false,
+            bool fallbackTools = false)
         {
             Finance = new FakeFinance(RequestId, organizationId, projectId, apiKeyId, feeId);
             Usage = new FakeUsage(RequestId);
@@ -594,7 +729,24 @@ public sealed class GatewayExecutionTests
                     anthropicPrice));
                 prices[anthropicMappingId] = anthropicPrice;
             }
-            var catalog = new FakeCatalog(new CatalogModelSummary(model, mappings), prices);
+            var summaries = new List<CatalogModelSummary> { new(model, mappings) };
+            if (fallbackModel)
+            {
+                var fallback = new CanonicalModel(Guid.NewGuid(), "other-test", "Other Test",
+                    4096, 128, [CatalogCapability.Text], CatalogStatus.Active, now);
+                var fallbackProvider = new CatalogProvider(Guid.NewGuid(), "anthropic",
+                    "Anthropic", CatalogStatus.Active, now);
+                var fallbackMapping = new ProviderModel(anthropicMappingId,
+                    fallbackProvider.Id, fallback.Id, "other-upstream", null,
+                    CatalogStatus.Active,
+                    fallbackTools ? [CatalogCapability.Tools] : [], now);
+                var fallbackPrice = new ModelPrice(FallbackPriceId, anthropicMappingId,
+                    now.AddDays(-1), null, 10_000, 20_000, null, "{}", now);
+                summaries.Add(new CatalogModelSummary(fallback,
+                    [new CatalogProviderModelSummary(fallbackMapping, fallbackProvider, fallbackPrice)]));
+                prices[anthropicMappingId] = fallbackPrice;
+            }
+            var catalog = new FakeCatalog(summaries, prices);
             var fee = new FeePolicyVersion(feeId, "default", 0, UsdMicroAmount.Zero,
                 now.AddDays(-1), null, now);
             Reads = new FakeReadStore(new GatewayTenantScope(organizationId, projectId), fee, credentialId);
@@ -646,6 +798,17 @@ public sealed class GatewayExecutionTests
                 : """{"model":"gpt-test","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"routing":"price"}}""";
             Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
         }
+
+        public void UseFallbackModel(bool withTools = false, int outputTokens = 100,
+            bool stream = false)
+        {
+            var tools = withTools
+                ? """, "tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}}}]"""
+                : "";
+            var json = "{" + $"\"model\":\"gpt-test\",\"messages\":[{{\"role\":\"user\",\"content\":\"Hello\"}}],\"max_completion_tokens\":{outputTokens},\"stream\":{(stream ? "true" : "false")},\"uzllm\":{{\"fallback_models\":[\"other-test\"]}}"
+                + tools + "}";
+            Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        }
     }
 
     private sealed class FakeAuthenticator(Guid keyId, Guid projectId) : IApiKeyAuthenticator
@@ -674,12 +837,12 @@ public sealed class GatewayExecutionTests
                 && byokId == value.Id && canonicalModelCode == "gpt-test" ? Byok : null);
     }
 
-    private sealed class FakeCatalog(CatalogModelSummary summary,
+    private sealed class FakeCatalog(IReadOnlyList<CatalogModelSummary> summaries,
         IReadOnlyDictionary<Guid, ModelPrice> prices) : ICatalogService
     {
         public Task<IReadOnlyList<CatalogModelSummary>> ListActiveModelsAsync(DateTimeOffset at,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<CatalogModelSummary>>([summary]);
+            Task.FromResult(summaries);
         public Task<ModelPrice?> FindEffectivePriceAsync(Guid providerModelId, DateTimeOffset at,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(prices.GetValueOrDefault(providerModelId));
@@ -831,6 +994,7 @@ public sealed class GatewayExecutionTests
         public ProviderError? Error;
         public ProviderError? ByokError;
         public ProviderExecutionContext? LastContext;
+        public int? LastMaxOutputTokens;
         public IReadOnlyList<ProviderStreamEvent> StreamItems = [];
         public bool FailAfterStreamItems;
         public CancellationToken ObservedStreamToken;
@@ -840,6 +1004,7 @@ public sealed class GatewayExecutionTests
         {
             CompleteCalls++;
             LastContext = context;
+            LastMaxOutputTokens = request.MaxOutputTokens;
             if (Error is not null) throw new ProviderExecutionException(Error);
             if (context.OrganizationId is not null && ByokError is not null)
                 throw new ProviderExecutionException(ByokError);
@@ -854,6 +1019,7 @@ public sealed class GatewayExecutionTests
             ObservedStreamToken = cancellationToken;
             try
             {
+                if (Error is not null) throw new ProviderExecutionException(Error);
                 foreach (var item in StreamItems)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -886,14 +1052,16 @@ public sealed class GatewayExecutionTests
         public CancellationTokenSource AbortSource = null!;
         public bool Started { get; private set; }
         public bool Completed, StreamFinished, DisconnectOnEvent;
+        public string? Model;
         public int Errors;
         public Task WriteCompletionAsync(ProviderCompletion completion, string model, Guid requestId,
             CancellationToken cancellationToken)
-        { Completed = true; Started = true; return Task.CompletedTask; }
+        { Completed = true; Started = true; Model = model; return Task.CompletedTask; }
         public Task WriteStreamEventAsync(ProviderStreamEvent item, string model, Guid requestId,
             CancellationToken cancellationToken)
         {
             Started = true;
+            Model = model;
             if (DisconnectOnEvent)
             {
                 AbortSource.Cancel();

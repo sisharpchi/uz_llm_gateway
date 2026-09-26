@@ -36,7 +36,8 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
             .OrderBy(value => value.Number)
             .Select(value => new UsageAttemptDetail(value.Id, value.Number, value.ProviderModelId,
                 value.ProviderModel.Provider.Code, value.StartedAt, value.CompletedAt,
-                value.ExecutionState, value.ProviderRequestId, value.ErrorCategory))
+                value.ExecutionState, value.ProviderRequestId, value.ErrorCategory,
+                value.ProviderModel.Model.CanonicalCode))
             .ToListAsync(cancellationToken);
         var evidence = await dbContext.Set<UsageEvidenceEntity>().AsNoTracking()
             .Where(value => value.RequestId == requestId)
@@ -192,6 +193,10 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
             ApiKeyName = value.ApiKey.Name,
             ModelId = value.CanonicalModelId,
             ModelCode = value.CanonicalModel.CanonicalCode,
+            SelectedModelId = value.Attempts.OrderByDescending(attempt => attempt.Number)
+                .Select(attempt => (Guid?)attempt.ProviderModel.ModelId).FirstOrDefault(),
+            SelectedModelCode = value.Attempts.OrderByDescending(attempt => attempt.Number)
+                .Select(attempt => attempt.ProviderModel.Model.CanonicalCode).FirstOrDefault(),
             ProviderId = value.Attempts.OrderByDescending(attempt => attempt.Number)
                 .Select(attempt => (Guid?)attempt.ProviderModel.ProviderId).FirstOrDefault(),
             ProviderCode = value.Attempts.OrderByDescending(attempt => attempt.Number)
@@ -242,7 +247,8 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
             ? Math.Max(0, (long)(completed - value.StartedAt).TotalMilliseconds) : null,
         value.HasVerifiedEvidence ? value.InputTokens : null,
         value.HasVerifiedEvidence ? value.OutputTokens : null,
-        value.HasSettlement ? Money(value.ChargedMicroUsd) : null);
+        value.HasSettlement ? Money(value.ChargedMicroUsd) : null,
+        value.SelectedModelId, value.SelectedModelCode);
 
     private static string? Money(long? amount) => amount?.ToString(CultureInfo.InvariantCulture);
 
@@ -255,6 +261,8 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
         public string ApiKeyName { get; init; } = null!;
         public Guid ModelId { get; init; }
         public string ModelCode { get; init; } = null!;
+        public Guid? SelectedModelId { get; init; }
+        public string? SelectedModelCode { get; init; }
         public Guid? ProviderId { get; init; }
         public string? ProviderCode { get; init; }
         public DateTimeOffset StartedAt { get; init; }

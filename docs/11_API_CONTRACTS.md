@@ -132,6 +132,17 @@ endpoints by a frozen catalog/customer-fee estimate; actual charges still use
 verified usage and the selected price version. An explicit provider prefix
 continues to constrain the eligible set. BYOK/Hybrid may include `routing=price`
 without changing the explicitly requested BYOK-first order.
+`ROUTING-005` also accepts `uzllm.fallback_models` with one or two distinct
+canonical codes, for example `{"fallback_models":["model-y","model-z"]}`.
+It is opt-in, ordered, and limited to at most four total attempts: two
+same-model candidates followed by one per listed fallback model. BYOK-only
+requests cannot use it; Hybrid requires `allow_managed_fallback=true`. The
+worst-case reservation includes every selected candidate. `X-Uzllm-Model`
+and the completion/SSE model identify the model actually executed;
+`X-Uzllm-Requested-Model` retains the requested canonical model. Usage
+activity/detail retain requested `modelId`/`modelCode` and add
+`selectedModelId`/`selectedModelCode`; attempt detail adds `modelCode`.
+An inactive or unknown fallback model returns `400 fallback_model_unavailable`.
 
 ---
 
