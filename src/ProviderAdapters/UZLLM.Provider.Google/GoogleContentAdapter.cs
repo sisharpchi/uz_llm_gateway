@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using UZLLM.Modules.Providers.Contracts;
@@ -36,14 +37,7 @@ public sealed class GoogleContentAdapter(HttpClient client, IProviderCredentialR
         string? requestId = null;
         try
         {
-            using var message = new HttpRequestMessage(HttpMethod.Post,
-                $"models/{Uri.EscapeDataString(context.UpstreamModelCode)}:generateContent")
-            {
-                Content = new ByteArrayContent(body)
-            };
-            message.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            message.Headers.TryAddWithoutValidation("x-goog-api-key", secret);
-            message.Headers.TryAddWithoutValidation("X-Client-Request-Id", context.RequestId.ToString("N"));
+            using var message = NewMessage(body, secret, context, false);
             using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead,
                 timeout.Token);
             requestId = ResponseRequestId(response);
@@ -68,13 +62,104 @@ public sealed class GoogleContentAdapter(HttpClient client, IProviderCredentialR
         { throw new ProviderExecutionException(GoogleErrorClassifier.Unknown(requestId)); }
     }
 
-    public IAsyncEnumerable<ProviderStreamEvent> StreamAsync(ProviderChatRequest request,
-        ProviderExecutionContext context, CancellationToken cancellationToken = default) =>
-        throw InvalidRequest();
+    public async IAsyncEnumerable<ProviderStreamEvent> StreamAsync(ProviderChatRequest request,
+        ProviderExecutionContext context,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        Validate(context);
+        byte[] body;
+        try { body = GoogleWireMapper.BuildRequest(request, request.MaxOutputTokens ?? 1024); }
+        catch (Exception ex) when (ex is ArgumentException or JsonException)
+        { throw InvalidRequest(); }
+
+        var secret = await credentials.ResolveSecretAsync(context, cancellationToken);
+        if (string.IsNullOrWhiteSpace(secret))
+            throw new ProviderExecutionException(new ProviderError(ProviderErrorCategory.Authentication,
+                ProviderExecutionCertainty.NotDispatched, false, false, null, null,
+                "Provider credential is unavailable."));
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(context.Timeout);
+        using var message = NewMessage(body, secret, context, true);
+        HttpResponseMessage response;
+        try { response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { throw new ProviderExecutionException(GoogleErrorClassifier.Timeout(null)); }
+        catch (HttpRequestException)
+        { throw new ProviderExecutionException(GoogleErrorClassifier.Unknown(null)); }
+        using (response)
+        {
+            var requestId = ResponseRequestId(response);
+            if (!response.IsSuccessStatusCode)
+            {
+                string errorBody;
+                try { errorBody = await ReadErrorBodyAsync(response, timeout.Token); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                { throw new ProviderExecutionException(GoogleErrorClassifier.Timeout(requestId)); }
+                throw new ProviderExecutionException(GoogleErrorClassifier.FromHttp(
+                    (int)response.StatusCode, errorBody, requestId));
+            }
+            if (!string.Equals(response.Content.Headers.ContentType?.MediaType,
+                "text/event-stream", StringComparison.OrdinalIgnoreCase))
+                throw new ProviderExecutionException(GoogleErrorClassifier.Unknown(requestId));
+
+            Stream stream;
+            try { stream = await response.Content.ReadAsStreamAsync(timeout.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            { throw new ProviderExecutionException(GoogleErrorClassifier.Timeout(requestId)); }
+            catch (HttpRequestException)
+            { throw new ProviderExecutionException(GoogleErrorClassifier.Unknown(requestId)); }
+
+            var parser = new GoogleStreamParser(requestId);
+            await using var frames = GoogleSseReader.ReadAsync(stream, timeout.Token)
+                .GetAsyncEnumerator(timeout.Token);
+            while (true)
+            {
+                bool hasFrame;
+                try { hasFrame = await frames.MoveNextAsync(); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                { throw new ProviderExecutionException(GoogleErrorClassifier.Timeout(parser.ProviderRequestId)); }
+                catch (Exception ex) when (ex is IOException or InvalidDataException)
+                { throw new ProviderExecutionException(GoogleErrorClassifier.Unknown(parser.ProviderRequestId)); }
+                if (!hasFrame) break;
+                IReadOnlyList<ProviderStreamEvent> events;
+                try { events = parser.Parse(frames.Current); }
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException
+                    or OverflowException or FormatException)
+                { throw new ProviderExecutionException(GoogleErrorClassifier.Unknown(parser.ProviderRequestId)); }
+                foreach (var item in events)
+                {
+                    yield return item;
+                    if (item.Kind == ProviderStreamKind.Error) yield break;
+                }
+            }
+            IReadOnlyList<ProviderStreamEvent> terminal;
+            try { terminal = parser.Complete(); }
+            catch (JsonException)
+            { throw new ProviderExecutionException(GoogleErrorClassifier.Unknown(parser.ProviderRequestId)); }
+            foreach (var item in terminal) yield return item;
+        }
+    }
 
     private static ProviderExecutionException InvalidRequest() => new(new ProviderError(
         ProviderErrorCategory.InvalidRequest, ProviderExecutionCertainty.NotDispatched, false, false,
         null, null, "Request is unsupported by this provider."));
+
+    private static HttpRequestMessage NewMessage(byte[] body, string secret,
+        ProviderExecutionContext context, bool stream)
+    {
+        var method = stream ? "streamGenerateContent?alt=sse" : "generateContent";
+        var message = new HttpRequestMessage(HttpMethod.Post,
+            $"models/{Uri.EscapeDataString(context.UpstreamModelCode)}:{method}")
+        {
+            Content = new ByteArrayContent(body)
+        };
+        message.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        message.Headers.TryAddWithoutValidation("x-goog-api-key", secret);
+        message.Headers.TryAddWithoutValidation("X-Client-Request-Id", context.RequestId.ToString("N"));
+        if (stream) message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        return message;
+    }
 
     private static string? ResponseRequestId(HttpResponseMessage response) =>
         response.Headers.TryGetValues("x-request-id", out var values) ? values.FirstOrDefault() : null;

@@ -310,6 +310,52 @@ public sealed class GatewayExecutionTests
     }
 
     [Fact]
+    public async Task Explicit_google_stream_records_one_verified_evidence_and_settles()
+    {
+        var fixture = new Scenario(stream: true, googleProvider: true,
+            modelCode: "google/gpt-test");
+        fixture.GoogleAdapter.StreamItems = [
+            new ProviderStreamEvent(ProviderStreamKind.TextDelta, Text: "Hello",
+                ProviderRequestId: "google-response"),
+            new ProviderStreamEvent(ProviderStreamKind.Finish, FinishReason: "stop",
+                ProviderRequestId: "google-response"),
+            new ProviderStreamEvent(ProviderStreamKind.Usage,
+                Usage: new ProviderUsage(12, 5, 4, 2), ProviderRequestId: "google-response")
+        ];
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.GoogleAdapter.StreamCalls);
+        Assert.Equal(0, fixture.Adapter.StreamCalls);
+        Assert.Equal(1, fixture.Finance.Reserves);
+        Assert.Equal(1, fixture.Finance.Finalizes);
+        Assert.Equal(1, fixture.Usage.VerifiedEvidence);
+        Assert.Equal(0, fixture.Usage.UnknownEvidence);
+        Assert.Equal("google", fixture.Context.Response.Headers["X-Uzllm-Provider"]);
+        Assert.True(fixture.Writer.StreamFinished);
+    }
+
+    [Fact]
+    public async Task Partial_google_stream_remains_unknown_and_never_replays()
+    {
+        var fixture = new Scenario(stream: true, googleProvider: true,
+            modelCode: "google/gpt-test");
+        fixture.GoogleAdapter.StreamItems = [new ProviderStreamEvent(ProviderStreamKind.TextDelta,
+            Text: "partial", ProviderRequestId: "google-partial")];
+        fixture.GoogleAdapter.FailAfterStreamItems = true;
+        fixture.Finance.NextFinalization = FinalizationStatus.PendingEvidence;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.GoogleAdapter.StreamCalls);
+        Assert.Equal(0, fixture.Adapter.StreamCalls);
+        Assert.Equal(0, fixture.AnthropicAdapter.StreamCalls);
+        Assert.Equal(1, fixture.Usage.UnknownEvidence);
+        Assert.Equal(0, fixture.Usage.VerifiedEvidence);
+        Assert.False(fixture.Writer.StreamFinished);
+    }
+
+    [Fact]
     public async Task Adapter_capability_rejection_happens_before_financial_reservation()
     {
         var fixture = new Scenario(twoProviders: true, modelCode: "anthropic/gpt-test");
@@ -719,6 +765,7 @@ public sealed class GatewayExecutionTests
         private readonly Guid providerId = Guid.NewGuid();
         private readonly Guid mappingId = Guid.NewGuid();
         private readonly Guid anthropicMappingId = Guid.NewGuid();
+        private readonly Guid googleMappingId = Guid.NewGuid();
         public readonly Guid FallbackPriceId = Guid.NewGuid();
         private readonly Guid credentialId = Guid.NewGuid();
         public readonly Guid ByokCredentialId = Guid.NewGuid();
@@ -731,6 +778,7 @@ public sealed class GatewayExecutionTests
         public readonly FakeUsage Usage;
         public readonly FakeAdapter Adapter = new("openai");
         public readonly FakeAdapter AnthropicAdapter = new("anthropic");
+        public readonly FakeAdapter GoogleAdapter = new("google");
         public readonly FakeHealth Health;
         public readonly FakePlatformControls PlatformControls = new();
         public readonly FakePayloadRetention PayloadRetention = new();
@@ -743,7 +791,7 @@ public sealed class GatewayExecutionTests
             string modelCode = "gpt-test", int outputTokens = 100,
             long anthropicInputRate = 2000, long anthropicOutputRate = 4000,
             bool openAiTools = false, bool fallbackModel = false,
-            bool fallbackTools = false)
+            bool fallbackTools = false, bool googleProvider = false)
         {
             Finance = new FakeFinance(RequestId, organizationId, projectId, apiKeyId, feeId);
             Usage = new FakeUsage(RequestId);
@@ -770,6 +818,18 @@ public sealed class GatewayExecutionTests
                     new CatalogProvider(anthropicId, "anthropic", "Anthropic", CatalogStatus.Active, now),
                     anthropicPrice));
                 prices[anthropicMappingId] = anthropicPrice;
+            }
+            if (googleProvider)
+            {
+                var googleId = Guid.NewGuid();
+                var googleMapping = new ProviderModel(googleMappingId, googleId, model.Id,
+                    "gemini-test", null, CatalogStatus.Active, [], now);
+                var googlePrice = new ModelPrice(Guid.NewGuid(), googleMappingId,
+                    now.AddDays(-1), null, 1500, 3000, 500, "{}", now);
+                mappings.Add(new CatalogProviderModelSummary(googleMapping,
+                    new CatalogProvider(googleId, "google", "Google", CatalogStatus.Active, now),
+                    googlePrice));
+                prices[googleMappingId] = googlePrice;
             }
             var summaries = new List<CatalogModelSummary> { new(model, mappings) };
             if (fallbackModel)
@@ -803,7 +863,7 @@ public sealed class GatewayExecutionTests
             Writer.AbortSource = abort;
             gateway = new InferenceGateway(new FakeAuthenticator(apiKeyId, projectId), Reads,
                 catalog, Limiter, new FakeQuota(), new RequestConstraintValidator(), Finance,
-                Usage, PayloadRetention, new FakeAdapterSelector(Adapter, AnthropicAdapter), Health,
+                Usage, PayloadRetention, new FakeAdapterSelector(Adapter, AnthropicAdapter, GoogleAdapter), Health,
                 new FakeWriterFactory(Writer), PlatformControls,
                 new GatewayOptions("default", 1_048_576, TimeSpan.FromMinutes(2),
                     TimeSpan.FromMinutes(15), new LimitPolicy(60, 600, 8, 64, TimeSpan.FromMinutes(15))),
@@ -1110,11 +1170,16 @@ public sealed class GatewayExecutionTests
         public ICompletionWriter Create(HttpContext context) => writer;
     }
 
-    private sealed class FakeAdapterSelector(FakeAdapter openAi, FakeAdapter anthropic)
+    private sealed class FakeAdapterSelector(FakeAdapter openAi, FakeAdapter anthropic,
+        FakeAdapter google)
         : IProviderAdapterSelector
     {
-        public ILlmProviderAdapter Get(string providerCode) => providerCode == "anthropic"
-            ? anthropic : openAi;
+        public ILlmProviderAdapter Get(string providerCode) => providerCode switch
+        {
+            "anthropic" => anthropic,
+            "google" => google,
+            _ => openAi
+        };
     }
 
     private sealed class FakeWriter : ICompletionWriter

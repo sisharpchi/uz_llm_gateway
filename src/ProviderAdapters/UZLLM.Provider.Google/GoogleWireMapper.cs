@@ -6,7 +6,7 @@ namespace UZLLM.Provider.Google;
 internal static class GoogleWireMapper
 {
     public static bool Supports(ProviderChatRequest request, bool stream) =>
-        !stream && request.Messages is { Count: > 0 }
+        request.Messages is { Count: > 0 }
         && request.Temperature is not < 0 and not > 1
         && request.TopP is not <= 0 and not > 1
         && request.Stop is not { Count: > 5 }
@@ -128,7 +128,7 @@ internal static class GoogleWireMapper
         return new ProviderUsage(input, output, cached, thoughts == 0 ? null : thoughts);
     }
 
-    private static (string Finish, string? Refusal) MapFinish(string reason) => reason switch
+    internal static (string Finish, string? Refusal) MapFinish(string reason) => reason switch
     {
         "STOP" => ("stop", null),
         "MAX_TOKENS" => ("length", null),

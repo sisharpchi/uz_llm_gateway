@@ -361,8 +361,7 @@ deployment/operator prerequisites.
 [GenerateContent API](https://ai.google.dev/api/generate-content) at the HTTPS
 `/v1beta/models/{model}:generateContent` endpoint, rather than the newer
 Interactions API. This bounded adapter accepts text dialogue and native JSON
-output only. It rejects streaming, tools, and vision before financial
-reservation; Gemini streaming is `PROVIDER-007`. Catalog must mark each Google
+output only. It rejects tools and vision before financial reservation. Catalog must mark each Google
 mapping with its actual capabilities and provide a current price version.
 `promptTokenCount` is normalized input, `cachedContentTokenCount` is its cached
 subset, and `candidatesTokenCount + thoughtsTokenCount` is billable output;
@@ -373,4 +372,17 @@ must be flat per-token input/output with an optional cached-input rate;
 nonempty extra pricing dimensions (including long-context tiers) fail closed
 at reservation. Operators must verify live model eligibility and the published
 [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) before enabling
-Managed traffic. Google BYOK verification and streaming remain separate work.
+Managed traffic. Google BYOK verification remains separate work.
+
+`PROVIDER-007` adds native
+[streamGenerateContent SSE](https://ai.google.dev/api/generate-content) for the
+same text/JSON request subset. Each streamed `GenerateContentResponse` is a
+delta, not a replacement for the entire completion. The adapter forwards text
+as received, but emits terminal finish and one cumulative usage event only
+after a complete stream with final usage. Missing terminal usage, malformed or
+oversized frames, changing response IDs, regressions in cumulative token
+counts, timeout, and in-band error are unknown outcomes; partial output is
+never replayed. Client cancellation closes upstream I/O while Gateway cleanup
+persists usage evidence and finalizes the reservation independently. The
+provider-specific SSE reader is bounded per line/frame; no database transaction
+spans streaming.
