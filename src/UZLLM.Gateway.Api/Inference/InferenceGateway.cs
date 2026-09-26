@@ -168,7 +168,7 @@ public sealed class InferenceGateway(
             var mappings = model.ProviderMappings
                 .Where(value => SupportedProvider(value.Provider.Code)
                     && (pinnedProvider is null || value.Provider.Code == pinnedProvider))
-                .OrderBy(value => value.Provider.Code == "openai" ? 0 : 1)
+                .OrderBy(value => ProviderPriority(value.Provider.Code))
                 .ThenBy(value => value.Mapping.Id).ToArray();
             GatewayByokCredential? byok = null;
             FeePolicyVersion? byokFee = null;
@@ -192,6 +192,11 @@ public sealed class InferenceGateway(
                 }
                 foreach (var mapping in mappings.Where(value => value.Provider.Id == byok.ProviderId))
                 {
+                    if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
+                    {
+                        constraintFailure ??= RequestConstraintOutcome.UnsupportedCapability;
+                        continue;
+                    }
                     var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
                         .Select(value => value.ToString()).ToArray();
                     var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
@@ -240,6 +245,11 @@ public sealed class InferenceGateway(
                 foreach (var mapping in mappings)
                 {
                     if (candidates.Count == 2 && parsed.Routing != "price") break;
+                    if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
+                    {
+                        constraintFailure ??= RequestConstraintOutcome.UnsupportedCapability;
+                        continue;
+                    }
                     var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
                         .Select(value => value.ToString()).ToArray();
                     var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
@@ -307,9 +317,11 @@ public sealed class InferenceGateway(
                     var eligible = new List<RouteCandidate>();
                     foreach (var mapping in fallbackModel.ProviderMappings
                         .Where(value => SupportedProvider(value.Provider.Code))
-                        .OrderBy(value => value.Provider.Code == "openai" ? 0 : 1)
+                        .OrderBy(value => ProviderPriority(value.Provider.Code))
                         .ThenBy(value => value.Mapping.Id))
                     {
+                        if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
+                            continue;
                         var supported = fallbackModel.Model.Capabilities
                             .Concat(mapping.Mapping.CapabilityOverrides)
                             .Select(value => value.ToString()).ToArray();
@@ -786,7 +798,14 @@ public sealed class InferenceGateway(
         { logger.LogWarning(exception, "Provider health update failed for mapping {MappingId}", mappingId); }
     }
 
-    private static bool SupportedProvider(string code) => code is "openai" or "anthropic";
+    private static bool SupportedProvider(string code) => code is "openai" or "anthropic" or "google";
+    private static int ProviderPriority(string code) => code switch
+    {
+        "openai" => 0,
+        "anthropic" => 1,
+        "google" => 2,
+        _ => int.MaxValue
+    };
 
     private sealed record RouteCandidate(CatalogProviderModelSummary Mapping, Guid CredentialId,
         UsdMicroAmount MaximumCharge, CanonicalModel Model, int OutputLimit,

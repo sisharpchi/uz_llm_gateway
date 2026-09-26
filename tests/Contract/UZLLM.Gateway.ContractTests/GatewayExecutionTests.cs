@@ -310,6 +310,20 @@ public sealed class GatewayExecutionTests
     }
 
     [Fact]
+    public async Task Adapter_capability_rejection_happens_before_financial_reservation()
+    {
+        var fixture = new Scenario(twoProviders: true, modelCode: "anthropic/gpt-test");
+        fixture.AnthropicAdapter.Eligible = false;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(400, fixture.Context.Response.StatusCode);
+        Assert.Equal(0, fixture.Finance.Reserves);
+        Assert.Equal(0, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(0, fixture.Usage.Attempts);
+    }
+
+    [Fact]
     public async Task Price_route_selects_cheapest_eligible_mapping_and_keeps_worst_case_hold()
     {
         var fixture = new Scenario(twoProviders: true,
@@ -1043,6 +1057,8 @@ public sealed class GatewayExecutionTests
     private sealed class FakeAdapter(string providerCode) : ILlmProviderAdapter
     {
         public string ProviderCode => providerCode;
+        public bool Eligible = true;
+        public bool Supports(ProviderChatRequest request, bool stream) => Eligible;
         public int CompleteCalls, StreamCalls;
         public ProviderCompletion? Completion;
         public ProviderError? Error;

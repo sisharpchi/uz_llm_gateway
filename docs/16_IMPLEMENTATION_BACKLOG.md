@@ -39,6 +39,7 @@ same-model failover precedes P1 cross-model fallback.
 | ROUTING-003 | Completed |
 | ROUTING-005 | Completed |
 | PRIVACY-001 | Completed |
+| PROVIDER-006 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -109,6 +110,7 @@ remain under `frontend/apps`; mock data must not enter the live product.
 |---|---|---|---|---|
 | TEAM-001 | Invitations, role changes and explicit project grants | ORGS-001, NOTIFY-001 | Membership changes affect the next authorization check; invite replay, permission matrix, last-owner and tenant-FK tests | P1 |
 | BYOK-001 | Encrypted organization provider credentials and explicit project grants | ADMIN-001, PROVIDER-001, TEAM-001 | Masked CRUD/test/disable against fixed provider endpoints; tenant-bound encryption and cross-project denial | P1 |
+| PROVIDER-006 | Gemini native non-stream adapter and billable usage normalization | PROVIDER-001, CATALOG-001 | Capability and usage fixtures; unsupported pricing dimensions fail closed | P1 |
 
 The original execution plan named `SECURITY-001` as a BYOK prerequisite; the
 platform envelope encryption and key-version foundation was delivered in
@@ -129,6 +131,11 @@ P1: `BUDGET-001`, `APIKEYS-003`, `TEAM-001`, `BYOK-001`, `BYOK-002`,
 tenant-bound authenticated encryption, a one-hour to seven-day lifetime,
 bounded response capture, immediate opt-out deletion, and Worker expiry
 deletion. Request metadata and financial/audit records remain independent.
+
+The earlier execution plan names `CATALOG-002` for `PROVIDER-006`; the current
+`CATALOG-001` register explicitly includes mappings, capabilities, and
+effective price history, so that prerequisite is satisfied here. Gemini
+streaming remains the separate later `PROVIDER-007` task.
 
 P2: SSO/SCIM, ZDR routing, custom endpoints, guardrails, management automation,
 and additional modalities.

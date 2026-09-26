@@ -328,8 +328,8 @@ upstream transport but does not cancel evidence/financial cleanup.
 
 ## 15. P0 implementation boundary
 
-The gateway orders eligible mappings OpenAI before Anthropic (then by mapping
-ID), skips open Redis-backed provider-model circuits, and reserves the maximum
+The gateway orders eligible mappings OpenAI, then Anthropic, then Google (then
+by mapping ID), skips open Redis-backed provider-model circuits, and reserves the maximum
 estimated charge across at most two eligible mappings. It records each attempt
 under one logical request. A verified 429 or overload rejection may try the
 next mapping only before downstream output; 5xx, timeout, transport ambiguity,
@@ -356,3 +356,21 @@ ordinary input until Catalog supports that distinct upstream price dimension.
 An Anthropic refusal is a successful, billable provider response, not a
 failover trigger. Live model access, pricing, and platform credentials remain
 deployment/operator prerequisites.
+
+`PROVIDER-006` adds Google's native
+[GenerateContent API](https://ai.google.dev/api/generate-content) at the HTTPS
+`/v1beta/models/{model}:generateContent` endpoint, rather than the newer
+Interactions API. This bounded adapter accepts text dialogue and native JSON
+output only. It rejects streaming, tools, and vision before financial
+reservation; Gemini streaming is `PROVIDER-007`. Catalog must mark each Google
+mapping with its actual capabilities and provide a current price version.
+`promptTokenCount` is normalized input, `cachedContentTokenCount` is its cached
+subset, and `candidatesTokenCount + thoughtsTokenCount` is billable output;
+thinking tokens are also reported separately. Missing or inconsistent usage,
+nonzero tool-use prompt tokens, and unsupported response shapes remain unknown
+financial evidence, never zero-cost success. Catalog prices for this adapter
+must be flat per-token input/output with an optional cached-input rate;
+nonempty extra pricing dimensions (including long-context tiers) fail closed
+at reservation. Operators must verify live model eligibility and the published
+[Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) before enabling
+Managed traffic. Google BYOK verification and streaming remain separate work.

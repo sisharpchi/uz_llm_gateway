@@ -144,6 +144,21 @@ public sealed class GatewayWireContractTests
     }
 
     [Fact]
+    public void Reservation_fails_closed_for_unmodelled_provider_price_dimensions()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var model = new CanonicalModel(Guid.NewGuid(), "gemini", "Gemini", 1000, 100,
+            [CatalogCapability.Text], CatalogStatus.Active, now);
+        var price = new ModelPrice(Guid.NewGuid(), Guid.NewGuid(), now.AddDays(-1), null,
+            1_000_000, 2_000_000, 500_000, "{\"long_context_rate\":3000000}", now);
+        var fee = new FeePolicyVersion(Guid.NewGuid(), "default", 0, UsdMicroAmount.Zero,
+            now.AddDays(-1), null, now);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            GatewayCostEstimator.MaximumCharge(model, price, fee, 100));
+    }
+
+    [Fact]
     public async Task Nonstream_writer_emits_openai_compatible_envelope()
     {
         var context = NewContext();

@@ -61,6 +61,7 @@ public sealed class ProviderExecutionException(ProviderError error) : Exception(
 public interface ILlmProviderAdapter
 {
     string ProviderCode { get; }
+    bool Supports(ProviderChatRequest request, bool stream) => true;
     Task<ProviderCompletion> CompleteAsync(ProviderChatRequest request,
         ProviderExecutionContext context, CancellationToken cancellationToken = default);
     IAsyncEnumerable<ProviderStreamEvent> StreamAsync(ProviderChatRequest request,
