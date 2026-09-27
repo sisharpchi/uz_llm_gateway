@@ -299,12 +299,17 @@ usage evidence, wallet entries, or audit history.
   a recovered metric or new budget window rearms a rule.
 
 ### `ops.notification_destination`
-- One Telegram destination per organization: `id`, `organization_id`, `type`,
-  AES-GCM `encrypted_chat_id`, `key_version`, `status`, `verified_at`. The
-  authenticated data binds organization, destination, and key version.
+- One destination per organization/type: Telegram stores AES-GCM
+  `encrypted_chat_id` and `key_version`; Webhook stores a validated HTTPS
+  `endpoint_url`, AES-GCM `encrypted_webhook_secret`, and
+  `webhook_key_version`. A type check makes those column sets mutually
+  exclusive. Authenticated data binds organization, destination, and key
+  version. Telegram is `Verified` only after private-chat proof; a webhook is
+  `Active` after URL/DNS validation, without implying domain ownership.
+  Tenant-scoped rules reference destinations through a composite FK.
 - `ops.telegram_link_challenge` stores only the SHA-256 hash of a 10-minute,
   account-bound one-time `/start` token; expired challenges are pruned by Worker.
-  Webhook and future Email destinations belong to later tasks.
+  Future Email destinations belong to later tasks.
 
 ---
 

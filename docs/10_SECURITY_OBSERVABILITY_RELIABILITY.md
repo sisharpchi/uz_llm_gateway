@@ -346,6 +346,24 @@ commit can cause an at-least-once duplicate delivery. The rule episode itself
 remains deduplicated. Live bot/webhook onboarding and private-chat delivery
 verification are launch prerequisites outside CI.
 
+`NOTIFY-003` accepts only HTTPS DNS webhook URLs on port 443 without userinfo,
+query or fragment. Registration checks all DNS answers; Worker rechecks before
+send and pins the connection to a newly resolved public IP, with proxies and
+redirects disabled. Private, link-local, reserved, mixed public/private and
+literal IP targets fail closed. One webhook destination per organization is
+supported. The 32-byte HMAC secret is shown once and stored under the separate
+versioned `OutboundWebhooks:Keys:<version>` AES-GCM key; ciphertext is bound to
+organization and destination. Management and Worker both require the active
+version and key, while Worker retains old versions until destination rotation.
+No URL, secret, signature or body belongs in application logs; outbound HTTP
+trace instrumentation is suppressed for signed requests. Outbound delivery
+is at-least-once: clients must reject timestamps outside five minutes and
+deduplicate the stable event ID. Transient HTTP 429/5xx and transport failures
+retry with bounded exponential delay; other non-2xx responses disable the
+destination. A crash after remote acceptance but before inbox commit may send
+the same event again. Egress network policy should also deny private networks
+as defense in depth; live customer endpoint acceptance is an external check.
+
 `PRIVACY-001` adds project-scoped, owner-only opt-in payload retention (one hour
 to seven days; default off). Request and bounded complete response bodies live
 only in `usage.payload`, separately from request/usage/financial metadata.

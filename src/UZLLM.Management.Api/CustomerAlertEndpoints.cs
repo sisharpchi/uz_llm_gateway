@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.Features;
 using UZLLM.Modules.Identity.Infrastructure;
@@ -62,6 +63,25 @@ public static class CustomerAlertEndpoints
             catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             catch (InvalidOperationException) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
         }).RequireManagementCsrf().WithName("BeginTelegramAlertLink");
+        group.MapPost("/webhook/destination", async (Guid organizationId,
+            CreateWebhookDestinationRequest request, HttpContext context, OutboundWebhookService service,
+            CancellationToken cancellationToken) =>
+        {
+            if (!AccountId(context, out var accountId)) return Results.Unauthorized();
+            try
+            {
+                var result = await service.CreateAsync(accountId, organizationId, request.EndpointUrl,
+                    cancellationToken);
+                context.Response.Headers.CacheControl = "no-store";
+                return Results.Created($"/management/v1/organizations/{organizationId}/alerts/destinations/{result.Id}",
+                    result);
+            }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            catch (ArgumentException) { return Results.BadRequest(new { Error = "Webhook endpoint must resolve to a public HTTPS address." }); }
+            catch (SocketException) { return Results.BadRequest(new { Error = "Webhook endpoint DNS lookup failed." }); }
+            catch (WebhookDestinationAlreadyExistsException) { return Results.Conflict(new { Error = "Disable the existing webhook destination first." }); }
+            catch (InvalidOperationException) { return Results.StatusCode(StatusCodes.Status503ServiceUnavailable); }
+        }).RequireManagementCsrf().WithName("CreateOutboundWebhookDestination");
         group.MapDelete("/destinations/{destinationId:guid}", async (Guid organizationId, Guid destinationId,
             HttpContext context, CustomerAlertService service, CancellationToken cancellationToken) =>
         {
@@ -108,3 +128,4 @@ public static class CustomerAlertEndpoints
 public sealed record CreateAlertRuleRequest(string Type, long Threshold, Guid DestinationId,
     Guid? ProjectId, Guid? BudgetPolicyId);
 public sealed record SetAlertRuleEnabledRequest(bool Enabled);
+public sealed record CreateWebhookDestinationRequest(string EndpointUrl);

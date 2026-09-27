@@ -9,7 +9,8 @@ namespace UZLLM.Modules.Notifications.Infrastructure;
 public sealed record TelegramLink(string DeepLink, DateTimeOffset ExpiresAt);
 public sealed record AlertRuleView(Guid Id, Guid OrganizationId, Guid? ProjectId, Guid? BudgetPolicyId,
     Guid DestinationId, string Type, long Threshold, bool Enabled, DateTimeOffset? LastTriggeredAt);
-public sealed record AlertDestinationView(Guid Id, string Type, string Status, DateTimeOffset VerifiedAt);
+public sealed record AlertDestinationView(Guid Id, string Type, string Status, DateTimeOffset VerifiedAt,
+    string? EndpointUrl);
 
 public sealed class CustomerAlertService(FoundationDbContext db, IOrganizationAuthorizationService authorization,
     TelegramAlertOptions telegram, TelegramChatProtector chats, IAuditTrail audit, TimeProvider clock)
@@ -87,7 +88,8 @@ public sealed class CustomerAlertService(FoundationDbContext db, IOrganizationAu
             OrganizationPermission.ReadBilling, cancellationToken: cancellationToken);
         return await db.NotificationDestinations.AsNoTracking().Where(value => value.OrganizationId == organizationId)
             .OrderBy(value => value.CreatedAt)
-            .Select(value => new AlertDestinationView(value.Id, value.Type, value.Status, value.VerifiedAt))
+            .Select(value => new AlertDestinationView(value.Id, value.Type, value.Status, value.VerifiedAt,
+                value.EndpointUrl))
             .ToListAsync(cancellationToken);
     }
 
@@ -118,8 +120,10 @@ public sealed class CustomerAlertService(FoundationDbContext db, IOrganizationAu
         if (!ValidRule(type, projectId, budgetPolicyId, threshold))
             throw new ArgumentException("Invalid alert rule scope or threshold.");
         if (!await db.NotificationDestinations.AnyAsync(value => value.Id == destinationId &&
-            value.OrganizationId == organizationId && value.Status == "Verified", cancellationToken))
-            throw new KeyNotFoundException("Verified destination not found.");
+            value.OrganizationId == organizationId &&
+            (value.Type == "Telegram" && value.Status == "Verified" ||
+             value.Type == "Webhook" && value.Status == "Active"), cancellationToken))
+            throw new KeyNotFoundException("Active destination not found.");
         if (projectId is { } project && !await db.Set<ProjectEntity>().AnyAsync(value =>
             value.Id == project && value.OrganizationId == organizationId, cancellationToken))
             throw new KeyNotFoundException("Project not found.");

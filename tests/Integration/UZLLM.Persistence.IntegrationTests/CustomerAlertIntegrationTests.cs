@@ -32,6 +32,149 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
     private const string WebhookSecret = "test-webhook-secret-0123456789";
 
     [Fact]
+    public async Task Outbound_webhook_destination_is_tenant_scoped_encrypted_show_once_and_audited()
+    {
+        await ResetAsync();
+        var clock = new AlertClock(DateTimeOffset.UtcNow);
+        await using var provider = CreateProvider(clock);
+        await using var scope = provider.CreateAsyncScope();
+        var owner = await RegisterAsync(scope, "outbound-owner@example.uz");
+        var outsider = await RegisterAsync(scope, "outbound-outsider@example.uz");
+        var orgs = scope.ServiceProvider.GetRequiredService<IOrganizationService>();
+        var org = await orgs.CreateAsync(owner, "Outbound tenant");
+        var other = await orgs.CreateAsync(outsider, "Outbound other");
+        var service = scope.ServiceProvider.GetRequiredService<OutboundWebhookService>();
+        await Assert.ThrowsAsync<TenantAccessDeniedException>(() =>
+            service.CreateAsync(outsider, org.Id, "https://alerts.example.com/hook"));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.CreateAsync(owner, org.Id, "http://alerts.example.com/hook"));
+        var destination = await service.CreateAsync(owner, org.Id, "https://alerts.example.com/hook");
+        Assert.Equal(64, destination.SigningSecret.Length);
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var stored = await db.NotificationDestinations.SingleAsync();
+        Assert.Null(stored.EncryptedChatId);
+        Assert.Equal("Webhook", stored.Type);
+        Assert.DoesNotContain(destination.SigningSecret, Convert.ToHexString(stored.EncryptedWebhookSecret!),
+            StringComparison.OrdinalIgnoreCase);
+        var protector = scope.ServiceProvider.GetRequiredService<OutboundWebhookSecretProtector>();
+        Assert.Equal(Convert.FromHexString(destination.SigningSecret),
+            protector.Unprotect(org.Id, destination.Id, stored.EncryptedWebhookSecret!, stored.WebhookKeyVersion!));
+        Assert.ThrowsAny<CryptographicException>(() => protector.Unprotect(other.Id, destination.Id,
+            stored.EncryptedWebhookSecret!, stored.WebhookKeyVersion!));
+        await Assert.ThrowsAsync<WebhookDestinationAlreadyExistsException>(() =>
+            service.CreateAsync(owner, org.Id, "https://alerts.example.com/other"));
+        var list = await scope.ServiceProvider.GetRequiredService<CustomerAlertService>()
+            .ListDestinationsAsync(owner, org.Id);
+        Assert.Equal("https://alerts.example.com/hook", Assert.Single(list).EndpointUrl);
+        Assert.DoesNotContain(destination.SigningSecret, JsonSerializer.Serialize(list), StringComparison.Ordinal);
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<CustomerAlertService>()
+            .ListDestinationsAsync(outsider, other.Id));
+        var audits = await db.Set<AuditEventEntity>().AsNoTracking()
+            .Where(value => value.OrganizationId == org.Id).ToArrayAsync();
+        Assert.Contains(audits, value => value.Action == "notification.webhook.created");
+        Assert.All(audits, value => Assert.DoesNotContain(destination.SigningSecret,
+            value.MetadataJson, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Webhook_episode_retries_same_event_then_deduplicates_and_permanent_error_disables()
+    {
+        await ResetAsync();
+        var clock = new AlertClock(DateTimeOffset.UtcNow);
+        var sender = new RecordingWebhookSender();
+        await using var provider = CreateProvider(clock, webhookSender: sender);
+        await using var scope = provider.CreateAsyncScope();
+        var owner = await RegisterAsync(scope, "outbound-events@example.uz");
+        var org = await scope.ServiceProvider.GetRequiredService<IOrganizationService>()
+            .CreateAsync(owner, "Webhook episode tenant");
+        var destination = await scope.ServiceProvider.GetRequiredService<OutboundWebhookService>()
+            .CreateAsync(owner, org.Id, "https://alerts.example.com/hook");
+        var alerts = scope.ServiceProvider.GetRequiredService<CustomerAlertService>();
+        var rule = await alerts.CreateRuleAsync(owner, org.Id, null, null, destination.Id, "LowBalance", 0);
+        Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<CustomerAlertEvaluator>().EvaluateDueAsync());
+        var outbox = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+        var message = Assert.Single(await outbox.ClaimAvailableAsync("webhook-test", 20, TimeSpan.FromMinutes(1)),
+            value => value.EventType == "customer.alert.webhook");
+        var handler = scope.ServiceProvider.GetServices<IOutboxHandler>()
+            .Single(value => value.EventType == "customer.alert.webhook");
+        sender.TransientNext = true;
+        await Assert.ThrowsAsync<HttpRequestException>(() => handler.HandleAsync(message, default));
+        Assert.Single(sender.Attempts);
+        await handler.HandleAsync(message, default);
+        await handler.HandleAsync(message, default);
+        Assert.Equal(2, sender.Attempts.Count);
+        Assert.Equal(sender.Attempts[0].EventId, sender.Attempts[1].EventId);
+        Assert.Equal(sender.Attempts[0].Body, sender.Attempts[1].Body);
+        Assert.Equal(JsonDocument.Parse(message.Payload).RootElement.GetProperty("EventId").GetGuid(),
+            sender.Attempts[1].EventId);
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal("Delivered", (await db.CustomerAlertEvents.SingleAsync()).Status);
+        Assert.True(await alerts.SetRuleEnabledAsync(owner, org.Id, rule.Id, false));
+        Assert.True(await alerts.SetRuleEnabledAsync(owner, org.Id, rule.Id, true));
+        clock.Advance(TimeSpan.FromMinutes(1));
+        Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<CustomerAlertEvaluator>().EvaluateDueAsync());
+        var next = Assert.Single(await outbox.ClaimAvailableAsync("webhook-test-2", 20, TimeSpan.FromMinutes(1)),
+            value => value.EventType == "customer.alert.webhook" && value.Id != message.Id);
+        sender.PermanentNext = true;
+        await handler.HandleAsync(next, default);
+        db.ChangeTracker.Clear();
+        Assert.Equal("Suppressed", (await db.CustomerAlertEvents.SingleAsync(value => value.Episode == 2)).Status);
+        Assert.Equal("Disabled", (await db.NotificationDestinations.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Webhook_management_requires_csrf_enforces_tenant_and_reveals_secret_only_on_create()
+    {
+        await ResetAsync();
+        var clock = new AlertClock(DateTimeOffset.UtcNow);
+        await using var app = await CreateAppAsync(clock);
+        using var client = new HttpClient { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()!.Addresses.Single()) };
+        await using var scope = app.Services.CreateAsyncScope();
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityService>();
+        var registration = await identity.RegisterAsync("webhook-api-owner@example.uz", "correct horse battery staple");
+        Assert.True(await identity.VerifyEmailAsync(registration.VerificationToken));
+        var session = (await identity.AuthenticateAsync("webhook-api-owner@example.uz",
+            "correct horse battery staple"))!;
+        var org = await scope.ServiceProvider.GetRequiredService<IOrganizationService>()
+            .CreateAsync(registration.AccountId, "Outbound API tenant");
+        var path = $"/management/v1/organizations/{org.Id}/alerts/webhook/destination";
+        var input = new { endpointUrl = "https://alerts.example.com/hook" };
+        using (var noCsrf = await client.SendAsync(Request(HttpMethod.Post, path, session, body: input)))
+            Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+        using (var wrongTenant = await client.SendAsync(Request(HttpMethod.Post,
+            $"/management/v1/organizations/{Guid.CreateVersion7()}/alerts/webhook/destination",
+            session, csrf: true, body: input)))
+            Assert.Equal(HttpStatusCode.Forbidden, wrongTenant.StatusCode);
+        using (var invalid = await client.SendAsync(Request(HttpMethod.Post, path, session,
+            csrf: true, body: new { endpointUrl = "http://localhost/hook" })))
+            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var created = await client.SendAsync(Request(HttpMethod.Post, path, session, csrf: true, body: input));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal("no-store", created.Headers.CacheControl?.ToString());
+        var first = await created.Content.ReadFromJsonAsync<WebhookDestinationCreated>();
+        Assert.NotNull(first);
+        using (var duplicate = await client.SendAsync(Request(HttpMethod.Post, path, session,
+            csrf: true, body: input)))
+            Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        using var listed = await client.SendAsync(Request(HttpMethod.Get,
+            $"/management/v1/organizations/{org.Id}/alerts/destinations", session));
+        Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
+        Assert.DoesNotContain(first.SigningSecret, await listed.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        using (var disabled = await client.SendAsync(Request(HttpMethod.Delete,
+            $"/management/v1/organizations/{org.Id}/alerts/destinations/{first.Id}", session, csrf: true)))
+            Assert.Equal(HttpStatusCode.NoContent, disabled.StatusCode);
+        using var recreated = await client.SendAsync(Request(HttpMethod.Post, path, session,
+            csrf: true, body: input));
+        Assert.Equal(HttpStatusCode.Created, recreated.StatusCode);
+        var second = await recreated.Content.ReadFromJsonAsync<WebhookDestinationCreated>();
+        Assert.NotNull(second);
+        Assert.Equal(first.Id, second.Id);
+        Assert.NotEqual(first.SigningSecret, second.SigningSecret);
+        await app.StopAsync();
+    }
+
+    [Fact]
     public async Task Telegram_link_is_one_time_account_bound_and_never_exposes_chat_id()
     {
         await ResetAsync();
@@ -65,7 +208,7 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
         Assert.Equal(org.Id, destination.OrganizationId);
         Assert.NotEqual(System.Text.Encoding.UTF8.GetBytes("123456"), destination.EncryptedChatId);
         Assert.Equal(123456, scope.ServiceProvider.GetRequiredService<TelegramChatProtector>()
-            .Unprotect(org.Id, destination.Id, destination.EncryptedChatId, destination.KeyVersion));
+            .Unprotect(org.Id, destination.Id, destination.EncryptedChatId!, destination.KeyVersion!));
         var audit = await db.Set<AuditEventEntity>().AsNoTracking()
             .Where(value => value.OrganizationId == org.Id).ToArrayAsync();
         Assert.Contains(audit, value => value.Action == "notification.telegram.connected");
@@ -75,7 +218,7 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
             Assert.DoesNotContain("123456", value.MetadataJson, StringComparison.Ordinal);
         });
         Assert.ThrowsAny<CryptographicException>(() => scope.ServiceProvider.GetRequiredService<TelegramChatProtector>()
-            .Unprotect(other.Id, destination.Id, destination.EncryptedChatId, destination.KeyVersion));
+            .Unprotect(other.Id, destination.Id, destination.EncryptedChatId!, destination.KeyVersion!));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => service.CreateRuleAsync(stranger, other.Id,
             null, null, destination.Id, "LowBalance", 0));
         await Assert.ThrowsAsync<TenantAccessDeniedException>(() => service.CreateRuleAsync(stranger, org.Id,
@@ -315,7 +458,8 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
         await fixture.ApplyMigrationsAsync();
     }
 
-    private ServiceProvider CreateProvider(AlertClock clock, RecordingSender? sender = null)
+    private ServiceProvider CreateProvider(AlertClock clock, RecordingSender? sender = null,
+        RecordingWebhookSender? webhookSender = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(clock);
@@ -323,6 +467,8 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
         services.AddUzllmPersistence(configuration).AddUzllmIdentity().AddUzllmAudit().AddUzllmOrganizations()
             .AddUzllmProjects().AddUzllmUsage().AddUzllmBilling().AddUzllmCustomerAlerts(configuration);
         if (sender is not null) services.AddSingleton<ITelegramMessageSender>(sender);
+        services.AddSingleton<IWebhookAddressResolver>(new FixedWebhookResolver());
+        if (webhookSender is not null) services.AddSingleton<IOutboundWebhookSender>(webhookSender);
         return services.BuildServiceProvider(validateScopes: true);
     }
 
@@ -335,6 +481,7 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
         builder.Services.AddUzllmPersistence(builder.Configuration).AddUzllmIdentity().AddUzllmAudit()
             .AddUzllmOrganizations().AddUzllmProjects().AddUzllmUsage().AddUzllmBilling()
             .AddUzllmCustomerAlerts(builder.Configuration);
+        builder.Services.AddSingleton<IWebhookAddressResolver>(new FixedWebhookResolver());
         var app = builder.Build();
         app.UseUzllmManagementSession();
         app.MapUzllmCustomerAlertEndpoints();
@@ -349,6 +496,8 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
         ["Telegram:WebhookSecret"] = WebhookSecret,
         ["Telegram:ActiveChatKeyVersion"] = "test-v1",
         ["Telegram:ChatKeys:test-v1"] = Convert.ToBase64String(new byte[32])
+        , ["OutboundWebhooks:ActiveKeyVersion"] = "test-v1"
+        , ["OutboundWebhooks:Keys:test-v1"] = Convert.ToBase64String(Enumerable.Repeat((byte)7, 32).ToArray())
     }).Build();
 
     private static async Task<Guid> RegisterAsync(AsyncServiceScope scope, string email)
@@ -396,6 +545,27 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
             if (FailNext) { FailNext = false; throw new HttpRequestException("Test transport failure."); }
             if (PermanentNext) { PermanentNext = false; throw new TelegramDestinationUnavailableException(); }
             Messages.Add((chatId, message));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FixedWebhookResolver : IWebhookAddressResolver
+    {
+        public Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) =>
+            Task.FromResult(new[] { IPAddress.Parse("1.1.1.1") });
+    }
+
+    private sealed class RecordingWebhookSender : IOutboundWebhookSender
+    {
+        public bool TransientNext { get; set; }
+        public bool PermanentNext { get; set; }
+        public List<(Guid EventId, byte[] Body)> Attempts { get; } = [];
+        public Task SendAsync(Uri endpoint, byte[] secret, Guid eventId, byte[] body,
+            CancellationToken cancellationToken)
+        {
+            Attempts.Add((eventId, body));
+            if (TransientNext) { TransientNext = false; throw new HttpRequestException("Transient fixture."); }
+            if (PermanentNext) { PermanentNext = false; throw new OutboundWebhookPermanentFailureException(); }
             return Task.CompletedTask;
         }
     }

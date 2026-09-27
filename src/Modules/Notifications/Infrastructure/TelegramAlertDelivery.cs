@@ -61,7 +61,7 @@ public sealed class TelegramAlertOutboxHandler(FoundationDbContext db, IConsumer
         else
         {
             var chatId = chats.Unprotect(destination.OrganizationId, destination.Id,
-                destination.EncryptedChatId, destination.KeyVersion);
+                destination.EncryptedChatId!, destination.KeyVersion!);
             try
             {
                 await sender.SendAsync(chatId, FormatMessage(rule, alertEvent), cancellationToken);
@@ -103,6 +103,7 @@ public static class CustomerAlertServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(10))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<IOutboxHandler, TelegramAlertOutboxHandler>();
+        services.AddUzllmOutboundWebhooks(configuration);
         return services;
     }
 }

@@ -45,6 +45,7 @@ same-model failover precedes P1 cross-model fallback.
 | PROVIDER-009 | Completed |
 | ROUTING-004 | Completed |
 | NOTIFY-002 | Completed |
+| NOTIFY-003 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this

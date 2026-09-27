@@ -8,14 +8,20 @@ public sealed partial class FoundationDbContext
     {
         modelBuilder.Entity<NotificationDestinationEntity>(entity =>
         {
-            entity.ToTable("notification_destination", "ops", table => table.HasCheckConstraint(
-                "CK_notification_destination_status", "status IN ('Verified', 'Disabled')"));
+            entity.ToTable("notification_destination", "ops", table =>
+            {
+                table.HasCheckConstraint("CK_notification_destination_status", "status IN ('Verified', 'Active', 'Disabled')");
+                table.HasCheckConstraint("CK_notification_destination_type", "(type = 'Telegram' AND encrypted_chat_id IS NOT NULL AND key_version IS NOT NULL AND endpoint_url IS NULL AND encrypted_webhook_secret IS NULL AND webhook_key_version IS NULL) OR (type = 'Webhook' AND encrypted_chat_id IS NULL AND key_version IS NULL AND endpoint_url IS NOT NULL AND encrypted_webhook_secret IS NOT NULL AND webhook_key_version IS NOT NULL)");
+            });
             entity.HasKey(value => value.Id);
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.OrganizationId).HasColumnName("organization_id");
             entity.Property(value => value.Type).HasColumnName("type").HasMaxLength(20);
             entity.Property(value => value.EncryptedChatId).HasColumnName("encrypted_chat_id");
             entity.Property(value => value.KeyVersion).HasColumnName("key_version").HasMaxLength(40);
+            entity.Property(value => value.EndpointUrl).HasColumnName("endpoint_url").HasMaxLength(2048);
+            entity.Property(value => value.EncryptedWebhookSecret).HasColumnName("encrypted_webhook_secret");
+            entity.Property(value => value.WebhookKeyVersion).HasColumnName("webhook_key_version").HasMaxLength(40);
             entity.Property(value => value.Status).HasColumnName("status").HasMaxLength(20);
             entity.Property(value => value.VerifiedAt).HasColumnName("verified_at");
             entity.Property(value => value.CreatedAt).HasColumnName("created_at");

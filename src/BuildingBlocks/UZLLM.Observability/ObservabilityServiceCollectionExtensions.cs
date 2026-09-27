@@ -45,7 +45,8 @@ public static class ObservabilityServiceCollectionExtensions
                     .AddSource(UzllmTelemetry.ActivitySourceName)
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = request =>
-                        !string.Equals(request.RequestUri?.Host, "api.telegram.org", StringComparison.OrdinalIgnoreCase));
+                        !string.Equals(request.RequestUri?.Host, "api.telegram.org", StringComparison.OrdinalIgnoreCase)
+                        && !request.Headers.Contains("X-UZLLM-Signature"));
 
                 if (endpoint is not null)
                 {

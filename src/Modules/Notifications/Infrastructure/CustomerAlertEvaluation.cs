@@ -20,8 +20,11 @@ public sealed class CustomerAlertEvaluator(FoundationDbContext db, IOutboxStore 
         foreach (var rule in rules)
         {
             rule.NextEvaluationAt = now.AddMinutes(1);
-            if (!await db.NotificationDestinations.AnyAsync(value => value.Id == rule.DestinationId &&
-                value.OrganizationId == rule.OrganizationId && value.Status == "Verified", cancellationToken)) continue;
+            var destination = await db.NotificationDestinations.AsNoTracking().SingleOrDefaultAsync(value =>
+                value.Id == rule.DestinationId && value.OrganizationId == rule.OrganizationId &&
+                (value.Type == "Telegram" && value.Status == "Verified" ||
+                 value.Type == "Webhook" && value.Status == "Active"), cancellationToken);
+            if (destination is null) continue;
             var metric = await ReadMetricAsync(rule, now, cancellationToken);
             if (metric is null) continue;
             if (rule.Type == "BudgetWarning" && rule.LastWindowStart != metric.Value.WindowStart)
@@ -44,7 +47,12 @@ public sealed class CustomerAlertEvaluator(FoundationDbContext db, IOutboxStore 
                 ObservedValue = metric.Value.Observed, TriggeredAt = now
             };
             db.CustomerAlertEvents.Add(alertEvent);
-            await outbox.EnqueueAsync("customer.alert.telegram", JsonSerializer.Serialize(new { EventId = alertEvent.Id }),
+            await outbox.EnqueueAsync(destination.Type switch
+                {
+                    "Telegram" => "customer.alert.telegram",
+                    "Webhook" => "customer.alert.webhook",
+                    _ => throw new InvalidOperationException("Unknown alert destination type.")
+                }, JsonSerializer.Serialize(new { EventId = alertEvent.Id }),
                 cancellationToken: cancellationToken);
             created++;
         }

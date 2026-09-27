@@ -5,8 +5,11 @@ public sealed class NotificationDestinationEntity
     public Guid Id { get; set; }
     public Guid OrganizationId { get; set; }
     public string Type { get; set; } = "Telegram";
-    public byte[] EncryptedChatId { get; set; } = [];
-    public string KeyVersion { get; set; } = null!;
+    public byte[]? EncryptedChatId { get; set; }
+    public string? KeyVersion { get; set; }
+    public string? EndpointUrl { get; set; }
+    public byte[]? EncryptedWebhookSecret { get; set; }
+    public string? WebhookKeyVersion { get; set; }
     public string Status { get; set; } = "Verified";
     public DateTimeOffset VerifiedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

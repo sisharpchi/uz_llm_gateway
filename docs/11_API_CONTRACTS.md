@@ -579,3 +579,28 @@ configured bot and delivered to `POST /integrations/telegram/webhook` can
 verify ownership. Telegram's `X-Telegram-Bot-Api-Secret-Token` is mandatory;
 invalid secret returns `403`, while replay/unknown updates are acknowledged
 without altering a destination. The webhook has a 16 KiB body cap.
+
+### Signed customer outbound webhooks (`NOTIFY-003`)
+
+`POST /management/v1/organizations/{organizationId}/alerts/webhook/destination`
+accepts `{ "endpointUrl": "https://alerts.example.com/uzllm" }`. Owner/Admin
+and session CSRF are required. The response is `201` with `id`, `endpointUrl`,
+and a 64-hex-character `signingSecret` shown once (`Cache-Control: no-store`).
+Only one active webhook destination per organization is supported; creating a
+second returns `409`. Disable through the existing destination DELETE endpoint
+before replacing it. The destination list includes the URL/status, never the
+secret. Webhooks report `Active` after URL/DNS validation, not domain-ownership
+verification. Invalid or private-address URLs return `400`. Alert rules use its ID as
+the existing `destinationId`.
+
+Delivery is `POST` JSON with `X-UZLLM-Event-Id` (stable UUID),
+`X-UZLLM-Timestamp` (Unix seconds), and `X-UZLLM-Signature: v1=<lowercase
+hex HMAC-SHA256>`. The HMAC key is the hex-decoded signing secret; the signed
+bytes are UTF-8 `timestamp + "." + eventId + "."` followed by the exact body.
+The body has `id`, `type=customer.alert.triggered`, `version=1`,
+`organizationId`, optional `projectId`, `ruleId`, `alertType`, `threshold`,
+`observedValue`, and `triggeredAt`. Receivers should reject timestamps outside
+±300 seconds, compare signatures in constant time, and persist event IDs for
+at least 24 hours for replay deduplication. Any 2xx acknowledges; 429/5xx and
+transport failures retry with the same event ID and a new timestamp/signature;
+other statuses disable the destination. Processing is at-least-once, not exactly once.

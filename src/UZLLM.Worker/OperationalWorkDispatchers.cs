@@ -117,11 +117,17 @@ public sealed class OutboxDispatchCycle(
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                await store.MarkFailedAsync(message.Id, workerId, retryDelay, exception.GetType().Name, cancellationToken);
+                await store.MarkFailedAsync(message.Id, workerId, RetryDelayFor(message, retryDelay),
+                    exception.GetType().Name, cancellationToken);
                 logger.LogError("Outbox handler failed {EventId} {EventType} with {FailureKind}", message.Id, message.EventType, exception.GetType().Name);
             }
         }
     }
+
+    public static TimeSpan RetryDelayFor(OutboxMessage message, TimeSpan defaultDelay) =>
+        message.EventType == "customer.alert.webhook"
+            ? TimeSpan.FromSeconds(Math.Min(3600, 10 * (1 << Math.Min(9, Math.Max(0, message.AttemptCount - 1)))))
+            : defaultDelay;
 }
 
 public sealed class LeasedJobDispatchCycle(
