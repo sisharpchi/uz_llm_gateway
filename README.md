@@ -1,6 +1,6 @@
 # UZLLM Gateway
 
-UZLLM Gateway is a planned Uzbekistan-first, multi-provider LLM gateway with an
+UZLLM Gateway is an Uzbekistan-first, multi-provider LLM gateway with an
 OpenAI-compatible public API, prepaid USD credits funded in UZS, local payment
 providers, and tenant-scoped usage visibility.
 
@@ -8,11 +8,14 @@ providers, and tenant-scoped usage visibility.
 
 This repository contains a buildable .NET modular monolith with versioned
 PostgreSQL migrations and separate Gateway, Management, and Worker hosts. The
-Gateway supports OpenAI-compatible models/chat with OpenAI and Anthropic
-adapters, prepaid admission, streaming, usage finalization, and same-model
-failover. Payme/CLICK, usage read models, customer dashboard, and operator
-console are implemented; production merchant verification and load/recovery
-qualification remain launch gates.
+Gateway supports OpenAI-compatible models/chat with OpenAI, Anthropic, Gemini
+and DeepSeek adapters, prepaid admission, streaming, usage finalization, and
+same-model/opt-in cross-model fallback. Payme/CLICK, usage reads, BYOK,
+customer dashboard, and operator console are implemented. The
+[post-implementation audit](docs/17_POST_IMPLEMENTATION_AUDIT.md) identifies
+corrective work; [production readiness](docs/18_PRODUCTION_READINESS.md)
+separates repository evidence from live merchant/provider and infrastructure
+prerequisites. This is not yet a paid-launch claim.
 
 ## Local development
 
@@ -59,5 +62,6 @@ and Management. Without opt-in, no request or response bodies are persisted.
 - [Design pack index](docs/00_README.md)
 - [Architecture decisions](docs/15_ARCHITECTURE_DECISIONS.md)
 - [Implementation backlog](docs/16_IMPLEMENTATION_BACKLOG.md)
-- [MVP roadmap](docs/14_MVP_AND_DELIVERY_ROADMAP.md)
+- [Current next-phase roadmap](docs/19_NEXT_PHASE_ROADMAP.md)
+- [Historical MVP roadmap](docs/14_MVP_AND_DELIVERY_ROADMAP.md)
 - [Production deployment and recovery](deploy/RUNBOOK.md)

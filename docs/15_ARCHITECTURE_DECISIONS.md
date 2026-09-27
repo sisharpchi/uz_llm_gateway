@@ -4,13 +4,12 @@ This file records accepted, rejected, and superseded ADRs.
 
 ## Status convention
 
-ADRs 001–025 are **Accepted** architecture decisions and have implementation
-status **Not implemented** unless a backlog task says otherwise. “Accepted”
-means selected for implementation; it does not claim a feature exists or passed
-tests. ADR-001–017 are implementation defaults except the product choices
-explicitly recorded below. Each decision is implemented through
-`16_IMPLEMENTATION_BACKLOG.md` and governed by the normative documents named
-in `00_README.md`.
+ADRs 001–025 are **Accepted** architecture decisions. Their implementation
+status is stated individually; “Accepted” does not claim the feature exists or
+has passed production qualification. ADR-001–017 are implementation defaults
+except the product choices explicitly recorded below. Delivery history and
+follow-up work live in `16_IMPLEMENTATION_BACKLOG.md`; launch evidence is
+tracked in `18_PRODUCTION_READINESS.md`.
 
 ---
 
@@ -68,7 +67,7 @@ Lower operational complexity while product rules are evolving.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** Chat completions and model discovery implemented; Responses and embeddings remain P1 (`GATEWAY-005–007`)
 
 ### Decision
 Use OpenAI-compatible endpoints as the initial developer contract.
@@ -108,7 +107,7 @@ Use compensating entries.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** Implemented for managed chat by `BILLING-002`/`GATEWAY-001`; post-audit recovery hardening is `BILLING-003`
 
 Concurrency makes post-charge-only accounting unsafe.
 
@@ -170,7 +169,7 @@ Default product should work with request metadata even when prompt/response body
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** Payme/CLICK handlers implemented by `PAYMENT-001`; edge ingress, external reconciliation and live merchant verification remain launch gaps
 
 Payme/CLICK integration belongs in the core MVP because local top-up is a primary differentiator.
 
@@ -192,7 +191,7 @@ This protects the product from provider-commercial constraints and supports ente
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** On-demand daily usage reads implemented by `USAGE-002`; durable near-real-time rollups remain `USAGE-004`
 
 Financial state is strongly consistent. Analytics rollups may lag briefly.
 
@@ -220,7 +219,7 @@ routing sophistication must not delay reliable billing and developer UX.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Not implemented
+**Implementation status:** English code/API identifiers and UI baseline exist; complete Uzbek/Russian/English i18n remains `FRONTEND-010`
 
 Code/database/API identifiers use stable English terms.
 
@@ -248,7 +247,7 @@ This prevents lost side effects after committed transactions.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** PROVIDER-002 OpenAI and Anthropic adapters implemented; paid-launch verification remains external
+**Implementation status:** OpenAI/Anthropic adapters and Payme/CLICK handlers implemented; edge callback ingress and live provider/merchant verification remain launch gates
 
 The sellable MVP requires OpenAI, Anthropic, Payme, and CLICK. Provider families
 do not make models interchangeable; P0 failover remains same-model only.
@@ -257,7 +256,7 @@ do not make models interchangeable; P0 failover remains same-model only.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** BILLING-001 wallet and FX-history foundation implemented; payment-linked snapshots remain in PAYMENT-001
+**Implementation status:** Wallet, FX history and payment-linked snapshots implemented by `BILLING-001`/`PAYMENT-001`; audited operator publication remains `ADMIN-002`
 
 Customers pay UZS and receive USD-denominated credits from a frozen quote and
 payment FX snapshot. Historical values are never recomputed.
@@ -293,7 +292,7 @@ ID on a conflict; do not retain completion bodies for replay.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** Not implemented
+**Implementation status:** Deployment templates and single-host local drill exist; two-node, managed HA/PITR and restore qualification remain `OPS-006–007` and external launch gates
 
 Use two application nodes, managed PostgreSQL with synchronous HA/PITR, and
 managed Redis. Actual provider guarantees are launch prerequisites.

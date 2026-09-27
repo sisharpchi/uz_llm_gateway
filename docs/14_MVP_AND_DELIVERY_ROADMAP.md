@@ -1,5 +1,12 @@
 # MVP and Delivery Roadmap
 
+> Historical delivery roadmap. For the current audited baseline, new task
+> register and launch gates, use
+> [the post-implementation audit](17_POST_IMPLEMENTATION_AUDIT.md),
+> [production readiness](18_PRODUCTION_READINESS.md), and
+> [next-phase roadmap](19_NEXT_PHASE_ROADMAP.md). Unchecked historical items
+> below are not a replacement for those evidence gates.
+
 ## Phase 0 — Validation and legal/commercial checks
 
 Before managed-credit launch:

@@ -6,14 +6,16 @@
 
 ## Implementation status
 
-The Foundation baseline provides a buildable .NET 10 solution, three deployable
-hosts, bounded module assemblies, PostgreSQL/Redis access, version-controlled
-schema migrations, a migration-only host, local Compose environment, CI
-validation, and architecture/integration tests. OPS-001 adds redacted structured
-logging, OpenTelemetry instrumentation, liveness/readiness endpoints, and
-PostgreSQL outbox, consumer-inbox, and leased-job infrastructure. No business
-capability, provider integration, or public inference endpoint is implemented
-until its dedicated backlog task is complete.
+The repository now contains separate .NET Gateway, Management and Worker hosts,
+PostgreSQL/Redis infrastructure, versioned migrations, OpenAI/Anthropic/Gemini/
+DeepSeek chat adapters, managed/BYOK inference, billing, Payme/CLICK handlers,
+and customer/admin React applications. The historical implementation tasks are
+recorded in `16_IMPLEMENTATION_BACKLOG.md`. Their completion is **not** evidence
+of production readiness: `17_POST_IMPLEMENTATION_AUDIT.md` records verified
+gaps, `18_PRODUCTION_READINESS.md` defines launch gates, and
+`19_NEXT_PHASE_ROADMAP.md` orders corrective work. The current task is selected
+from the next-phase register; paid traffic stays gated until repository and external
+evidence is complete.
 
 The sellable MVP requires OpenAI and Anthropic integrations plus Payme and
 CLICK top-ups. It uses USD-denominated credits purchased in UZS with immutable
@@ -166,6 +168,9 @@ This creates clear boundaries without paying the operational cost of many micros
 14. `14_MVP_AND_DELIVERY_ROADMAP.md`
 15. `15_ARCHITECTURE_DECISIONS.md`
 16. `16_IMPLEMENTATION_BACKLOG.md`
+17. `17_POST_IMPLEMENTATION_AUDIT.md`
+18. `18_PRODUCTION_READINESS.md`
+19. `19_NEXT_PHASE_ROADMAP.md`
 
 ---
 
