@@ -330,6 +330,22 @@ settlement/evidence failures, stale known-evidence reservations, payment
 mismatches, debt/exposure, Redis admission failure, provider authentication
 failure, and outbox backlog. Customer threshold/Telegram alerts are P1.
 
+`NOTIFY-002` stores Telegram private chat IDs with a dedicated versioned
+`Telegram:ChatKeys:<version>` AES-GCM key, never plaintext. Management needs
+`Telegram:BotUsername`, `Telegram:WebhookSecret`,
+`Telegram:ActiveChatKeyVersion`, and the active chat key; Worker needs
+`Telegram:BotToken` plus all chat key versions still referenced by destinations.
+Provision the Telegram webhook with HTTPS and the same secret token. Exclude
+`api.telegram.org` HTTP request traces: Bot API URLs contain the bot token.
+Never log link tokens, webhook bodies, bot credentials, or chat IDs. Rule and
+destination mutations write audit events. Customer events and their outbox
+messages commit together; Worker delivery retries transient failures and
+disables destinations rejected by Telegram. Telegram `sendMessage` has no
+idempotency key, so a crash after upstream acceptance but before local inbox
+commit can cause an at-least-once duplicate delivery. The rule episode itself
+remains deduplicated. Live bot/webhook onboarding and private-chat delivery
+verification are launch prerequisites outside CI.
+
 `PRIVACY-001` adds project-scoped, owner-only opt-in payload retention (one hour
 to seven days; default off). Request and bounded complete response bodies live
 only in `usage.payload`, separately from request/usage/financial metadata.

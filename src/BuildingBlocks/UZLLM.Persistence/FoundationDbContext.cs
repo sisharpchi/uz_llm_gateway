@@ -12,6 +12,11 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
     internal DbSet<OperationalAlertEntity> OperationalAlerts => Set<OperationalAlertEntity>();
 
+    public DbSet<NotificationDestinationEntity> NotificationDestinations => Set<NotificationDestinationEntity>();
+    public DbSet<TelegramLinkChallengeEntity> TelegramLinkChallenges => Set<TelegramLinkChallengeEntity>();
+    public DbSet<CustomerAlertRuleEntity> CustomerAlertRules => Set<CustomerAlertRuleEntity>();
+    public DbSet<CustomerAlertEventEntity> CustomerAlertEvents => Set<CustomerAlertEventEntity>();
+
     internal DbSet<IdentityAccountEntity> IdentityAccounts => Set<IdentityAccountEntity>();
 
     internal DbSet<IdentitySessionEntity> IdentitySessions => Set<IdentitySessionEntity>();
@@ -71,6 +76,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ConfigurePlatformControls(modelBuilder);
+        ConfigureCustomerAlerts(modelBuilder);
         ConfigureFinancialCompletion(modelBuilder);
         ConfigureProviderCredentials(modelBuilder);
         ConfigurePayments(modelBuilder);

@@ -10,6 +10,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
     <ProjectReference Include="..\Identity\UZLLM.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Organizations\UZLLM.Modules.Organizations.csproj" />
+    <ProjectReference Include="..\Audit\UZLLM.Modules.Audit.csproj" />
   </ItemGroup>
 
 </Project>

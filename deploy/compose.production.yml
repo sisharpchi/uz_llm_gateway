@@ -52,6 +52,10 @@ x-management: &management
     - { source: click-merchant-id, target: Payments__Click__MerchantId }
     - { source: click-service-id, target: Payments__Click__ServiceId }
     - { source: click-secret-key, target: Payments__Click__SecretKey }
+    - { source: telegram-bot-username, target: Telegram__BotUsername }
+    - { source: telegram-webhook-secret, target: Telegram__WebhookSecret }
+    - { source: telegram-chat-active-version, target: Telegram__ActiveChatKeyVersion }
+    - { source: telegram-chat-key-v1, target: Telegram__ChatKeys__v1 }
   networks: [application]
 
 x-worker: &worker
@@ -80,6 +84,9 @@ x-worker: &worker
     - { source: keyring-cert-password, target: DataProtection__CertificatePassword }
     - { source: email-username, target: Email__Username }
     - { source: email-password, target: Email__Password }
+    - { source: telegram-bot-token, target: Telegram__BotToken }
+    - { source: telegram-chat-active-version, target: Telegram__ActiveChatKeyVersion }
+    - { source: telegram-chat-key-v1, target: Telegram__ChatKeys__v1 }
   networks: [application]
 
 services:
@@ -142,3 +149,8 @@ secrets:
   click-merchant-id: { file: '${UZLLM_SECRET_DIR}/Payments__Click__MerchantId' }
   click-service-id: { file: '${UZLLM_SECRET_DIR}/Payments__Click__ServiceId' }
   click-secret-key: { file: '${UZLLM_SECRET_DIR}/Payments__Click__SecretKey' }
+  telegram-bot-username: { file: '${UZLLM_SECRET_DIR}/Telegram__BotUsername' }
+  telegram-bot-token: { file: '${UZLLM_SECRET_DIR}/Telegram__BotToken' }
+  telegram-webhook-secret: { file: '${UZLLM_SECRET_DIR}/Telegram__WebhookSecret' }
+  telegram-chat-active-version: { file: '${UZLLM_SECRET_DIR}/Telegram__ActiveChatKeyVersion' }
+  telegram-chat-key-v1: { file: '${UZLLM_SECRET_DIR}/Telegram__ChatKeys__v1' }

@@ -380,6 +380,17 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // Disposable fixture only: remove tenant alerts before the older
+        // budget-policy downgrade, whose historical table must be empty.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('ops.alert_rule') IS NOT NULL THEN
+                    TRUNCATE TABLE ops.alert_event, ops.alert_rule,
+                      ops.notification_destination, ops.telegram_link_challenge;
+                  END IF;
+                END $$;
+                """);
         // This fixture owns a disposable database. Production Down refuses to
         // discard BYOK holds, evidence, or external spend; clear them only here.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
@@ -397,7 +408,12 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
             .Database.ExecuteSqlRawAsync("""
                 DO $$ BEGIN
                   IF to_regclass('billing.budget_policy') IS NOT NULL THEN
-                    TRUNCATE TABLE billing.reservation_budget, billing.budget_bucket, billing.budget_policy;
+                    IF to_regclass('ops.alert_rule') IS NOT NULL THEN
+                      TRUNCATE TABLE ops.alert_event, ops.alert_rule,
+                        billing.reservation_budget, billing.budget_bucket, billing.budget_policy;
+                    ELSE
+                      TRUNCATE TABLE billing.reservation_budget, billing.budget_bucket, billing.budget_policy;
+                    END IF;
                   END IF;
                 END $$;
                 """);

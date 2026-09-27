@@ -284,27 +284,27 @@ usage evidence, wallet entries, or audit history.
 ## 7. Alerts
 
 ### `ops.alert_rule`
-- id
-- organization_id
-- project_id nullable
-- type
-- threshold
-- channel
-- status
+- `id`, `organization_id`, optional `project_id`, optional `budget_policy_id`,
+  `destination_id`, `type`, `threshold`, `enabled`, `armed`, `episode`,
+  `last_window_start`, `last_triggered_at`, `next_evaluation_at`.
+- Types are `LowBalance` (micro-USD available wallet), `BudgetWarning` (basis
+  points of captured plus reserved current-window budget), and `ErrorSpike`
+  (basis points of completed 5-minute requests, minimum 20 samples).
+- Composite tenant FKs bind project, budget policy, and destination to the
+  same organization. Worker locks due rules with `SKIP LOCKED`.
 
 ### `ops.alert_event`
-- id
-- rule_id
-- dedupe_key
-- status
-- triggered_at
-- delivered_at
+- `id`, `rule_id`, `episode`, `observed_value`, `status`, `triggered_at`,
+  `delivered_at`. Unique `(rule_id, episode)` suppresses persistent breaches;
+  a recovered metric or new budget window rearms a rule.
 
 ### `ops.notification_destination`
-- organization_id
-- type (`Telegram`, `Webhook`, future Email)
-- encrypted/config data
-- status
+- One Telegram destination per organization: `id`, `organization_id`, `type`,
+  AES-GCM `encrypted_chat_id`, `key_version`, `status`, `verified_at`. The
+  authenticated data binds organization, destination, and key version.
+- `ops.telegram_link_challenge` stores only the SHA-256 hash of a 10-minute,
+  account-bound one-time `/start` token; expired challenges are pruned by Worker.
+  Webhook and future Email destinations belong to later tasks.
 
 ---
 

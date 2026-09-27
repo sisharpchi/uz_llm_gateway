@@ -44,7 +44,8 @@ public static class ObservabilityServiceCollectionExtensions
                 tracing
                     .AddSource(UzllmTelemetry.ActivitySourceName)
                     .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation();
+                    .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = request =>
+                        !string.Equals(request.RequestUri?.Host, "api.telegram.org", StringComparison.OrdinalIgnoreCase));
 
                 if (endpoint is not null)
                 {

@@ -7,6 +7,7 @@ using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Payments.Infrastructure;
 using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Notifications.Infrastructure;
+using UZLLM.Modules.Audit.Infrastructure;
 using UZLLM.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -15,10 +16,12 @@ builder.Services.AddUzllmOperatorKeyRing(builder.Configuration, builder.Environm
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmUsage();
+builder.Services.AddUzllmAudit();
 builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmPayments(builder.Configuration);
 builder.Services.AddUzllmIdentityEmailDelivery(builder.Configuration);
+builder.Services.AddUzllmCustomerAlerts(builder.Configuration);
 builder.Services.AddScoped<ILeasedJobHandler, PaymentReconciliationJobHandler>();
 builder.Services.AddScoped<IOutboxHandler>(services => new PaymentEventLogHandler(
     services.GetRequiredService<ILogger<PaymentEventLogHandler>>(),
@@ -54,5 +57,6 @@ builder.Services.AddScoped<LeasedJobDispatchCycle>();
 builder.Services.AddHostedService<OutboxDispatchWorker>();
 builder.Services.AddHostedService<LeasedJobDispatchWorker>();
 builder.Services.AddHostedService<ExpiredPayloadDeletionWorker>();
+builder.Services.AddHostedService<CustomerAlertEvaluationWorker>();
 var host = builder.Build();
 await host.RunAsync();

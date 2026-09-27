@@ -44,6 +44,7 @@ same-model failover precedes P1 cross-model fallback.
 | PROVIDER-008 | Completed |
 | PROVIDER-009 | Completed |
 | ROUTING-004 | Completed |
+| NOTIFY-002 | Completed |
 
 All remaining task-register entries are `Planned` unless listed above. For
 `NOTIFY-001`, the earlier execution plan's prerequisite was omitted from this
@@ -119,6 +120,8 @@ remain under `frontend/apps`; mock data must not enter the live product.
 | PROVIDER-008 | DeepSeek native non-stream and cache-aware metering | PROVIDER-001, CATALOG-001 | OpenAI-style wire does not bypass provider-specific cache/reasoning accounting; explicit cached rate and effective tariff price required; response/error fixtures | P1 |
 | PROVIDER-009 | DeepSeek streaming and reasoning normalization | PROVIDER-008, GATEWAY-001 | Reasoning/cache counters normalized without duplication; partial or malformed streams retain unknown-charge semantics | P1 |
 | ROUTING-004 | Recent latency/throughput windows and weighted routing | ROUTING-003, GATEWAY-001 | Only already-eligible mappings ranked; bounded samples, minimum count, stale-data fallback and hysteresis tested | P1 |
+| NOTIFY-002 | Customer threshold rules and verified Telegram destinations | OPS-001, TEAM-001 | Tenant-scoped rules, private-chat ownership proof, deduplicated episodes, replay/cross-tenant and retry tests | P1 |
+| NOTIFY-003 | Signed customer outbound webhooks | NOTIFY-002 | Signature, replay, endpoint validation and retry tests | P1 |
 
 The original execution plan named `SECURITY-001` as a BYOK prerequisite; the
 platform envelope encryption and key-version foundation was delivered in
@@ -159,6 +162,12 @@ read model is daily/on-demand and is not misrepresented as that hourly task.
 `ROUTING-004` instead owns short-lived advisory Redis performance samples from
 the existing Gateway attempt lifecycle; durable usage and financial records
 remain independent. Missing/stale Redis samples restore deterministic routing.
+The earlier `NOTIFY-002` plan named `OPS-003` as an operational-alert/outbox
+dependency. Those capabilities were delivered in the current `OPS-001`, while
+`TEAM-001` supplies current Owner/Admin membership checks. Telegram live bot,
+HTTPS webhook registration, and real private-chat acceptance remain external
+launch prerequisites; the public Bot API protocol and retries are covered by
+local fixtures.
 
 P2: SSO/SCIM, ZDR routing, custom endpoints, guardrails, management automation,
 and additional modalities.

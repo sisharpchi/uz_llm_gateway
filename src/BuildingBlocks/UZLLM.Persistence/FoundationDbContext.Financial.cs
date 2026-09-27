@@ -59,6 +59,7 @@ public sealed partial class FoundationDbContext
             entity.Property(value => value.Period).HasColumnName("period").HasMaxLength(16).HasDefaultValue("Lifetime");
             entity.Property(value => value.CreatedAt).HasColumnName("created_at");
             entity.Property(value => value.UpdatedAt).HasColumnName("updated_at");
+            entity.HasAlternateKey(value => new { value.OrganizationId, value.ProjectId, value.Id });
             entity.HasIndex(value => new { value.ProjectId, value.Period }).IsUnique().HasFilter("api_key_id IS NULL");
             entity.HasIndex(value => new { value.ApiKeyId, value.Period }).IsUnique().HasFilter("api_key_id IS NOT NULL");
             entity.HasOne<ProjectEntity>().WithMany().HasForeignKey(value => new { value.OrganizationId, value.ProjectId })

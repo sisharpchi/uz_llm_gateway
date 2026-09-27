@@ -548,3 +548,34 @@ For supported inference requests, `Idempotency-Key` is scoped to organization,
 key identity, and operation for 24 hours. A repeat returns `409` with the
 original request ID; mismatched request content also conflicts. The API stores
 no completion body for replay. Gateway extensions belong under `uzllm`.
+
+### Customer alerts (`NOTIFY-002`)
+
+Under `/management/v1/organizations/{organizationId}/alerts`:
+
+```text
+GET    /rules
+POST   /rules
+PATCH  /rules/{ruleId}
+GET    /destinations
+POST   /telegram/link
+DELETE /destinations/{destinationId}
+```
+
+Reads require billing-read permission; mutations require billing-management
+permission (Owner/Admin) and `X-CSRF-Token`. `POST /rules` accepts
+`{ "type": "BudgetWarning", "threshold": 8000, "projectId": "...",
+"budgetPolicyId": "...", "destinationId": "..." }`. `LowBalance` uses
+micro-USD and organization scope; `BudgetWarning` uses 1–10000 basis points
+and a project budget policy; `ErrorSpike` uses 1–10000 basis points and an
+optional project. `PATCH` accepts `{ "enabled": false }`. Responses include
+scope, threshold, destination, enabled status, and last trigger, but never
+Telegram chat ID. Cross-tenant IDs return `404`; unauthorized organizations
+return `403`.
+
+`POST /telegram/link` returns a 10-minute `deepLink` and `expiresAt` with
+`Cache-Control: no-store`. Only a private-chat `/start <token>` sent to the
+configured bot and delivered to `POST /integrations/telegram/webhook` can
+verify ownership. Telegram's `X-Telegram-Bot-Api-Secret-Token` is mandatory;
+invalid secret returns `403`, while replay/unknown updates are acknowledged
+without altering a destination. The webhook has a 16 KiB body cap.
