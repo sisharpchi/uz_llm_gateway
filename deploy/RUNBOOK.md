@@ -35,6 +35,29 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   and the four `UZLLM_GATEWAY_*` / `UZLLM_MANAGEMENT_*` address and bind values.
   Remote upstream addresses include port, e.g. `node-b.internal:8445`. The
   default loopback binds are for one-host drills; production binds private IPs.
+- Both merchant callbacks use exact HTTPS POST routes through edge:
+  `/payments/payme/callback` and `/payments/click/callback`. Nginx buffers and
+  caps each request at 32 KiB, bounds upstream timeouts, and never retries an
+  upstream POST. Unknown `/payments/` paths are not served by the dashboard.
+  Payme's Basic credential and CLICK's form signature are checked by Management;
+  neither callback uses a browser session or CSRF token. Exercise the edge
+  fixtures with `node --test deploy/tests/payment-edge.test.mjs` after building
+  `uzllm-edge:ops002`; the test uses disposable Docker containers/certificates.
+- CLICK is **default-deny** at both edges. After merchant onboarding, obtain
+  CLICK's trusted callback source ranges from the merchant and install a
+  protected file of `allow <verified CIDR>;` lines ending with `deny all;`.
+  Set `UZLLM_CLICK_ALLOWLIST_FILE` to that file on **both** nodes. Do not use
+  `allow all` or a public-wide CIDR. Its signed payload does not cover the
+  reversal `error` field, so a signature alone is not sufficient ingress
+  authentication. With the default file, Payme remains routable but CLICK
+  requests receive 403; do not advertise CLICK checkout until this gate passes.
+- The edge ignores client-supplied `X-Forwarded-For` by default. If an L7 load
+  balancer fronts it, ensure the LB **overwrites** inbound `X-Forwarded-For`,
+  then provide a reviewed `UZLLM_TRUSTED_PROXY_REALIP_FILE` containing only
+  exact private LB CIDRs, `real_ip_header X-Forwarded-For;`, and
+  `real_ip_recursive on;`. Do not trust a public CIDR. An L4 source-preserving
+  LB needs no real-IP override. Verify the observed source against the merchant
+  test callback before enabling CLICK, and firewall backend ports to the edge.
 - Set `UZLLM_SMTP_HOST`, `UZLLM_SMTP_PORT` (default 587), and
   `UZLLM_SMTP_FROM`. Put SMTP username/password in
   `UZLLM_SECRET_DIR/Email__Username` and `Email__Password`. Worker requires

@@ -109,6 +109,8 @@ services:
       - ${UZLLM_CERT_DIR}/public.crt:/run/certs/public.crt:ro
       - ${UZLLM_CERT_DIR}/public.key:/run/certs/public.key:ro
       - ${UZLLM_CERT_DIR}/internal-ca.crt:/run/certs/internal-ca.crt:ro
+      - ${UZLLM_CLICK_ALLOWLIST_FILE:-./nginx/click-allowlist.deny.conf}:/etc/nginx/click-allowlist.conf:ro
+      - ${UZLLM_TRUSTED_PROXY_REALIP_FILE:-./nginx/trusted-proxy-realip.disabled.conf}:/etc/nginx/trusted-proxy-realip.conf:ro
     networks: [application]
   gateway-a:
     <<: *gateway

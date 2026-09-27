@@ -33,6 +33,11 @@ jobs:
         run: |
           docker build -f deploy/Dockerfile.edge -t uzllm-edge:ops002 .
           sh deploy/validate-edge.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exercise payment callback edge ingress
+        run: node --test deploy/tests/payment-edge.test.mjs
       - name: Validate two-node Compose manifest
         env:
           UZLLM_PUBLIC_BASE_URL: https://example.test

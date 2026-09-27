@@ -15,5 +15,7 @@ RUN npm run build
 
 FROM nginx:stable-alpine
 COPY deploy/nginx/edge.conf /etc/nginx/templates/nginx.conf.template
+COPY deploy/nginx/click-allowlist.deny.conf /etc/nginx/click-allowlist.conf
+COPY deploy/nginx/trusted-proxy-realip.disabled.conf /etc/nginx/trusted-proxy-realip.conf
 COPY --from=ui /source/frontend/apps/dashboard/dist /usr/share/nginx/html/dashboard
 COPY --from=ui /source/frontend/apps/admin/dist /usr/share/nginx/html/admin

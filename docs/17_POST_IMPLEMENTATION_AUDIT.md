@@ -41,7 +41,10 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 1. `deploy/nginx/edge.conf` does not proxy `/payments/payme/callback` or
    `/payments/click/callback` to Management, although both endpoints exist in
    `src/Modules/Payments/Infrastructure/PaymentEndpointExtensions.cs`. The
-   public payment flow is unreachable through the documented deployment.
+   public payment flow was unreachable through the documented deployment.
+   **Follow-up:** `LAUNCH-001` added exact ingress with CLICK default-deny;
+   see `../deploy/LAUNCH-001-VALIDATION.md`. Live merchant source/settlement
+   evidence remains an external launch gate.
 2. `frontend/apps/dashboard/src/App.tsx` labels a top-up field “Amount (UZS)”
    but submits it as `amountTiyin`; the mocked browser test in
    `frontend/apps/dashboard/tests/tenant-and-secret.spec.ts` preserves this

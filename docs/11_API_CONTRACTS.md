@@ -49,6 +49,11 @@ sessions or CSRF. Both reject bodies over 32 KiB. Payme `GetStatement` accepts
 at most a 30-day range and fails rather than truncating a response over 10,000
 transactions; callers can split the range.
 
+The deployment edge exposes only these exact HTTPS POST callback routes. CLICK
+ingress defaults to 403 until verified merchant source ranges are installed;
+its signature alone cannot authenticate the unsigned reversal `error` field.
+Payment errors remain provider-native response bodies after proxying.
+
 ---
 
 ## 2. Chat completions [P0]
