@@ -98,6 +98,7 @@ public sealed partial class FoundationDbContext
             entity.ToTable("settlement", "billing", table => table.HasCheckConstraint("CK_settlement_amounts",
                 "provider_cost_micro_usd >= 0 AND uncapped_customer_charge_micro_usd >= 0 AND charged_micro_usd >= 0 AND uncollected_charge_micro_usd >= 0 AND platform_exposure_micro_usd >= 0 AND external_provider_spend_micro_usd >= 0 AND outcome IN ('Settled', 'Released')"));
             entity.HasKey(value => value.Id);
+            entity.HasAlternateKey(value => new { value.Id, value.OrganizationId });
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.ReservationId).HasColumnName("reservation_id");
             entity.Property(value => value.RequestId).HasColumnName("request_id");
@@ -116,6 +117,29 @@ public sealed partial class FoundationDbContext
             entity.HasOne<BillingReservationEntity>().WithMany().HasForeignKey(value => value.ReservationId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<UsageRequestEntity>().WithMany().HasForeignKey(value => value.RequestId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<OrganizationEntity>().WithMany().HasForeignKey(value => value.OrganizationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BillingSettlementRefundEntity>(entity =>
+        {
+            entity.ToTable("settlement_refund", "billing", table =>
+                table.HasCheckConstraint("CK_settlement_refund_positive", "amount_micro_usd > 0"));
+            entity.HasKey(value => value.Id);
+            entity.Property(value => value.Id).HasColumnName("id");
+            entity.Property(value => value.SettlementId).HasColumnName("settlement_id");
+            entity.Property(value => value.OrganizationId).HasColumnName("organization_id");
+            entity.Property(value => value.ActorAccountId).HasColumnName("actor_account_id");
+            entity.Property(value => value.RefundKey).HasColumnName("refund_key").HasMaxLength(120);
+            entity.Property(value => value.AmountMicroUsd).HasColumnName("amount_micro_usd");
+            entity.Property(value => value.Reason).HasColumnName("reason").HasMaxLength(500);
+            entity.Property(value => value.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(value => new { value.OrganizationId, value.RefundKey }).IsUnique();
+            entity.HasIndex(value => new { value.SettlementId, value.CreatedAt });
+            entity.HasOne<BillingSettlementEntity>().WithMany()
+                .HasForeignKey(value => new { value.SettlementId, value.OrganizationId })
+                .HasPrincipalKey(value => new { value.Id, value.OrganizationId })
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<IdentityAccountEntity>().WithMany()
+                .HasForeignKey(value => value.ActorAccountId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<BillingSettlementEvidenceEntity>(entity =>

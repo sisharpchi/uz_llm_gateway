@@ -339,6 +339,17 @@ managed admission. Future top-ups or releases repay debt through explicit ledger
 entries. Provider reversal, usage refund, and discretionary cash refund are
 different operations.
 
+`REFUND-001` permits an operator to refund a prior `Settled` inference charge
+to the same organization's USD-credit wallet only. The sum of partial refunds
+cannot exceed `settlement.charged_micro_usd` (the actual wallet charge, not
+provider cost or uncapped price). The organization-scoped refund key is
+idempotent; replay with changed terms conflicts. PostgreSQL serializes on the
+wallet, writes an append-only `billing.settlement_refund` row and `Refund`
+ledger counter-entry, then applies any existing recovery debt and audit in one
+transaction. An active reservation remains held. Refunds do not retroactively
+lower historical project/key spend buckets or send UZS to a card; cash payout
+and discretionary adjustments require separate policy and tasks.
+
 P0 payment work includes Payme `GetStatement` support and provider-specific
 callback fixtures. Public CLICK protocol examples from its official integration
 repository are sufficient for automated implementation acceptance. Active

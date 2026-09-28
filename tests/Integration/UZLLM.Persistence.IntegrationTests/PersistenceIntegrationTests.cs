@@ -383,6 +383,15 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // Disposable test database only: production Down refuses to discard refunds.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('billing.settlement_refund') IS NOT NULL THEN
+                    TRUNCATE TABLE billing.settlement_refund;
+                  END IF;
+                END $$;
+                """);
         // Disposable fixture only: remove tenant alerts before the older
         // budget-policy downgrade, whose historical table must be empty.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()

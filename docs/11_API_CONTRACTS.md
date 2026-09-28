@@ -515,6 +515,9 @@ GET   /fee-policies/{code}
 POST  /fee-policies
 GET   /fx-rates?limit=50
 POST  /fx-rates
+GET   /refunds?organizationId=<optional>&limit=50
+GET   /refunds/{id}
+POST  /refunds
 POST  /providers | /models | /mappings | /credentials | /prices
 PATCH /providers/{id} | /models/{id} | /mappings/{id}
 PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
@@ -576,6 +579,17 @@ fractional digits), UTC `observedAt` within 24 hours of publication, and
 `reason`; global effective time must advance. `GET /fx-rates` returns at most
 100 newest-first snapshots. Publications return `201` with the new ID; no
 payment or prior quote is revalued.
+
+`POST /refunds` is operator/recent-MFA and CSRF protected. Body:
+`{ "settlementId": "uuid", "refundKey": "8–120 characters",
+"amountMicroUsd": "positive integer", "reason": "8–500 characters" }`.
+It returns `201` with a refund resource/Location, `200` with the original
+resource on an identical replay, `404` for an unknown settlement, and `409`
+for a released/zero-charge settlement, changed key terms, or cumulative amount
+above the original net customer charge. The immutable resource includes
+actor, settlement, organization, reason, amount and `duplicate` flag. `GET`
+routes are operator-only, newest-first, with a 1–100 limit. This is wallet
+credit, not a cash refund or provider payment reversal.
 
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the

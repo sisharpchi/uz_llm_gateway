@@ -11,6 +11,7 @@ namespace UZLLM.Management.Api.Administration;
 public sealed class AdminService(
     IAdminReadStore reads, ICatalogService catalog, IPlatformCredentialService credentials,
     IPricingHistoryService pricing,
+    ISettlementRefundStore refunds,
     IPlatformControlStore controls, IAuditTrail audit, ITransactionCoordinator transactions,
     TimeProvider clock) : IAdminService
 {
@@ -43,6 +44,37 @@ public sealed class AdminService(
         (await pricing.ListFxRateSnapshotsAsync(ValidateLimit(limit), ct)).Select(value =>
             new AdminFxRateResponse(value.Id, value.Source,
                 value.UzsTiyinPerUsd.ToString("G29", CultureInfo.InvariantCulture), value.ObservedAt)).ToArray();
+
+    public async Task<IReadOnlyList<AdminSettlementRefundResponse>> ListSettlementRefundsAsync(
+        Guid? organizationId, int limit, CancellationToken ct) =>
+        (await refunds.ListAsync(organizationId is { } id ? RequiredId(id) : null,
+            ValidateLimit(limit), ct)).Select(ToRefundResponse).ToArray();
+
+    public async Task<AdminSettlementRefundResponse?> FindSettlementRefundAsync(Guid refundId,
+        CancellationToken ct) =>
+        await refunds.FindAsync(RequiredId(refundId), ct) is { } refund
+            ? ToRefundResponse(refund) : null;
+
+    public async Task<AdminSettlementRefundResponse> RefundSettlementAsync(Guid actorId,
+        CreateSettlementRefundRequest request, CancellationToken ct)
+    {
+        RequiredId(actorId);
+        RequiredId(request.SettlementId);
+        var reason = ValidateReason(request.Reason);
+        if (!long.TryParse(request.AmountMicroUsd, NumberStyles.None,
+            CultureInfo.InvariantCulture, out var amount) || amount <= 0)
+            throw new ArgumentException("Refund amount must be a positive USD micro-unit integer.");
+        await using var transaction = await transactions.BeginAsync(ct);
+        var refund = await refunds.ApplyAsync(actorId, request.SettlementId, request.RefundKey,
+            new UsdMicroAmount(amount), reason, clock.GetUtcNow(), ct);
+        if (!refund.Duplicate)
+            await audit.RecordAsync(new AuditEventInput(refund.OrganizationId, actorId,
+                "settlement.refunded", "settlement_refund", refund.Id, null,
+                JsonSerializer.Serialize(new { settlementId = refund.SettlementId,
+                    amountMicroUsd = refund.Amount.Value, reason })), ct);
+        await transaction.CommitAsync(ct);
+        return ToRefundResponse(refund);
+    }
 
     public Task<Guid> CreateProviderAsync(Guid actorId, CreateAdminProviderRequest request, CancellationToken ct) =>
         CreateAsync(actorId, request.Reason, "provider.created", "provider", async () =>
@@ -147,6 +179,11 @@ public sealed class AdminService(
         string reason, bool? enabled, CancellationToken ct) => audit.RecordAsync(new AuditEventInput(
             null, actor, action, resource, id, null,
             JsonSerializer.Serialize(new { reason, enabled })), ct);
+
+    private static AdminSettlementRefundResponse ToRefundResponse(SettlementRefund value) => new(
+        value.Id, value.SettlementId, value.OrganizationId, value.ActorAccountId,
+        value.RefundKey, value.Amount.Value.ToString(CultureInfo.InvariantCulture),
+        value.Reason, value.CreatedAt, value.Duplicate);
 
     private static CatalogStatus Status(bool enabled) => enabled ? CatalogStatus.Active : CatalogStatus.Disabled;
     private static Guid RequiredId(Guid value) => value != Guid.Empty ? value : throw new ArgumentException("ID is required.");

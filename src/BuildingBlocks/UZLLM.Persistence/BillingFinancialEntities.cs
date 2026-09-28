@@ -71,6 +71,18 @@ public sealed class BillingSettlementEvidenceEntity
     public Guid EvidenceId { get; set; }
 }
 
+public sealed class BillingSettlementRefundEntity
+{
+    public Guid Id { get; set; }
+    public Guid SettlementId { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid ActorAccountId { get; set; }
+    public string RefundKey { get; set; } = null!;
+    public long AmountMicroUsd { get; set; }
+    public string Reason { get; set; } = null!;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class BillingRecoveryDebtEntity
 {
     public Guid OrganizationId { get; set; }

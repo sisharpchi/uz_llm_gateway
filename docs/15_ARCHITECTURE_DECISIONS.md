@@ -95,7 +95,7 @@ Redis is never authoritative for:
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** BILLING-001 foundation implemented
+**Implementation status:** BILLING-001 ledger foundation and REFUND-001 settlement-linked immutable counter-entries implemented
 
 Do not correct financial history by editing rows.
 

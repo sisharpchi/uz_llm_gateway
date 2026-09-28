@@ -87,9 +87,13 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/payment-reconciliation/cases", customerSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/refunds", customerSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/payment-reconciliation/cases", operatorSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/refunds", operatorSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
             using var enroll = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/enroll",
@@ -114,6 +118,24 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
             }
+            var refundRequest = new CreateSettlementRefundRequest(Guid.CreateVersion7(),
+                "unknown-settlement-refund", "1000", "documented billing correction");
+            using (var noCsrf = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/refunds", operatorSession, refundRequest)))
+                Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+            using (var customerDenied = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/refunds", customerSession, refundRequest, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, customerDenied.StatusCode);
+            using (var malformed = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/refunds", operatorSession,
+                refundRequest with { AmountMicroUsd = "-1000" }, true)))
+                Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+            using (var missing = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/refunds", operatorSession, refundRequest, true)))
+                Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+            using (var list = await client.SendAsync(Request(HttpMethod.Get,
+                "/management/v1/admin/refunds", operatorSession)))
+                Assert.Equal(HttpStatusCode.OK, list.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/financial/risk", operatorSession)))
             {
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -436,7 +458,7 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
         return id;
     }
 
-    private static AdminService CreateService(FoundationDbContext db, IServiceProvider services)
+    internal static AdminService CreateService(FoundationDbContext db, IServiceProvider services)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -448,6 +470,8 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             new PlatformCredentialService(new PostgreSqlProviderCredentialStore(db),
                 new ProviderEnvelopeSecretProtector(config), TimeProvider.System),
             new PricingHistoryService(new PostgreSqlPricingHistoryStore(db), TimeProvider.System),
+            new PostgreSqlSettlementRefundStore(db, new PostgreSqlWalletLedgerStore(db),
+                new PostgreSqlFinancialStore(db)),
             new PostgreSqlPlatformControlStore(db),
             new AuditTrail(new PostgreSqlAuditEventStore(db), TimeProvider.System),
             services.GetRequiredService<ITransactionCoordinator>(), TimeProvider.System);

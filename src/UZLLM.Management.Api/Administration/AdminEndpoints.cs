@@ -48,6 +48,12 @@ public static class AdminEndpoints
             service.ListFeePoliciesAsync(code, ct));
         admin.MapGet("/fx-rates", (int? limit, IAdminService service, CancellationToken ct) =>
             service.ListFxRatesAsync(limit ?? 50, ct));
+        admin.MapGet("/refunds", (Guid? organizationId, int? limit,
+            IAdminService service, CancellationToken ct) =>
+            service.ListSettlementRefundsAsync(organizationId, limit ?? 50, ct));
+        admin.MapGet("/refunds/{id:guid}", async (Guid id, IAdminService service,
+            CancellationToken ct) => await service.FindSettlementRefundAsync(id, ct) is { } refund
+                ? Results.Ok(refund) : Results.NotFound());
         admin.MapGet("/organizations/{id:guid}/ledger", (Guid id, int? limit, IAdminService service, CancellationToken ct) =>
             service.ListLedgerAsync(id, limit ?? 50, ct));
         admin.MapGet("/payments", (Guid? organizationId, int? limit, IAdminService service, CancellationToken ct) =>
@@ -127,6 +133,13 @@ public static class AdminEndpoints
             Results.Created("/management/v1/admin/fx-rates",
                 new { id = await service.PublishFxRateAsync(Actor(http), request, ct) }))
             .RequireManagementCsrf();
+        admin.MapPost("/refunds", async (CreateSettlementRefundRequest request,
+            HttpContext http, IAdminService service, CancellationToken ct) =>
+        {
+            var refund = await service.RefundSettlementAsync(Actor(http), request, ct);
+            return refund.Duplicate ? Results.Ok(refund)
+                : Results.Created($"/management/v1/admin/refunds/{refund.Id}", refund);
+        }).RequireManagementCsrf();
 
         admin.MapPatch("/providers/{id:guid}", (Guid id, SetAdminStatusRequest request, HttpContext http, IAdminService service, CancellationToken ct) =>
             ResultFor(service.SetProviderEnabledAsync(Actor(http), id, request, ct))).RequireManagementCsrf();

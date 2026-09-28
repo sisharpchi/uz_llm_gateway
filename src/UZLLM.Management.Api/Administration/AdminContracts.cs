@@ -111,6 +111,15 @@ public sealed record PublishAdminFxRateRequest(string Source, string UzsTiyinPer
 public sealed record AdminFxRateResponse(Guid Id, string Source, string UzsTiyinPerUsd,
     DateTimeOffset ObservedAt);
 
+/// <summary>Credit an earlier settled inference charge back to its organization wallet.</summary>
+public sealed record CreateSettlementRefundRequest(Guid SettlementId, string RefundKey,
+    string AmountMicroUsd, string Reason);
+
+/// <summary>Operator-visible immutable wallet-credit refund; never a cash payout.</summary>
+public sealed record AdminSettlementRefundResponse(Guid Id, Guid SettlementId,
+    Guid OrganizationId, Guid ActorAccountId, string RefundKey, string AmountMicroUsd,
+    string Reason, DateTimeOffset CreatedAt, bool Duplicate);
+
 /// <summary>Change an operational status with a mandatory reason.</summary>
 public sealed record SetAdminStatusRequest(bool Enabled, string Reason);
 
@@ -149,6 +158,12 @@ public interface IAdminService
     Task<Guid> PublishFxRateAsync(Guid actorId, PublishAdminFxRateRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyList<AdminFeePolicyResponse>> ListFeePoliciesAsync(string policyCode, CancellationToken cancellationToken);
     Task<IReadOnlyList<AdminFxRateResponse>> ListFxRatesAsync(int limit, CancellationToken cancellationToken);
+    Task<AdminSettlementRefundResponse> RefundSettlementAsync(Guid actorId,
+        CreateSettlementRefundRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AdminSettlementRefundResponse>> ListSettlementRefundsAsync(
+        Guid? organizationId, int limit, CancellationToken cancellationToken);
+    Task<AdminSettlementRefundResponse?> FindSettlementRefundAsync(Guid refundId,
+        CancellationToken cancellationToken);
     Task<bool> SetProviderEnabledAsync(Guid actorId, Guid providerId, SetAdminStatusRequest request, CancellationToken cancellationToken);
     Task<bool> SetModelEnabledAsync(Guid actorId, Guid modelId, SetAdminStatusRequest request, CancellationToken cancellationToken);
     Task<bool> SetMappingEnabledAsync(Guid actorId, Guid mappingId, SetAdminStatusRequest request, CancellationToken cancellationToken);

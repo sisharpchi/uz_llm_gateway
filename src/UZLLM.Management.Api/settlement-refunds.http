@@ -1,0 +1,21 @@
+@baseUrl = http://localhost:5063
+@session = replace-with-recent-mfa-operator-session
+@csrf = replace-with-matching-csrf-cookie-and-header
+@settlementId = replace-with-settled-charge-uuid
+
+### Credit part of a settled inference charge back to its wallet; no UZS payout.
+POST {{baseUrl}}/management/v1/admin/refunds
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "settlementId": "{{settlementId}}",
+  "refundKey": "support-ticket-12345-part-1",
+  "amountMicroUsd": "1000000",
+  "reason": "Verified duplicate customer charge"
+}
+
+### Operator history; use a unique refund key for each additional partial refund.
+GET {{baseUrl}}/management/v1/admin/refunds?limit=50
+Cookie: __Host-uzllm-session={{session}}

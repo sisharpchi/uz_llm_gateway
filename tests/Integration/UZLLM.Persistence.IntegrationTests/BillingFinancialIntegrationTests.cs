@@ -22,6 +22,146 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     private static readonly DateTimeOffset Start = new(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task Concurrent_partial_refunds_are_capped_idempotent_and_append_only()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        Guid settlementId;
+        Guid actorId;
+        await using (var setup = fixture.CreateServiceProvider())
+        await using (var scope = setup.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var financial = Financial(services, new MutableFinancialClock(Start));
+            var admitted = await financial.ReserveAsync(Admission(seed, 30_000));
+            var usage = Usage(services, new MutableFinancialClock(Start));
+            var attempt = await usage.StartAttemptAsync(admitted.RequestId!.Value, seed.ProviderModelId);
+            Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+            Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(admitted.RequestId.Value,
+                attempt.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, null)));
+            var settled = await financial.FinalizeAsync(admitted.Reservation!.Id);
+            Assert.Equal(FinalizationStatus.Settled, settled.Status);
+            Assert.Equal(10_000, settled.Settlement!.Charged.Value);
+            settlementId = settled.Settlement.Id;
+            actorId = await services.GetRequiredService<FoundationDbContext>()
+                .Set<IdentityAccountEntity>().Select(value => value.Id).SingleAsync();
+        }
+
+        await using (var rollbackProvider = fixture.CreateServiceProvider())
+        await using (var rollbackScope = rollbackProvider.CreateAsyncScope())
+        {
+            var services = rollbackScope.ServiceProvider;
+            var db = services.GetRequiredService<FoundationDbContext>();
+            await using (await services.GetRequiredService<ITransactionCoordinator>().BeginAsync())
+                await new PostgreSqlSettlementRefundStore(db,
+                    new PostgreSqlWalletLedgerStore(db), new PostgreSqlFinancialStore(db))
+                    .ApplyAsync(actorId, settlementId, "uncommitted-refund",
+                        new UsdMicroAmount(1_000), "transaction never committed", DateTimeOffset.UtcNow);
+        }
+
+        async Task<AdminSettlementRefundResponse> RefundAsync(string key, long amount,
+            string reason = "approved usage refund")
+        {
+            await using var provider = fixture.CreateServiceProvider();
+            await using var scope = provider.CreateAsyncScope();
+            var services = scope.ServiceProvider;
+            var db = services.GetRequiredService<FoundationDbContext>();
+            return await AdminIntegrationTests.CreateService(db, services)
+                .RefundSettlementAsync(actorId, new CreateSettlementRefundRequest(
+                    settlementId, key, amount.ToString(System.Globalization.CultureInfo.InvariantCulture), reason),
+                    CancellationToken.None);
+        }
+
+        async Task<AdminSettlementRefundResponse?> TryRefundAsync(string key)
+        {
+            try { return await RefundAsync(key, 6_000); }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        var competing = await Task.WhenAll(TryRefundAsync("partial-refund-one"),
+            TryRefundAsync("partial-refund-two"));
+        var accepted = Assert.Single(competing, value => value is not null)!;
+        Assert.Single(competing, value => value is null);
+        Assert.False(accepted.Duplicate);
+        var replay = await RefundAsync(accepted.RefundKey, 6_000);
+        Assert.True(replay.Duplicate);
+        Assert.Equal(accepted.Id, replay.Id);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RefundAsync(accepted.RefundKey, 5_000));
+        var remainder = await RefundAsync("partial-refund-last", 4_000);
+        Assert.False(remainder.Duplicate);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RefundAsync("over-refund", 1));
+
+        await using var verify = fixture.CreateServiceProvider();
+        await using var verifyScope = verify.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(2, await verifyDb.Set<BillingSettlementRefundEntity>().CountAsync());
+        Assert.Equal(2, await verifyDb.Set<BillingLedgerEntryEntity>().CountAsync(value =>
+            value.Type == "Refund" && value.ReferenceType == "settlement_refund"));
+        Assert.Equal(2, await verifyDb.Set<AuditEventEntity>().CountAsync(value =>
+            value.Action == "settlement.refunded" && value.ActorAccountId == actorId));
+        Assert.Equal(100_000, (await Financial(verifyScope.ServiceProvider,
+            new MutableFinancialClock(Start)).GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.PostedBalance.Value);
+        var mutation = await Assert.ThrowsAsync<PostgresException>(() =>
+            verifyDb.Database.ExecuteSqlInterpolatedAsync($"UPDATE billing.settlement_refund SET amount_micro_usd = {1L} WHERE id = {accepted.Id}"));
+        Assert.Equal(PostgresErrorCodes.RaiseException, mutation.SqlState);
+    }
+
+    [Fact]
+    public async Task Refund_after_payment_reversal_repays_debt_without_touching_active_hold()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<FoundationDbContext>();
+        var financial = Financial(services, new MutableFinancialClock(Start));
+        var billed = await financial.ReserveAsync(Admission(seed, 30_000));
+        var usage = Usage(services, new MutableFinancialClock(Start));
+        var attempt = await usage.StartAttemptAsync(billed.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(billed.RequestId.Value,
+            attempt.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, null)));
+        var settlement = (await financial.FinalizeAsync(billed.Reservation!.Id)).Settlement!;
+        Assert.Equal(10_000, settlement.Charged.Value);
+        var held = await financial.ReserveAsync(Admission(seed, 80_000, payload: [2]));
+        Assert.Equal(AdmissionStatus.Reserved, held.Status);
+        var reversal = await financial.ApplyConfirmedReversalAsync(seed.OrganizationId,
+            Guid.CreateVersion7(), new UsdMicroAmount(50_000));
+        Assert.Equal(10_000, reversal.Recovered.Value);
+        Assert.Equal(40_000, reversal.DebtCreated.Value);
+
+        var actorId = await db.Set<IdentityAccountEntity>().Select(value => value.Id).SingleAsync();
+        var refunds = new PostgreSqlSettlementRefundStore(db,
+            new PostgreSqlWalletLedgerStore(db), new PostgreSqlFinancialStore(db));
+        SettlementRefund refunded;
+        await using (var transaction = await services.GetRequiredService<ITransactionCoordinator>().BeginAsync())
+        {
+            refunded = await refunds.ApplyAsync(actorId, settlement.Id, "reversal-debt-refund",
+                new UsdMicroAmount(6_000), "settled charge overbilled", DateTimeOffset.UtcNow);
+            await transaction.CommitAsync();
+        }
+        var state = (await financial.GetWalletStateAsync(seed.OrganizationId))!;
+        Assert.Equal(80_000, state.Wallet.PostedBalance.Value);
+        Assert.Equal(80_000, state.Wallet.ReservedBalance.Value);
+        Assert.Equal(34_000, state.RecoveryDebt.Value);
+        Assert.True(state.SpendingHeld);
+        Assert.Single(await db.Set<BillingDebtEntryEntity>().Where(value =>
+            value.Type == "Recovered" && value.ReferenceId == refunded.Id).ToListAsync());
+
+        Assert.Equal(FinalizationStatus.Released,
+            (await financial.ReleaseUndispatchedAsync(held.Reservation!.Id)).Status);
+        state = (await financial.GetWalletStateAsync(seed.OrganizationId))!;
+        Assert.Equal(46_000, state.Wallet.PostedBalance.Value);
+        Assert.Equal(0, state.Wallet.ReservedBalance.Value);
+        Assert.Equal(0, state.RecoveryDebt.Value);
+        Assert.False(state.SpendingHeld);
+    }
+
+    [Fact]
     public async Task Byok_zero_fee_external_cap_is_atomic_without_wallet_credit_and_replay_adds_no_hold()
     {
         await ResetAsync();

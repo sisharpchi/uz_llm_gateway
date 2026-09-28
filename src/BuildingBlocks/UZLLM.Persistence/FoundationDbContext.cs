@@ -43,6 +43,8 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
     internal DbSet<BillingLedgerEntryEntity> BillingLedgerEntries => Set<BillingLedgerEntryEntity>();
 
+    internal DbSet<BillingSettlementRefundEntity> BillingSettlementRefunds => Set<BillingSettlementRefundEntity>();
+
     internal DbSet<BillingFeePolicyVersionEntity> BillingFeePolicyVersions => Set<BillingFeePolicyVersionEntity>();
 
     internal DbSet<BillingFxRateSnapshotEntity> BillingFxRateSnapshots => Set<BillingFxRateSnapshotEntity>();
