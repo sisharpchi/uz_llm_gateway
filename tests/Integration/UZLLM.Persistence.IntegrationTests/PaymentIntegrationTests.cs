@@ -24,6 +24,25 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
         "payme-test-key", "click-test-merchant", "click-test-service", "click-test-secret");
 
     [Fact]
+    public async Task Whole_Uzs_top_up_quote_and_intent_preserve_exact_tiyin_amount()
+    {
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var service = Service(scope.ServiceProvider);
+
+        var quote = await service.CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Payme, new UzsTiyinAmount(10_000_000));
+        var intent = (await service.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            quote.Id, "whole-uzs-exact-amount")).Intent;
+
+        Assert.Equal(10_000_000, quote.Amount.Value);
+        Assert.Equal(quote.Amount, intent.Amount);
+        Assert.Equal(quote.Fee, intent.Fee);
+        Assert.Equal(quote.Credit, intent.Credit);
+    }
+
+    [Fact]
     public async Task Top_up_incident_pause_blocks_new_checkout_but_not_verified_callback_finalization()
     {
         var seed = await SeedAsync();

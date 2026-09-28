@@ -37,6 +37,10 @@ owner-scoped. Top-up amount input, quote/intent amounts, FX rate, and wallet
 USD micro-units are JSON decimal strings; the server parses them as fixed-
 precision values using the quote's immutable FX snapshot. This prevents
 JavaScript number precision loss in the browser.
+The customer form accepts whole UZS and converts exactly to tiyin before
+requesting a quote (for example, `100000` UZS sends `"amountTiyin": "10000000"`).
+It must display the returned tiyin amount, including fractional UZS where
+present, and never expose checkout when the quote or intent amount differs.
 
 Payme calls `/payments/payme/callback` with its Merchant API JSON-RPC body and
 `Authorization: Basic` credential (`Paycom:<merchant key>`). Implemented methods:

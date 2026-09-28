@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ApiError, management, usdFromMicro, uzsFromTiyin,
+import { ApiError, management, tiyinFromWholeUzs, usdFromMicro, uzsFromTiyin,
   type Organization, type Project, type PaymentQuote, type CreatedTopUp } from '@uzllm/api-client';
 import { ActivityPage, AnalyticsPage } from './UsagePages';
 
@@ -198,27 +198,35 @@ function BillingPanel({ organizationId }: { organizationId: string }) {
   const [quote, setQuote] = useState<PaymentQuote | null>(null); const [topup, setTopup] = useState<CreatedTopUp | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const paymentAttempt = useRef<{ quoteId: string; key: string } | null>(null);
-  useEffect(() => { setQuote(null); setTopup(null); setError(''); paymentAttempt.current = null; }, [organizationId]);
-  async function getQuote(event: FormEvent) { event.preventDefault(); setBusy(true); setError(''); setTopup(null);
-    try { if (!/^\d+$/.test(amount) || BigInt(amount) < 100n) throw new Error('Enter at least 1 UZS.');
-      const nextQuote = await management.quotes(organizationId, provider, amount);
+  const selectionVersion = useRef(0);
+  function clearSelection() { selectionVersion.current++; setQuote(null); setTopup(null); setError(''); paymentAttempt.current = null; }
+  useEffect(() => { clearSelection(); }, [organizationId]);
+  async function getQuote(event: FormEvent) { event.preventDefault(); const version = ++selectionVersion.current;
+    setBusy(true); setError(''); setQuote(null); setTopup(null); paymentAttempt.current = null;
+    try { const amountTiyin = tiyinFromWholeUzs(amount);
+      const nextQuote = await management.quotes(organizationId, provider, amountTiyin);
+      if (version !== selectionVersion.current) return;
+      if (nextQuote.amountTiyin !== amountTiyin) throw new Error('Quote amount differs from the requested amount. Please try again.');
       paymentAttempt.current = { quoteId: nextQuote.id, key: crypto.randomUUID() };
       setQuote(nextQuote); }
-    catch (cause) { setError(message(cause)); } finally { setBusy(false); } }
+    catch (cause) { if (version === selectionVersion.current) setError(message(cause)); } finally { setBusy(false); } }
   async function startPayment() { if (!quote) return; setBusy(true); setError('');
+    const version = selectionVersion.current; setTopup(null);
     try { if (paymentAttempt.current?.quoteId !== quote.id) paymentAttempt.current = { quoteId: quote.id, key: crypto.randomUUID() };
       const intent = await management.createTopUp(organizationId, quote.id, paymentAttempt.current.key);
+      if (version !== selectionVersion.current) return;
+      if (intent.intent.amountTiyin !== quote.amountTiyin) throw new Error('Payment amount differs from the quote. Do not pay; contact support.');
       setTopup(intent); await payments.refetch(); }
-    catch (cause) { setError(message(cause)); } finally { setBusy(false); } }
+    catch (cause) { if (version === selectionVersion.current) setError(message(cause)); } finally { setBusy(false); } }
   return <><div className="page-heading"><span className="eyebrow">MANAGED CREDITS</span><h1>Billing</h1><p>Top up in UZS. Your locked quote determines the credited USD amount.</p></div>
     <div className="summary-grid"><div className="panel metric"><span>Available balance</span><strong>{wallet.data ? usdFromMicro(wallet.data.availableBalanceMicroUsd) : '—'}</strong><small>USD credits</small></div>
       <div className="panel metric"><span>Reserved balance</span><strong>{wallet.data ? usdFromMicro(wallet.data.reservedBalanceMicroUsd) : '—'}</strong><small>Active request holds</small></div></div>
-    <div className="two-column"><form onSubmit={getQuote} className="panel stack"><h2>New top-up</h2><label>Amount (UZS)<input inputMode="numeric" pattern="[0-9]+" value={amount} onChange={event => { setAmount(event.target.value); setQuote(null); }} required /></label>
-      <label>Payment provider<select value={provider} onChange={event => { setProvider(event.target.value as 'Payme' | 'Click'); setQuote(null); }}><option value="Payme">Payme</option><option value="Click">CLICK</option></select></label>
+    <div className="two-column"><form onSubmit={getQuote} className="panel stack"><h2>New top-up</h2><label>Amount (UZS)<input inputMode="numeric" value={amount} onChange={event => { setAmount(event.target.value); clearSelection(); }} required /></label>
+      <label>Payment provider<select value={provider} onChange={event => { setProvider(event.target.value as 'Payme' | 'Click'); clearSelection(); }}><option value="Payme">Payme</option><option value="Click">CLICK</option></select></label>
       <button disabled={busy} className="button secondary">Get quote</button>
       {quote && <div className="quote" role="status"><p>You pay <strong>{uzsFromTiyin(quote.amountTiyin)}</strong></p><p>Fee <strong>{uzsFromTiyin(quote.feeTiyin)}</strong></p><p>Credit <strong>{usdFromMicro(quote.creditMicroUsd)}</strong></p><small>Valid until {new Date(quote.expiresAt).toLocaleString()}</small>
         <button type="button" disabled={busy} onClick={startPayment} className="button primary">Continue to {provider}</button></div>}
-      {topup && <div className="notice" role="status">Payment {topup.intent.status}. {topup.checkoutUrl ? <a href={topup.checkoutUrl} target="_blank" rel="noopener noreferrer">Open secure {provider} checkout ↗</a> : 'Checkout unavailable.'}</div>}
+      {topup && <div className="notice" role="status">Payment {topup.intent.status}. You pay {uzsFromTiyin(topup.intent.amountTiyin)}. {topup.checkoutUrl ? <a href={topup.checkoutUrl} target="_blank" rel="noopener noreferrer">Open secure {provider} checkout ↗</a> : 'Checkout unavailable.'}</div>}
       {error && <p role="alert" className="error">{error}</p>}</form>
       <section className="panel"><h2>Payment history</h2>{payments.isError && <ErrorState error={payments.error} />}
         {payments.data?.length ? <ul className="row-list">{payments.data.map(item => <li key={item.id}><div><strong>{uzsFromTiyin(item.amountTiyin)}</strong><small>{item.provider} · {new Date(item.createdAt).toLocaleDateString()}</small></div><span className="tag">{item.status}</span></li>)}</ul>

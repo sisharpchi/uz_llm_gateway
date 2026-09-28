@@ -123,5 +123,16 @@ export function usageUsdFromMicro(value: DecimalString): string {
 
 export function uzsFromTiyin(value: DecimalString): string {
   const amount = BigInt(value);
-  return `${(amount / 100n).toLocaleString('en-US')} UZS`;
+  const magnitude = amount < 0n ? -amount : amount;
+  const fraction = magnitude % 100n;
+  return `${amount < 0n ? '-' : ''}${(magnitude / 100n).toLocaleString('en-US')}${fraction ? `.${fraction.toString().padStart(2, '0')}` : ''} UZS`;
+}
+
+export function tiyinFromWholeUzs(value: string): DecimalString {
+  if (!/^[0-9]+$/.test(value) || BigInt(value) < 1n)
+    throw new Error('Enter a whole UZS amount of at least 1.');
+  const amountTiyin = BigInt(value) * 100n;
+  if (amountTiyin > 9_223_372_036_854_775_807n)
+    throw new Error('Amount exceeds the supported payment limit.');
+  return amountTiyin.toString();
 }

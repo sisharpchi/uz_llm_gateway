@@ -49,6 +49,9 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
    but submits it as `amountTiyin`; the mocked browser test in
    `frontend/apps/dashboard/tests/tenant-and-secret.spec.ts` preserves this
    erroneous unit. This is a financial UX defect, not a copy change.
+   **Resolved by `FRONTEND-002`:** whole UZS converts to tiyin using integer
+   arithmetic; overflow/fractions are rejected, quote and intent amounts are
+   checked, and browser/unit regression tests cover the payment display.
 3. `GatewayTelemetry` is declared in
    `src/BuildingBlocks/UZLLM.Observability/ObservabilityServiceCollectionExtensions.cs`
    but no Gateway caller emits its custom instruments. Automatic HTTP traces

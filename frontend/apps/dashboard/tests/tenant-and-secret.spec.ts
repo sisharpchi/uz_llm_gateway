@@ -105,9 +105,9 @@ test('billing quotes and starts payment without fabricating wallet credit', asyn
   const calls = await mockManagement(page);
   await page.route(`**/management/v1/organizations/${orgOne}/billing/quotes`, async route => {
     const body = route.request().postDataJSON();
-    expect(body).toEqual({ provider: 'Payme', amountTiyin: '100000' });
+    expect(body).toEqual({ provider: 'Payme', amountTiyin: '10000000' });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-      id: 'quote-1', organizationId: orgOne, provider: 'Payme', amountTiyin: '100000', feeTiyin: '1000',
+      id: 'quote-1', organizationId: orgOne, provider: 'Payme', amountTiyin: '10000000', feeTiyin: '1000',
       creditMicroUsd: '99000', uzsTiyinPerUsd: '1000000', expiresAt: new Date(Date.now() + 60000).toISOString()
     }) });
   });
@@ -116,7 +116,7 @@ test('billing quotes and starts payment without fabricating wallet credit', asyn
     expect(route.request().headers()['idempotency-key']).toBeTruthy();
     await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
       intent: { id: 'intent-1', organizationId: orgOne, provider: 'Payme', status: 'Pending',
-        amountTiyin: '100000', feeTiyin: '1000', creditMicroUsd: '99000', createdAt: new Date().toISOString() },
+        amountTiyin: '10000000', feeTiyin: '1000', creditMicroUsd: '99000', createdAt: new Date().toISOString() },
       duplicate: false, checkoutUrl: 'https://checkout.paycom.uz/test'
     }) });
   });
@@ -124,8 +124,10 @@ test('billing quotes and starts payment without fabricating wallet credit', asyn
   await expect(page.getByText('$1.00').first()).toBeVisible();
   await page.getByRole('button', { name: 'Get quote' }).click();
   await expect(page.getByText('$0.09')).toBeVisible();
+  await expect(page.getByText('100,000 UZS')).toBeVisible();
   await page.getByRole('button', { name: 'Continue to Payme' }).click();
   await expect(page.getByRole('link', { name: /Open secure Payme checkout/ })).toHaveAttribute('href', 'https://checkout.paycom.uz/test');
+  await expect(page.getByText('Payment Pending. You pay 100,000 UZS.')).toBeVisible();
   await expect(page.getByText('$1.00').first()).toBeVisible();
   expect(calls).toContain(`GET /management/v1/organizations/${orgOne}/billing/wallet`);
 });
@@ -134,7 +136,7 @@ test('top-up retry reuses the same idempotency key for one quote', async ({ page
   await mockManagement(page);
   await page.route(`**/management/v1/organizations/${orgOne}/billing/quotes`, route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({
-      id: 'retry-quote', organizationId: orgOne, provider: 'Payme', amountTiyin: '100000', feeTiyin: '0',
+      id: 'retry-quote', organizationId: orgOne, provider: 'Payme', amountTiyin: '10000000', feeTiyin: '0',
       creditMicroUsd: '100000', uzsTiyinPerUsd: '1000000', expiresAt: new Date(Date.now() + 60000).toISOString()
     })
   }));
@@ -145,7 +147,7 @@ test('top-up retry reuses the same idempotency key for one quote', async ({ page
     if (keys.length === 1) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"temporary"}' });
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
       intent: { id: 'retry-intent', organizationId: orgOne, provider: 'Payme', status: 'Pending',
-        amountTiyin: '100000', feeTiyin: '0', creditMicroUsd: '100000', createdAt: new Date().toISOString() },
+        amountTiyin: '10000000', feeTiyin: '0', creditMicroUsd: '100000', createdAt: new Date().toISOString() },
       duplicate: true, checkoutUrl: 'https://checkout.paycom.uz/retry'
     }) });
   });
