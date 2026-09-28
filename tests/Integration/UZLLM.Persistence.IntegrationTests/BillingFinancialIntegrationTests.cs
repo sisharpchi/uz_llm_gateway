@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Diagnostics.Metrics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -9,6 +10,7 @@ using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Usage.Application;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Modules.Usage.Infrastructure;
+using UZLLM.Observability;
 using UZLLM.Persistence;
 
 namespace UZLLM.Persistence.IntegrationTests;
@@ -81,6 +83,18 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     [Fact]
     public async Task Byok_verified_usage_spends_external_cap_but_wallet_only_pays_platform_fee()
     {
+        long observedSpend = 0;
+        using var meter = new MeterListener
+        {
+            InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == UzllmTelemetry.MeterName
+                    && instrument.Name == "uzllm.billing.spend.micro_usd")
+                    listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        meter.SetMeasurementEventCallback<long>((_, value, _, _) => observedSpend += value);
+        meter.Start();
         await ResetAsync();
         var seed = await SeedAsync();
         var keyId = await SeedByokAsync(seed, 50_000);
@@ -107,6 +121,10 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         Assert.Equal(10_000, final.Settlement!.ProviderCost.Value);
         Assert.Equal(10_000, final.Settlement.ExternalProviderSpend.Value);
         Assert.Equal(1_000, final.Settlement.Charged.Value);
+        Assert.Equal(1_000, observedSpend);
+        Assert.Equal(FinalizationStatus.AlreadyFinalized,
+            (await financial.FinalizeAsync(admitted.Reservation.Id)).Status);
+        Assert.Equal(1_000, observedSpend);
         Assert.Equal(0, final.Settlement.PlatformExposure.Value);
         var wallet = (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet;
         Assert.Equal(1_000, wallet.PostedBalance.Value);
@@ -670,6 +688,18 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     [Fact]
     public async Task Missing_usage_waits_for_reconciliation_window_then_releases_without_zero_usage_claim()
     {
+        long unknownObservations = 0;
+        using var meter = new MeterListener
+        {
+            InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == UzllmTelemetry.MeterName
+                    && instrument.Name == "uzllm.billing.unknown_settlement_observations")
+                    listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        meter.SetMeasurementEventCallback<long>((_, value, _, _) => unknownObservations += value);
+        meter.Start();
         await ResetAsync();
         var seed = await SeedAsync();
         await CreditAsync(seed.OrganizationId, 100_000);
@@ -695,10 +725,13 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         clock.UtcNow = Start.AddHours(24);
         Assert.Equal(FinalizationStatus.PendingEvidence,
             (await financial.ReconcileAsync(admitted.Reservation.Id)).Status);
+        Assert.True(unknownObservations > 0);
+        var beforeUnresolvedRelease = unknownObservations;
         clock.UtcNow = Start.AddHours(25).AddMinutes(1);
         var result = await financial.ReconcileAsync(admitted.Reservation.Id);
         Assert.Equal(FinalizationStatus.Released, result.Status);
         Assert.True(result.Settlement!.UnresolvedUsage);
+        Assert.Equal(beforeUnresolvedRelease + 1, unknownObservations);
         Assert.Equal(0, result.Settlement.Charged.Value);
         Assert.Equal(0, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
         Assert.Empty(await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()

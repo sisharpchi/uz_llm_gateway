@@ -1,8 +1,12 @@
 using System.Runtime.CompilerServices;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using UZLLM.Observability;
 using UZLLM.Gateway.Api.Inference;
 using UZLLM.Modules.ApiKeys.Application;
 using UZLLM.Modules.ApiKeys.Contracts;
@@ -18,6 +22,120 @@ namespace UZLLM.Gateway.ContractTests;
 
 public sealed class GatewayExecutionTests
 {
+    [Fact]
+    public async Task Telemetry_success_records_request_tokens_ttft_and_redacted_bounded_trace_tags()
+    {
+        using var probe = new TelemetryProbe();
+        var fixture = new Scenario();
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, probe.Sum("uzllm.gateway.requests", "success"));
+        Assert.Equal(2, probe.Sum("uzllm.gateway.tokens", "success", "input"));
+        Assert.Equal(1, probe.Sum("uzllm.gateway.tokens", "success", "output"));
+        Assert.True(probe.HasPositive("uzllm.gateway.ttft.ms"));
+        Assert.True(probe.HasPositive("uzllm.gateway.duration.ms"));
+        var span = Assert.Single(probe.Spans, activity => activity.OperationName == "gateway.chat");
+        Assert.Equal("success", span.GetTagItem("gateway.outcome"));
+        Assert.Equal("openai", span.GetTagItem("provider.family"));
+        Assert.All(probe.Measurements, measurement =>
+            Assert.All(measurement.Tags.Keys, key => Assert.Contains(key,
+                new[] { "outcome", "provider", "token.kind" })));
+        Assert.DoesNotContain("Hello", string.Join(" ", probe.Measurements.SelectMany(value => value.Tags.Values)));
+    }
+
+    [Fact]
+    public async Task Telemetry_sse_disconnect_balances_active_stream_and_records_canceled_request()
+    {
+        using var probe = new TelemetryProbe();
+        var fixture = new Scenario(stream: true);
+        fixture.Adapter.StreamItems = [new ProviderStreamEvent(ProviderStreamKind.TextDelta, Text: "partial")];
+        fixture.Writer.DisconnectOnEvent = true;
+        fixture.Finance.NextFinalization = FinalizationStatus.PendingEvidence;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, probe.Sum("uzllm.gateway.requests", "canceled"));
+        Assert.Equal(0, probe.Sum("uzllm.gateway.active_streams", "active"));
+        Assert.Equal(2, probe.Measurements.Count(value => value.Name == "uzllm.gateway.active_streams"));
+        Assert.True(probe.HasPositive("uzllm.gateway.ttft.ms"));
+        Assert.Equal("canceled", Assert.Single(probe.Spans,
+            activity => activity.OperationName == "gateway.chat").GetTagItem("gateway.outcome"));
+    }
+
+    [Fact]
+    public async Task Telemetry_provider_and_settlement_errors_emit_bounded_failure_signals()
+    {
+        using var probe = new TelemetryProbe();
+        var providerFailure = new Scenario();
+        providerFailure.Adapter.Error = new ProviderError(ProviderErrorCategory.Timeout,
+            ProviderExecutionCertainty.Unknown, false, false, null, null, "upstream secret");
+        await providerFailure.RunAsync();
+        var settlementFailure = new Scenario();
+        settlementFailure.Finance.FinalizationFailure = new InvalidOperationException("database unavailable");
+        await settlementFailure.RunAsync();
+
+        Assert.Equal(2, probe.Sum("uzllm.gateway.requests", "error"));
+        Assert.Equal(2, probe.Sum("uzllm.gateway.errors", "error"));
+        Assert.Equal(1, probe.Sum("uzllm.provider.failures", "error"));
+        Assert.Equal(1, probe.Sum("uzllm.billing.failures", "error"));
+        Assert.DoesNotContain("upstream secret", string.Join(" ", probe.Spans.SelectMany(span =>
+            span.TagObjects.Select(tag => tag.Value?.ToString()))));
+    }
+
+    private sealed record TelemetryMeasurement(string Name, double Value, IReadOnlyDictionary<string, string> Tags);
+
+    private sealed class TelemetryProbe : IDisposable
+    {
+        private readonly MeterListener meter = new();
+        private readonly ActivityListener traces;
+        private readonly ConcurrentQueue<TelemetryMeasurement> measurements = new();
+        private readonly ConcurrentQueue<Activity> spans = new();
+
+        public TelemetryProbe()
+        {
+            meter.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == UzllmTelemetry.MeterName)
+                    listener.EnableMeasurementEvents(instrument);
+            };
+            meter.SetMeasurementEventCallback<long>((instrument, value, tags, _) => Capture(instrument, value, tags));
+            meter.SetMeasurementEventCallback<double>((instrument, value, tags, _) => Capture(instrument, value, tags));
+            meter.Start();
+            traces = new ActivityListener
+            {
+                ShouldListenTo = source => source.Name == UzllmTelemetry.ActivitySourceName,
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+                ActivityStopped = activity => spans.Enqueue(activity)
+            };
+            ActivitySource.AddActivityListener(traces);
+        }
+
+        public IReadOnlyList<TelemetryMeasurement> Measurements => measurements.ToArray();
+        public IReadOnlyList<Activity> Spans => spans.ToArray();
+
+        public long Sum(string name, string outcome, string? tokenKind = null) =>
+            (long)Measurements.Where(value => value.Name == name
+                && value.Tags.GetValueOrDefault("outcome") == outcome
+                && (tokenKind is null || value.Tags.GetValueOrDefault("token.kind") == tokenKind))
+                .Sum(value => value.Value);
+
+        public bool HasPositive(string name) => Measurements.Any(value => value.Name == name && value.Value > 0);
+
+        private void Capture(Instrument instrument, double value, ReadOnlySpan<KeyValuePair<string, object?>> tags)
+        {
+            var values = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var tag in tags) values[tag.Key] = tag.Value?.ToString() ?? string.Empty;
+            measurements.Enqueue(new TelemetryMeasurement(instrument.Name, value, values));
+        }
+
+        public void Dispose()
+        {
+            traces.Dispose();
+            meter.Dispose();
+        }
+    }
+
     [Fact]
     public async Task Byok_request_uses_tenant_credential_even_when_managed_traffic_is_paused()
     {
@@ -975,7 +1093,7 @@ public sealed class GatewayExecutionTests
                 new FakeWriterFactory(Writer), PlatformControls,
                 new GatewayOptions("default", 1_048_576, TimeSpan.FromMinutes(2),
                     TimeSpan.FromMinutes(15), new LimitPolicy(60, 600, 8, 64, TimeSpan.FromMinutes(15))),
-                TimeProvider.System, NullLogger<InferenceGateway>.Instance);
+                TimeProvider.System, NullLogger<InferenceGateway>.Instance, new GatewayTelemetry());
         }
 
         public Task RunAsync() => gateway.ChatAsync(Context, Context.RequestAborted);

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -27,6 +28,12 @@ public static class ObservabilityServiceCollectionExtensions
 
         var configuredEndpoint = configuration["Observability:OtlpEndpoint"];
         var endpoint = Uri.TryCreate(configuredEndpoint, UriKind.Absolute, out var parsedEndpoint) ? parsedEndpoint : null;
+        var protocol = configuration["Observability:OtlpProtocol"] switch
+        {
+            null or "grpc" => OtlpExportProtocol.Grpc,
+            "http/protobuf" => OtlpExportProtocol.HttpProtobuf,
+            _ => throw new InvalidOperationException("Observability:OtlpProtocol must be grpc or http/protobuf.")
+        };
 
         services.AddSerilog((_, loggerConfiguration) => loggerConfiguration
             .MinimumLevel.Information()
@@ -50,7 +57,11 @@ public static class ObservabilityServiceCollectionExtensions
 
                 if (endpoint is not null)
                 {
-                    tracing.AddOtlpExporter(options => options.Endpoint = endpoint);
+                    tracing.AddOtlpExporter(options =>
+                    {
+                        options.Endpoint = SignalEndpoint(endpoint, protocol, "v1/traces");
+                        options.Protocol = protocol;
+                    });
                 }
             })
             .WithMetrics(metrics =>
@@ -63,12 +74,23 @@ public static class ObservabilityServiceCollectionExtensions
 
                 if (endpoint is not null)
                 {
-                    metrics.AddOtlpExporter(options => options.Endpoint = endpoint);
+                    metrics.AddOtlpExporter(options =>
+                    {
+                        options.Endpoint = SignalEndpoint(endpoint, protocol, "v1/metrics");
+                        options.Protocol = protocol;
+                    });
                 }
             });
 
         services.AddSingleton<GatewayTelemetry>();
         return services;
+    }
+
+    private static Uri SignalEndpoint(Uri endpoint, OtlpExportProtocol protocol, string signalPath)
+    {
+        if (protocol != OtlpExportProtocol.HttpProtobuf) return endpoint;
+        var baseUri = endpoint.AbsoluteUri.TrimEnd('/') + "/";
+        return new Uri(new Uri(baseUri), signalPath);
     }
 
     public static WebApplication UseUzllmRequestCorrelation(this WebApplication application)
@@ -153,6 +175,8 @@ public static class UzllmTelemetry
     public static readonly Counter<long> CacheHits = Meter.CreateCounter<long>("uzllm.gateway.cache_hits");
 
     public static readonly Counter<long> FinancialFailures = Meter.CreateCounter<long>("uzllm.billing.failures");
+
+    public static readonly Counter<long> UnknownSettlements = Meter.CreateCounter<long>("uzllm.billing.unknown_settlement_observations");
 }
 
 public sealed record GatewayTelemetryContext(
@@ -176,8 +200,13 @@ public sealed class GatewayTelemetry
     public void RecordTimeToFirstToken(GatewayTelemetryContext context, TimeSpan elapsed) =>
         UzllmTelemetry.TimeToFirstTokenMilliseconds.Record(elapsed.TotalMilliseconds, CreateTags(context));
 
-    public void RecordTokens(long tokenCount, GatewayTelemetryContext context) =>
-        UzllmTelemetry.TokenUsage.Add(tokenCount, CreateTags(context));
+    public void RecordTokens(long tokenCount, string kind, GatewayTelemetryContext context)
+    {
+        if (tokenCount < 0) return;
+        var tags = CreateTags(context);
+        tags.Add("token.kind", kind is "input" or "output" ? kind : "other");
+        UzllmTelemetry.TokenUsage.Add(tokenCount, tags);
+    }
 
     public void RecordThroughput(GatewayTelemetryContext context, double tokensPerSecond) =>
         UzllmTelemetry.TokensPerSecond.Record(tokensPerSecond, CreateTags(context));
@@ -202,17 +231,29 @@ public sealed class GatewayTelemetry
 
     private static TagList CreateTags(GatewayTelemetryContext context)
     {
-        var tags = new TagList { { "outcome", context.Outcome } };
-        if (!string.IsNullOrWhiteSpace(context.Provider))
-        {
+        var outcome = context.Outcome is "success" or "error" or "canceled" or "pending" or "active"
+            ? context.Outcome : "other";
+        var tags = new TagList { { "outcome", outcome } };
+        // Provider is an allowlisted family, never a mapping, credential, tenant or arbitrary model.
+        if (context.Provider is "openai" or "anthropic" or "google" or "deepseek")
             tags.Add("provider", context.Provider);
-        }
-
-        if (!string.IsNullOrWhiteSpace(context.Model))
-        {
-            tags.Add("model", context.Model);
-        }
 
         return tags;
     }
+}
+
+public static class FinancialTelemetry
+{
+    public static void RecordCommittedSettlement(long chargedMicroUsd, bool unresolved)
+    {
+        if (chargedMicroUsd > 0)
+            UzllmTelemetry.SpendMicroUsd.Add(chargedMicroUsd, new TagList { { "outcome", "settled" } });
+        if (unresolved) RecordUnknownSettlement();
+    }
+
+    public static void RecordUnknownSettlement() => UzllmTelemetry.UnknownSettlements.Add(1,
+        new TagList { { "outcome", "pending" } });
+
+    public static void RecordFailure() => UzllmTelemetry.FinancialFailures.Add(1,
+        new TagList { { "outcome", "error" } });
 }

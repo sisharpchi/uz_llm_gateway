@@ -9,6 +9,8 @@ x-gateway: &gateway
     ASPNETCORE_URLS: https://+:8443
     Kestrel__Certificates__Default__Path: /run/certs/gateway.pfx
     Gateway__PublicBaseUrl: ${UZLLM_PUBLIC_BASE_URL:?Set UZLLM_PUBLIC_BASE_URL}
+    Observability__OtlpEndpoint: ${UZLLM_OTLP_ENDPOINT:-}
+    Observability__OtlpProtocol: ${UZLLM_OTLP_PROTOCOL:-http/protobuf}
   volumes:
     - ${UZLLM_CERT_DIR:?Set UZLLM_CERT_DIR}/gateway.pfx:/run/certs/gateway.pfx:ro
   secrets:
@@ -33,6 +35,8 @@ x-management: &management
     DataProtection__CertificatePath: /run/certs/keyring.pfx
     Payments__FeeBasisPoints: ${UZLLM_PAYMENT_FEE_BPS:?Set UZLLM_PAYMENT_FEE_BPS}
     Payments__FixedFeeTiyin: ${UZLLM_PAYMENT_FIXED_FEE_TIYIN:?Set UZLLM_PAYMENT_FIXED_FEE_TIYIN}
+    Observability__OtlpEndpoint: ${UZLLM_OTLP_ENDPOINT:-}
+    Observability__OtlpProtocol: ${UZLLM_OTLP_PROTOCOL:-http/protobuf}
   volumes:
     - ${UZLLM_CERT_DIR}/management.pfx:/run/certs/management.pfx:ro
     - ${UZLLM_CERT_DIR}/keyring.pfx:/run/certs/keyring.pfx:ro
@@ -73,6 +77,8 @@ x-worker: &worker
     Operations__AlertEmail: ${UZLLM_OPERATIONS_ALERT_EMAIL:?Set UZLLM_OPERATIONS_ALERT_EMAIL}
     Payments__FeeBasisPoints: ${UZLLM_PAYMENT_FEE_BPS}
     Payments__FixedFeeTiyin: ${UZLLM_PAYMENT_FIXED_FEE_TIYIN}
+    Observability__OtlpEndpoint: ${UZLLM_OTLP_ENDPOINT:-}
+    Observability__OtlpProtocol: ${UZLLM_OTLP_PROTOCOL:-http/protobuf}
   volumes:
     - ${UZLLM_CERT_DIR}/keyring.pfx:/run/certs/keyring.pfx:ro
     - ${UZLLM_KEYRING_DIR:?Set UZLLM_KEYRING_DIR}:/run/keyring:rw

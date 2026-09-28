@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
+using UZLLM.Observability;
 using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
@@ -28,7 +29,8 @@ public sealed class InferenceGateway(
     IProviderPerformanceService performance, ProviderPerformanceOptions performanceOptions,
     ICompletionWriterFactory writerFactory,
     IPlatformControlStore platformControls,
-    GatewayOptions options, TimeProvider clock, ILogger<InferenceGateway> logger) : IInferenceGateway
+    GatewayOptions options, TimeProvider clock, ILogger<InferenceGateway> logger,
+    GatewayTelemetry telemetry) : IInferenceGateway
 {
     public async Task ListModelsAsync(HttpContext context, CancellationToken cancellationToken)
     {
@@ -86,8 +88,12 @@ public sealed class InferenceGateway(
 
     public async Task ChatAsync(HttpContext context, CancellationToken cancellationToken)
     {
+        using var activity = UzllmTelemetry.ActivitySource.StartActivity("gateway.chat");
+        var requestTimer = Stopwatch.StartNew();
         SetGatewayRequestId(context, Guid.CreateVersion7());
         LimitLease? lease = null;
+        bool? inferenceDelivered = null;
+        var activeStream = false;
         try
         {
             var identity = await AuthenticateAsync(context, cancellationToken);
@@ -459,13 +465,24 @@ public sealed class InferenceGateway(
             var delivered = false;
             try
             {
+                if (parsed.Stream)
+                {
+                    telemetry.RecordStreamDelta(new GatewayTelemetryContext("active"), 1);
+                    activeStream = true;
+                }
                 delivered = await ExecuteReservedAsync(context, parsed, model.Model.CanonicalCode, candidates,
                     pinnedProvider is not null && !parsed.AllowManagedFallback
                         && parsed.FallbackModels is not { Count: > 0 },
                     admission.Reservation, cancellationToken);
+                inferenceDelivered = delivered;
             }
             finally
             {
+                if (activeStream)
+                {
+                    telemetry.RecordStreamDelta(new GatewayTelemetryContext("active"), -1);
+                    activeStream = false;
+                }
                 if (responseCapture is not null)
                 {
                     context.Response.Body = originalResponseBody!;
@@ -512,6 +529,15 @@ public sealed class InferenceGateway(
                 try { await limiter.ReleaseAsync(lease, CancellationToken.None); }
                 catch (Exception exception) { logger.LogWarning(exception, "Admission lease release failed"); }
             }
+            var outcome = context.RequestAborted.IsCancellationRequested ? "canceled"
+                : inferenceDelivered == false || context.Response.StatusCode >= 400 ? "error" : "success";
+            var provider = context.Response.Headers["X-Uzllm-Provider"].ToString();
+            var telemetryContext = new GatewayTelemetryContext(outcome, provider);
+            telemetry.RecordRequest(telemetryContext, requestTimer.Elapsed);
+            activity?.SetTag("gateway.outcome", outcome);
+            if (provider is "openai" or "anthropic" or "google" or "deepseek")
+                activity?.SetTag("provider.family", provider);
+            if (outcome == "error") activity?.SetStatus(ActivityStatusCode.Error);
         }
     }
 
@@ -612,7 +638,12 @@ public sealed class InferenceGateway(
                             lastProviderEventMs = Math.Max(1, attemptTimer.ElapsedMilliseconds);
                             if (firstTokenMs is null && item.Kind is (ProviderStreamKind.TextDelta
                                 or ProviderStreamKind.ToolCallDelta or ProviderStreamKind.Refusal))
+                            {
                                 firstTokenMs = lastProviderEventMs;
+                                telemetry.RecordTimeToFirstToken(
+                                    new GatewayTelemetryContext("success", mapping.Provider.Code),
+                                    TimeSpan.FromMilliseconds(firstTokenMs.Value));
+                            }
                             providerRequestId ??= item.ProviderRequestId;
                             if (item.Kind == ProviderStreamKind.Usage) providerUsage = item.Usage;
                             if (item.Kind == ProviderStreamKind.Error)
@@ -643,6 +674,9 @@ public sealed class InferenceGateway(
                         providerRequestId = completion.ProviderRequestId;
                         completed = true;
                         firstTokenMs = Math.Max(1, attemptTimer.ElapsedMilliseconds);
+                        telemetry.RecordTimeToFirstToken(
+                            new GatewayTelemetryContext("success", mapping.Provider.Code),
+                            TimeSpan.FromMilliseconds(firstTokenMs.Value));
                     }
                 }
                 catch (ProviderExecutionException exception)
@@ -651,6 +685,17 @@ public sealed class InferenceGateway(
                     providerRequestId = exception.Error.ProviderRequestId;
                 }
                 attemptTimer.Stop();
+                var providerMetric = new GatewayTelemetryContext(providerError is null ? "success" : "error",
+                    mapping.Provider.Code);
+                if (providerUsage is { } observed)
+                {
+                    telemetry.RecordTokens(observed.InputTokens, "input", providerMetric);
+                    telemetry.RecordTokens(observed.OutputTokens, "output", providerMetric);
+                    if (observed.OutputTokens > 0 && attemptTimer.Elapsed.TotalSeconds > 0)
+                        telemetry.RecordThroughput(providerMetric,
+                            observed.OutputTokens / attemptTimer.Elapsed.TotalSeconds);
+                }
+                if (providerError is not null) telemetry.RecordProviderFailure(providerMetric);
                 await RecordHealthAsync(mapping.Mapping.Id, providerError, completed);
                 if (!candidate.IsByok)
                     performanceObservations.Add(new ProviderPerformanceObservation(attempt.Id,
@@ -670,6 +715,7 @@ public sealed class InferenceGateway(
                         providerError.Category.ToString(), cleanup.Token))
                         throw new InvalidOperationException("Rejected attempt could not be finalized.");
                     fallbackCount++;
+                    telemetry.RecordFallback(new GatewayTelemetryContext("error", mapping.Provider.Code));
                     continue;
                 }
                 break;
@@ -762,6 +808,7 @@ public sealed class InferenceGateway(
             }
             catch (Exception exception)
             {
+                telemetry.RecordFinancialFailure(new GatewayTelemetryContext("error", mapping.Provider.Code));
                 logger.LogError(exception, "Financial finalization failed for {RequestId}; reconciliation remains scheduled",
                     reservation.RequestId);
             }

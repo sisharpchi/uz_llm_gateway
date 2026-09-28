@@ -81,6 +81,13 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   Worker. Trigger a test operational alert in staging and verify mailbox receipt,
   routing, human acknowledgement and escalation coverage; a configured address
   alone does not prove the operational launch gate.
+- Set `UZLLM_OTLP_ENDPOINT` to a trusted collector base URL on both nodes and
+  verify trace and metric ingestion for Gateway, Management and Worker. The
+  default `UZLLM_OTLP_PROTOCOL=http/protobuf` posts to `/v1/traces` and
+  `/v1/metrics`; `grpc` uses the configured endpoint as-is. Empty endpoint
+  disables export and is suitable only for local development. Restrict collector
+  access and TLS; no API keys, prompt text, tenant IDs or model names are metric
+  labels. Alert on missing telemetry as well as the financial and gateway signals.
 
 The Payme/CLICK production merchant IDs, keys, callback IP policy, and
 merchant-account verification remain external launch prerequisites. Do not

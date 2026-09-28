@@ -218,6 +218,19 @@ Recommended:
 - model share;
 - margin.
 
+The implemented custom `UZLLM` meter/source emits bounded gateway outcome and
+provider-family labels (never tenant, key, model, prompt or credential). Gateway
+requests/duration/errors, token kind, TTFT, throughput and active-stream deltas
+are observed at execution boundaries. Billing records committed micro-USD spend,
+pending/unknown-settlement observations and finalization failures; an
+observation is not a count of distinct unresolved reservations. Trace operations
+`gateway.chat` and `billing.finalize` carry only bounded outcome/mode/status
+metadata. Configure `Observability:OtlpEndpoint` and
+`Observability:OtlpProtocol` (`http/protobuf` or `grpc`) to export; local tests
+exercise both custom listeners and an HTTP/protobuf collector. Production
+dashboard/alert thresholds and missing-telemetry checks are operational gates,
+not implied by the presence of instruments.
+
 ---
 
 ## 9. Logs

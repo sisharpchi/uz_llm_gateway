@@ -2,6 +2,7 @@ using System.Text.Json;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Billing.Domain;
 using UZLLM.Modules.Usage.Contracts;
+using UZLLM.Observability;
 using UZLLM.Persistence;
 
 namespace UZLLM.Modules.Billing.Application;
@@ -79,13 +80,37 @@ public sealed class FinancialService(
     }
 
     public Task<FinalizationResult> FinalizeAsync(Guid reservationId, CancellationToken cancellationToken = default) =>
-        FinishAsync(reservationId, FinalizationMode.Normal, cancellationToken);
+        ObserveFinishAsync(reservationId, FinalizationMode.Normal, cancellationToken);
 
     public Task<FinalizationResult> ReleaseUndispatchedAsync(Guid reservationId, CancellationToken cancellationToken = default) =>
-        FinishAsync(reservationId, FinalizationMode.UndispatchedOnly, cancellationToken);
+        ObserveFinishAsync(reservationId, FinalizationMode.UndispatchedOnly, cancellationToken);
 
     public Task<FinalizationResult> ReconcileAsync(Guid reservationId, CancellationToken cancellationToken = default) =>
-        FinishAsync(reservationId, FinalizationMode.Reconciliation, cancellationToken);
+        ObserveFinishAsync(reservationId, FinalizationMode.Reconciliation, cancellationToken);
+
+    private async Task<FinalizationResult> ObserveFinishAsync(Guid reservationId, FinalizationMode mode,
+        CancellationToken cancellationToken)
+    {
+        using var activity = UzllmTelemetry.ActivitySource.StartActivity("billing.finalize");
+        activity?.SetTag("billing.mode", mode.ToString());
+        try
+        {
+            var result = await FinishAsync(reservationId, mode, cancellationToken);
+            activity?.SetTag("billing.status", result.Status.ToString());
+            if (result.Status is (FinalizationStatus.Settled or FinalizationStatus.Released)
+                && result.Settlement is { } settlement)
+                FinancialTelemetry.RecordCommittedSettlement(settlement.Charged.Value, settlement.UnresolvedUsage);
+            else if (result.Status == FinalizationStatus.PendingEvidence)
+                FinancialTelemetry.RecordUnknownSettlement();
+            return result;
+        }
+        catch
+        {
+            activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error);
+            FinancialTelemetry.RecordFailure();
+            throw;
+        }
+    }
 
     public async Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
         UsdMicroAmount limit, CancellationToken cancellationToken = default) =>
