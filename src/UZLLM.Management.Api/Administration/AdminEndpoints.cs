@@ -1,6 +1,9 @@
 using System.Security.Claims;
+using System.Globalization;
+using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
+using UZLLM.Modules.Payments.Contracts;
 using UZLLM.Persistence;
 
 namespace UZLLM.Management.Api.Administration;
@@ -53,6 +56,40 @@ public static class AdminEndpoints
             alerts.ListAsync(limit ?? 50, ct));
         admin.MapGet("/financial/risk", (int? limit, IAdminService service, CancellationToken ct) =>
             service.GetFinancialRiskAsync(limit ?? 50, ct));
+        admin.MapGet("/payment-reconciliation/cases", (int? limit,
+            IPaymentReconciliationService reconciliation, CancellationToken ct) =>
+            reconciliation.ListCasesAsync(limit ?? 50, ct));
+        admin.MapGet("/payment-reconciliation/observations/{id:guid}", async (Guid id,
+            IPaymentReconciliationService reconciliation, CancellationToken ct) =>
+            await reconciliation.FindObservationAsync(id, ct) is { } observation
+                ? Results.Ok(Observation(observation)) : Results.NotFound());
+        admin.MapPost("/payment-reconciliation/observations", async (
+            RecordProviderObservationRequest request, HttpContext http,
+            IPaymentReconciliationService reconciliation, CancellationToken ct) =>
+        {
+            if (!Enum.TryParse<PaymentProvider>(request.Provider, true, out var provider)
+                || !Enum.IsDefined(provider)
+                || !string.Equals(request.Provider, provider.ToString(), StringComparison.OrdinalIgnoreCase)
+                || !Enum.TryParse<ProviderObservationStatus>(request.Status, true, out var status)
+                || !Enum.IsDefined(status)
+                || !string.Equals(request.Status, status.ToString(), StringComparison.OrdinalIgnoreCase)
+                || !long.TryParse(request.AmountTiyin, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var amount) || amount <= 0)
+                return Results.BadRequest(new { error = "invalid_provider_status_or_amount" });
+            var result = await reconciliation.RecordObservationAsync(Actor(http),
+                new ProviderObservationInput(provider, request.SourceReference, request.SourceSha256,
+                    request.RowReference, request.ExternalTransactionId, status,
+                    new UzsTiyinAmount(amount), request.ProviderObservedAt, request.Reason), ct);
+            return result.Duplicate ? Results.Ok(result) : Results.Created(
+                $"/management/v1/admin/payment-reconciliation/observations/{result.Id}", result);
+        }).RequireManagementCsrf();
+        admin.MapPatch("/payment-reconciliation/cases/{id:guid}/resolve", async (Guid id,
+            ResolvePaymentCaseRequest request, HttpContext http,
+            IPaymentReconciliationService reconciliation, CancellationToken ct) =>
+            await reconciliation.ResolveCaseAsync(Actor(http), id, request.Reason,
+                request.ResolutionReference, ct)
+                ? Results.NoContent() : Results.Conflict(new { error = "case_not_open" }))
+            .RequireManagementCsrf();
 
         admin.MapPost("/operators/{accountId:guid}/mfa/reset", async (Guid accountId,
             ResetOperatorMfaRequest request, HttpContext http, IIdentityService identity, CancellationToken ct) =>
@@ -95,6 +132,12 @@ public static class AdminEndpoints
     private static bool IsOperator(HttpContext context) => context.User.FindFirst("uzllm:operator")?.Value == "true";
     private static Guid Actor(HttpContext context) => Guid.Parse(
         context.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    private static AdminProviderObservationResponse Observation(ProviderObservation value) => new(
+        value.Id, value.IntentId, value.Provider.ToString(), value.SourceReference,
+        value.SourceSha256, value.RowReference, value.ExternalTransactionId,
+        value.Status.ToString(), value.Amount.Value.ToString(CultureInfo.InvariantCulture),
+        value.ProviderObservedAt, value.RecordedAt);
 
     private sealed record ResetOperatorMfaRequest(string Reason);
 }

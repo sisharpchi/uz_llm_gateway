@@ -195,6 +195,9 @@ public sealed class PaymentService(
                 throw new InvalidOperationException("Top-up wallet posting did not complete atomically.");
             await financial.RecoverAvailableDebtAsync(intent.OrganizationId, entry.Id, now, cancellationToken);
             await store.SetStatusAsync(intent.Id, PaymentStatus.Paid, now, null, cancellationToken);
+            await jobs.ScheduleAsync("payment.reconcile", JsonSerializer.Serialize(new { intentId = intent.Id }),
+                $"{intent.Id:N}:paid", now + ProviderPendingWindow,
+                cancellationToken: cancellationToken);
             await outbox.EnqueueAsync("payment.intent.paid",
                 JsonSerializer.Serialize(new { intentId = intent.Id, organizationId = intent.OrganizationId }),
                 cancellationToken: cancellationToken);
@@ -278,6 +281,9 @@ public sealed class PaymentService(
         string? reason = null;
         if (intent.Status == PaymentStatus.Paid && !await store.HasTopUpCreditAsync(intent.Id, cancellationToken))
             reason = "PaidWithoutCredit";
+        else if (intent.Status == PaymentStatus.Paid && intent.PaidAt <= now - ProviderPendingWindow
+            && !await store.HasProviderObservationAsync(intent.Id, cancellationToken))
+            reason = "ProviderEvidenceMissing";
         else if (intent.Status == PaymentStatus.Canceled && intent.PaidAt is not null
             && !await store.HasReversalAsync(intent.Id, cancellationToken))
             reason = "CanceledWithoutReversal";

@@ -19,6 +19,7 @@ using UZLLM.Modules.Providers.Application;
 using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
+using UZLLM.Modules.Payments.Infrastructure;
 using UZLLM.Persistence;
 
 namespace UZLLM.Persistence.IntegrationTests;
@@ -38,7 +39,9 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
         {
             ["ConnectionStrings:Postgres"] = fixture.RuntimeConnectionString,
             ["ProviderSecrets:ActiveKeyVersion"] = "test",
-            ["ProviderSecrets:Keys:test"] = Convert.ToBase64String(new byte[32])
+            ["ProviderSecrets:Keys:test"] = Convert.ToBase64String(new byte[32]),
+            ["Payments:Payme:MerchantId"] = "payme-test-merchant",
+            ["Payments:Payme:Key"] = "payme-test-key"
         });
         builder.Services.AddSingleton<TimeProvider>(clock);
         builder.Services.AddUzllmPersistence(builder.Configuration);
@@ -46,6 +49,7 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
         builder.Services.AddUzllmAudit();
         builder.Services.AddUzllmCatalog();
         builder.Services.AddUzllmProviders(builder.Configuration);
+        builder.Services.AddUzllmPayments(builder.Configuration);
         builder.Services.AddUzllmAdministration();
         await using var app = builder.Build();
         app.UseUzllmManagementNoStore();
@@ -78,7 +82,11 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/financial/risk", customerSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/payment-reconciliation/cases", customerSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/payment-reconciliation/cases", operatorSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
             using var enroll = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/enroll",
@@ -111,6 +119,61 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Contains("dataAsOf", body);
                 Assert.DoesNotContain("do-not-return", body);
             }
+            var observationRequest = new
+            {
+                provider = "Payme", sourceReference = "payme-report-2026-09-28",
+                sourceSha256 = new string('c', 64), rowReference = "row-1",
+                externalTransactionId = "unmatched-payme-transaction", status = "Paid",
+                amountTiyin = "100000", providerObservedAt = clock.GetUtcNow().AddMinutes(-1),
+                reason = "merchant report reviewed"
+            };
+            using (var noCsrf = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/payment-reconciliation/observations", operatorSession,
+                observationRequest)))
+                Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+            using (var customerDenied = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/payment-reconciliation/observations", customerSession,
+                observationRequest, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, customerDenied.StatusCode);
+            using (var badDigest = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/payment-reconciliation/observations", operatorSession,
+                new RecordProviderObservationRequest("Payme", "payme-report-2026-09-28",
+                    "not-a-sha256", "row-invalid", "unmatched-payme-transaction",
+                    "Paid", "100000", clock.GetUtcNow().AddMinutes(-1),
+                    "merchant report reviewed"), true)))
+                Assert.Equal(HttpStatusCode.BadRequest, badDigest.StatusCode);
+            Guid observationId;
+            using (var created = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/payment-reconciliation/observations", operatorSession,
+                observationRequest, true)))
+            {
+                Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+                Assert.Equal("no-store", created.Headers.CacheControl?.ToString());
+                observationId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            }
+            using (var read = await client.SendAsync(Request(HttpMethod.Get,
+                $"/management/v1/admin/payment-reconciliation/observations/{observationId}", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+                Assert.Equal("unmatched-payme-transaction",
+                    (await read.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("externalTransactionId").GetString());
+            }
+            Guid caseId;
+            using (var list = await client.SendAsync(Request(HttpMethod.Get,
+                "/management/v1/admin/payment-reconciliation/cases", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+                var cases = await list.Content.ReadFromJsonAsync<JsonElement>();
+                caseId = Assert.Single(cases.EnumerateArray().ToArray()).GetProperty("id").GetGuid();
+            }
+            using (var resolved = await client.SendAsync(Request(HttpMethod.Patch,
+                $"/management/v1/admin/payment-reconciliation/cases/{caseId}/resolve", operatorSession,
+                new { reason = "merchant statement reconciled", resolutionReference = "ticket-payme-12345" }, true)))
+                Assert.Equal(HttpStatusCode.NoContent, resolved.StatusCode);
+            using (var replay = await client.SendAsync(Request(HttpMethod.Patch,
+                $"/management/v1/admin/payment-reconciliation/cases/{caseId}/resolve", operatorSession,
+                new { reason = "merchant statement reconciled", resolutionReference = "ticket-payme-12345" }, true)))
+                Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
 
             var providerRequest = new { code = "auth-test", name = "Auth Test", reason = "operator test" };
             using (var response = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/admin/providers",

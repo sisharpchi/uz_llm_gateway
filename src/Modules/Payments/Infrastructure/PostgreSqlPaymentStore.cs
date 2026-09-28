@@ -154,6 +154,10 @@ public sealed class PostgreSqlPaymentStore(FoundationDbContext db) : IPaymentSto
         db.Set<BillingReversalEntity>().AsNoTracking()
             .AnyAsync(item => item.ExternalReferenceId == intentId, cancellationToken);
 
+    public Task<bool> HasProviderObservationAsync(Guid intentId, CancellationToken cancellationToken = default) =>
+        db.Set<PaymentProviderObservationEntity>().AsNoTracking()
+            .AnyAsync(item => item.IntentId == intentId, cancellationToken);
+
     public async Task<IReadOnlyList<PaymentIntent>> ListForOrganizationAsync(Guid organizationId,
         int limit, CancellationToken cancellationToken = default) =>
         (await db.Set<PaymentIntentEntity>().AsNoTracking()
@@ -194,7 +198,7 @@ public sealed class PostgreSqlPaymentStore(FoundationDbContext db) : IPaymentSto
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO payment.reconciliation_case (id, payment_intent_id, reason, status, created_at)
             VALUES ({Guid.CreateVersion7()}, {intentId}, {reason}, 'Open', {now})
-            ON CONFLICT (payment_intent_id, reason) DO NOTHING;
+            ON CONFLICT DO NOTHING;
             """, cancellationToken) == 1;
 
     private static PaymentQuote ToQuote(PaymentQuoteEntity value) => new(value.Id, value.OrganizationId,

@@ -129,7 +129,8 @@ public enum OperationalAlertKind
     OutboxBacklog,
     FinancialExposure,
     RecoveryDebt,
-    LateExternalSpend
+    LateExternalSpend,
+    PaymentReconciliation
 }
 
 public sealed record OperationalAlert(

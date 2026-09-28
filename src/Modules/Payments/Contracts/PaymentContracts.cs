@@ -6,6 +6,63 @@ public enum PaymentProvider { Payme, Click }
 
 public enum PaymentStatus { Pending, Created, Paid, Canceled, Expired }
 
+public enum ProviderObservationStatus { Created, Paid, Canceled, Reversed }
+
+/// <summary>One operator-transcribed row from an independently obtained merchant statement.</summary>
+public sealed record ProviderObservationInput(PaymentProvider Provider, string SourceReference,
+    string SourceSha256, string RowReference, string ExternalTransactionId,
+    ProviderObservationStatus Status, UzsTiyinAmount Amount, DateTimeOffset ProviderObservedAt,
+    string Reason);
+
+/// <summary>Immutable statement row and any mismatch cases opened by its ingestion.</summary>
+public sealed record ProviderObservationResult(Guid Id, bool Duplicate,
+    IReadOnlyList<string> CaseReasons);
+
+public sealed record ProviderObservation(Guid Id, Guid? IntentId, PaymentProvider Provider,
+    string MerchantScope, string SourceReference, string SourceSha256, string RowReference,
+    string ExternalTransactionId, ProviderObservationStatus Status, UzsTiyinAmount Amount,
+    DateTimeOffset ProviderObservedAt, DateTimeOffset RecordedAt, Guid RecordedByAccountId);
+
+/// <summary>Operator-visible payment reconciliation case; closure never posts wallet credit.</summary>
+public sealed record PaymentReconciliationCase(Guid Id, Guid? IntentId, string? Provider,
+    string? ExternalTransactionId, string Reason, string Status, DateTimeOffset CreatedAt,
+    DateTimeOffset? ResolvedAt, string? ResolutionReference);
+
+public interface IPaymentReconciliationService
+{
+    Task<ProviderObservationResult> RecordObservationAsync(Guid actorId,
+        ProviderObservationInput input, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PaymentReconciliationCase>> ListCasesAsync(int limit,
+        CancellationToken cancellationToken = default);
+    Task<ProviderObservation?> FindObservationAsync(Guid id,
+        CancellationToken cancellationToken = default);
+    Task<bool> ResolveCaseAsync(Guid actorId, Guid caseId, string reason,
+        string resolutionReference, CancellationToken cancellationToken = default);
+}
+
+public interface IPaymentReconciliationStore
+{
+    Task LockExternalTransactionAsync(PaymentProvider provider, string merchantScope,
+        string externalTransactionId, CancellationToken cancellationToken = default);
+    Task LockCaseExternalTransactionAsync(Guid caseId,
+        CancellationToken cancellationToken = default);
+    Task<ProviderObservation?> FindBySourceAsync(PaymentProvider provider, string merchantScope,
+        string sourceReference, string rowReference, CancellationToken cancellationToken = default);
+    Task<ProviderObservation?> FindObservationAsync(Guid id,
+        CancellationToken cancellationToken = default);
+    Task<bool> TryInsertObservationAsync(ProviderObservation observation,
+        CancellationToken cancellationToken = default);
+    Task<int> CountByExternalAsync(PaymentProvider provider, string merchantScope,
+        string externalTransactionId, CancellationToken cancellationToken = default);
+    Task<Guid?> EnsureCaseAsync(Guid? intentId, Guid? observationId, PaymentProvider? provider,
+        string? merchantScope, string? externalTransactionId, string reason, DateTimeOffset now,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PaymentReconciliationCase>> ListCasesAsync(int limit,
+        CancellationToken cancellationToken = default);
+    Task<bool> ResolveCaseAsync(Guid caseId, Guid actorId, string resolutionReference,
+        DateTimeOffset now, CancellationToken cancellationToken = default);
+}
+
 public sealed record PaymentQuote(
     Guid Id, Guid OrganizationId, PaymentProvider Provider, UzsTiyinAmount Amount,
     UzsTiyinAmount Fee, Guid FxSnapshotId, decimal UzsTiyinPerUsd,
@@ -54,6 +111,7 @@ public interface IPaymentStore
         int? cancelReason, CancellationToken cancellationToken = default);
     Task<bool> HasTopUpCreditAsync(Guid intentId, CancellationToken cancellationToken = default);
     Task<bool> HasReversalAsync(Guid intentId, CancellationToken cancellationToken = default);
+    Task<bool> HasProviderObservationAsync(Guid intentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PaymentIntent>> ListForOrganizationAsync(Guid organizationId,
         int limit, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PaymentStatementEntry>> FindPaymeStatementAsync(string merchantScope,

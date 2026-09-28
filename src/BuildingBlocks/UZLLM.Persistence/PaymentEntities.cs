@@ -52,9 +52,32 @@ public sealed class PaymentCallbackReceiptEntity
 public sealed class PaymentReconciliationCaseEntity
 {
     public Guid Id { get; set; }
-    public Guid IntentId { get; set; }
+    public Guid? IntentId { get; set; }
+    public Guid? ObservationId { get; set; }
+    public string? Provider { get; set; }
+    public string? MerchantScope { get; set; }
+    public string? ExternalTransactionId { get; set; }
     public string Reason { get; set; } = null!;
     public string Status { get; set; } = "Open";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ResolvedAt { get; set; }
+    public Guid? ResolvedByAccountId { get; set; }
+    public string? ResolutionReference { get; set; }
+}
+
+public sealed class PaymentProviderObservationEntity
+{
+    public Guid Id { get; set; }
+    public Guid? IntentId { get; set; }
+    public string Provider { get; set; } = null!;
+    public string MerchantScope { get; set; } = null!;
+    public string SourceReference { get; set; } = null!;
+    public string SourceSha256 { get; set; } = null!;
+    public string RowReference { get; set; } = null!;
+    public string ExternalTransactionId { get; set; } = null!;
+    public string Status { get; set; } = null!;
+    public long AmountTiyin { get; set; }
+    public DateTimeOffset ProviderObservedAt { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+    public Guid RecordedByAccountId { get; set; }
 }

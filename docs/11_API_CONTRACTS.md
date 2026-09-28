@@ -507,6 +507,10 @@ GET   /controls
 GET   /work/dead-letters?limit=50
 GET   /work/alerts?limit=50
 GET   /financial/risk?limit=50
+GET   /payment-reconciliation/cases?limit=50
+GET   /payment-reconciliation/observations/{id}
+POST  /payment-reconciliation/observations
+PATCH /payment-reconciliation/cases/{id}/resolve
 POST  /providers | /models | /mappings | /credentials | /prices
 PATCH /providers/{id} | /models/{id} | /mappings/{id}
 PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
@@ -540,6 +544,22 @@ state. No prompt, provider secret, upstream request ID or payment credential
 is returned. These are investigation lists, not a consistent accounting
 snapshot across the three queries; use ledger/reconciliation evidence for
 financial closure.
+
+The payment-reconciliation routes are operator/recent-MFA only, `no-store`;
+mutations require session CSRF. `POST /observations` accepts `provider`
+(`Payme`/`Click`), `sourceReference`, a lowercase/uppercase 64-hex
+`sourceSha256` of the external statement, `rowReference`,
+`externalTransactionId`, normalized `status` (`Created`, `Paid`, `Canceled`,
+`Reversed`), positive decimal-string `amountTiyin`, UTC
+`providerObservedAt`, and an 8–500 character `reason`. It returns `201` and
+a Location for a new immutable row or `200` for an identical replay; a
+conflicting source-row replay returns `409`. This endpoint transcribes
+operator-obtained evidence and cannot independently authenticate a merchant
+statement. `GET /cases` returns at most 100 newest open-first local and
+external mismatch cases. `PATCH /cases/{id}/resolve` takes an 8–500 character
+`reason` and 8–200 character `resolutionReference`, returns `204` on first
+closure or `409` if not open, and never posts money. The closure audit entry
+contains actor, reason and evidence reference.
 
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the

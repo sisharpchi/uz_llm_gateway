@@ -218,6 +218,21 @@ Background reconciliation should detect:
 
 Financial incident => alert + manual review queue.
 
+`PAYMENT-002` records operator-transcribed merchant statement rows with source
+reference, source-file SHA-256, row reference, transaction ID, normalized
+status, amount and observation time. The source digest is provenance metadata,
+**not** proof the uploaded values match the merchant file; live merchant
+verification remains a launch gate. Rows are append-only and keyed by merchant,
+source and row. A conflicting replay is rejected. Different rows for one
+external transaction, missing local payments, amount/status disagreement and
+unapplied reversals open deduplicated operator cases. A paid local intent with
+no independent observation after 12 hours is also queued by the Worker.
+Only one case per mismatch is open at a time; new evidence after closure can
+open a fresh case without erasing the previous resolution.
+Case closure requires recent operator MFA, a reason and an evidence reference;
+it records audit and resolves the alert but never mutates the wallet. Any
+financial correction must use its separately authorized ledger/payment path.
+
 ---
 
 ## 12. FX

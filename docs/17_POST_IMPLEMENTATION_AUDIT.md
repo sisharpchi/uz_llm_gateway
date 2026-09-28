@@ -69,9 +69,10 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
    403 and tested cross-tenant/role denials through a real HTTP host. Management
    responses now use `no-store`; this historical audit finding is resolved.
 7. Management has internal payment/fee services but lacks a complete audited
-   operator path for FX/fee publication and external reconciliation evidence.
-   The current payment reconciliation checks local state; it does not prove
-   provider-side transaction agreement or case closure.
+   operator path for FX/fee publication. `PAYMENT-002` adds operator-supplied
+   external observation provenance, mismatch cases and audited closure; this
+   still does not independently fetch or authenticate live merchant statements.
+   Live Payme/CLICK agreement remains an external gate.
 8. `AGENTS.md`, `README.md`, `00_README.md`, and several implementation-status
    lines in `15_ARCHITECTURE_DECISIONS.md` describe an earlier scaffold. The
    design-pack page flows are aspirational unless listed as implemented here.

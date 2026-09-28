@@ -1,0 +1,46 @@
+@baseUrl = http://localhost:5063
+@session = replace-with-operator-session-cookie
+@csrf = replace-with-matching-csrf-cookie-and-header
+@observationId = 00000000-0000-0000-0000-000000000000
+@caseId = 00000000-0000-0000-0000-000000000000
+
+### Record one independently obtained Payme statement row (operator + recent MFA)
+POST {{baseUrl}}/management/v1/admin/payment-reconciliation/observations
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "provider": "Payme",
+  "sourceReference": "payme-settlement-2026-09-28",
+  "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "rowReference": "row-001",
+  "externalTransactionId": "payme-transaction-001",
+  "status": "Paid",
+  "amountTiyin": "10000000",
+  "providerObservedAt": "2026-09-28T12:00:00Z",
+  "reason": "merchant report manually reviewed"
+}
+
+### Inspect immutable evidence
+GET {{baseUrl}}/management/v1/admin/payment-reconciliation/observations/{{observationId}}
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+
+### Review mismatch cases
+GET {{baseUrl}}/management/v1/admin/payment-reconciliation/cases?limit=50
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+
+### Close after independent financial review (never credits wallet)
+PATCH {{baseUrl}}/management/v1/admin/payment-reconciliation/cases/{{caseId}}/resolve
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "reason": "merchant statement and ledger reviewed",
+  "resolutionReference": "incident-12345"
+}
+
+### Missing observation returns 404
+GET {{baseUrl}}/management/v1/admin/payment-reconciliation/observations/00000000-0000-0000-0000-000000000001
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}

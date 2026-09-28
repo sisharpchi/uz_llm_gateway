@@ -431,6 +431,26 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
                   END IF;
                 END $$;
                 """);
+        // Disposable fixture: the payment reconciliation downgrade cannot map
+        // source-only cases back to the legacy non-null intent FK.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('payment.provider_observation') IS NOT NULL THEN
+                    TRUNCATE TABLE payment.reconciliation_case, payment.provider_observation;
+                  END IF;
+                END $$;
+                """);
+        // Operator reconciliation imports write append-only audit entries. This
+        // database is disposable and the audit downgrade requires it empty.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('audit.audit_event') IS NOT NULL THEN
+                    TRUNCATE TABLE audit.audit_event;
+                  END IF;
+                END $$;
+                """);
         var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
         await migrator.MigrateAsync("0");
     }

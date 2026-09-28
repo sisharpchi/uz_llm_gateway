@@ -55,6 +55,8 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
     internal DbSet<PaymentReconciliationCaseEntity> PaymentReconciliationCases => Set<PaymentReconciliationCaseEntity>();
 
+    internal DbSet<PaymentProviderObservationEntity> PaymentProviderObservations => Set<PaymentProviderObservationEntity>();
+
     internal DbSet<CatalogProviderEntity> CatalogProviders => Set<CatalogProviderEntity>();
 
     internal DbSet<CatalogModelEntity> CatalogModels => Set<CatalogModelEntity>();

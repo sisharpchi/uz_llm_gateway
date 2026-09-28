@@ -95,12 +95,59 @@ public sealed partial class FoundationDbContext
             entity.HasKey(value => value.Id);
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.IntentId).HasColumnName("payment_intent_id");
+            entity.Property(value => value.ObservationId).HasColumnName("provider_observation_id");
+            entity.Property(value => value.Provider).HasColumnName("provider").HasMaxLength(20);
+            entity.Property(value => value.MerchantScope).HasColumnName("merchant_scope").HasMaxLength(150);
+            entity.Property(value => value.ExternalTransactionId).HasColumnName("external_transaction_id").HasMaxLength(120);
             entity.Property(value => value.Reason).HasColumnName("reason").HasMaxLength(100);
             entity.Property(value => value.Status).HasColumnName("status").HasMaxLength(20);
             entity.Property(value => value.CreatedAt).HasColumnName("created_at");
             entity.Property(value => value.ResolvedAt).HasColumnName("resolved_at");
-            entity.HasIndex(value => new { value.IntentId, value.Reason }).IsUnique();
+            entity.Property(value => value.ResolvedByAccountId).HasColumnName("resolved_by_account_id");
+            entity.Property(value => value.ResolutionReference).HasColumnName("resolution_reference").HasMaxLength(200);
+            entity.HasIndex(value => new { value.IntentId, value.Reason }).IsUnique()
+                .HasFilter("status = 'Open' AND payment_intent_id IS NOT NULL");
+            entity.HasIndex(value => new { value.Provider, value.MerchantScope,
+                value.ExternalTransactionId, value.Reason }).IsUnique()
+                .HasFilter("status = 'Open' AND provider IS NOT NULL");
             entity.HasOne<PaymentIntentEntity>().WithMany().HasForeignKey(value => value.IntentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PaymentProviderObservationEntity>().WithMany().HasForeignKey(value => value.ObservationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<IdentityAccountEntity>().WithMany().HasForeignKey(value => value.ResolvedByAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PaymentProviderObservationEntity>(entity =>
+        {
+            entity.ToTable("provider_observation", "payment", table =>
+            {
+                table.HasCheckConstraint("CK_payment_provider_observation_amount", "amount_tiyin > 0");
+                table.HasCheckConstraint("CK_payment_provider_observation_status",
+                    "status IN ('Created', 'Paid', 'Canceled', 'Reversed')");
+                table.HasCheckConstraint("CK_payment_provider_observation_digest",
+                    "source_sha256 ~ '^[0-9a-f]{64}$'");
+            });
+            entity.HasKey(value => value.Id);
+            entity.Property(value => value.Id).HasColumnName("id");
+            entity.Property(value => value.IntentId).HasColumnName("payment_intent_id");
+            entity.Property(value => value.Provider).HasColumnName("provider").HasMaxLength(20);
+            entity.Property(value => value.MerchantScope).HasColumnName("merchant_scope").HasMaxLength(150);
+            entity.Property(value => value.SourceReference).HasColumnName("source_reference").HasMaxLength(120);
+            entity.Property(value => value.SourceSha256).HasColumnName("source_sha256").HasMaxLength(64);
+            entity.Property(value => value.RowReference).HasColumnName("row_reference").HasMaxLength(120);
+            entity.Property(value => value.ExternalTransactionId).HasColumnName("external_transaction_id").HasMaxLength(120);
+            entity.Property(value => value.Status).HasColumnName("status").HasMaxLength(20);
+            entity.Property(value => value.AmountTiyin).HasColumnName("amount_tiyin");
+            entity.Property(value => value.ProviderObservedAt).HasColumnName("provider_observed_at");
+            entity.Property(value => value.RecordedAt).HasColumnName("recorded_at");
+            entity.Property(value => value.RecordedByAccountId).HasColumnName("recorded_by_account_id");
+            entity.HasIndex(value => new { value.Provider, value.MerchantScope,
+                value.SourceReference, value.RowReference }).IsUnique();
+            entity.HasIndex(value => new { value.Provider, value.MerchantScope, value.ExternalTransactionId });
+            entity.HasOne<PaymentIntentEntity>().WithMany().HasForeignKey(value => value.IntentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<IdentityAccountEntity>().WithMany().HasForeignKey(value => value.RecordedByAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

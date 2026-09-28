@@ -17,6 +17,8 @@ public static class PaymentServiceCollectionExtensions
             section["Click:MerchantId"], section["Click:ServiceId"], section["Click:SecretKey"]));
         services.AddScoped<IPaymentStore, PostgreSqlPaymentStore>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IPaymentReconciliationStore, PostgreSqlPaymentReconciliationStore>();
+        services.AddScoped<IPaymentReconciliationService, PaymentReconciliationService>();
         services.AddScoped<PaymeMerchantApi>();
         services.AddScoped<ClickShopApi>();
         return services;

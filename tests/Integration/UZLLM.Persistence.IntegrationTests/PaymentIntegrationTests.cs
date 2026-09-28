@@ -4,6 +4,8 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using UZLLM.Modules.Audit.Application;
+using UZLLM.Modules.Audit.Infrastructure;
 using UZLLM.Management.Api.Administration;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Billing.Infrastructure;
@@ -22,6 +24,159 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
 {
     private static readonly PaymentConfiguration Config = new(100, 0, "payme-test-merchant",
         "payme-test-key", "click-test-merchant", "click-test-service", "click-test-secret");
+
+    [Fact]
+    public async Task Payme_provider_observation_replay_is_immutable_and_never_double_credits()
+    {
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var payment = Service(services);
+        var quote = await payment.CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Payme, new UzsTiyinAmount(100_000));
+        var intent = (await payment.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            quote.Id, "evidence-payme")).Intent;
+        var api = new PaymeMerchantApi(payment, Config);
+        var auth = "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("Paycom:payme-test-key"));
+        Assert.Null((await api.HandleAsync(auth, JsonSerializer.Serialize(new
+        {
+            id = 1, method = "CreateTransaction",
+            @params = new { id = "statement-payme-1", time = 1000, amount = 100_000,
+                account = new { intent_id = intent.Id.ToString("D") } }
+        }))).Error);
+        Assert.Null((await api.HandleAsync(auth,
+            """{"id":2,"method":"PerformTransaction","params":{"id":"statement-payme-1"}}""")).Error);
+
+        var reconciliation = Reconciliation(services);
+        var evidence = new ProviderObservationInput(PaymentProvider.Payme, "payme-statement-2026-09-28",
+            new string('a', 64), "row-1", "statement-payme-1", ProviderObservationStatus.Paid,
+            new UzsTiyinAmount(100_000), DateTimeOffset.UtcNow.AddMinutes(-1), "merchant statement import");
+        await using var replayProvider = fixture.CreateServiceProvider();
+        await using var replayScope = replayProvider.CreateAsyncScope();
+        var concurrent = await Task.WhenAll(reconciliation.RecordObservationAsync(seed.AccountId, evidence),
+            Reconciliation(replayScope.ServiceProvider).RecordObservationAsync(seed.AccountId, evidence));
+        Assert.Single(concurrent, value => !value.Duplicate);
+        Assert.Single(concurrent, value => value.Duplicate);
+        var first = Assert.Single(concurrent, value => !value.Duplicate);
+        var replay = await reconciliation.RecordObservationAsync(seed.AccountId, evidence);
+        Assert.False(first.Duplicate);
+        Assert.True(replay.Duplicate);
+        Assert.Equal(first.Id, replay.Id);
+        Assert.Empty(await reconciliation.ListCasesAsync(50));
+        var db = services.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(1, await db.Set<PaymentProviderObservationEntity>().CountAsync());
+        Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>().CountAsync(value =>
+            value.ReferenceId == intent.Id && value.Type == "TopUp"));
+        Assert.Equal(1, await db.Set<AuditEventEntity>().CountAsync(value =>
+            value.Action == "payment.observation.recorded"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reconciliation.RecordObservationAsync(
+            seed.AccountId, evidence with { Amount = new UzsTiyinAmount(200_000) }));
+        await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE payment.provider_observation SET amount_tiyin = {200_000L} WHERE id = {first.Id}"));
+    }
+
+    [Fact]
+    public async Task CLICK_external_evidence_creates_deduplicated_actionable_cases_and_audited_closure()
+    {
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var payment = Service(services);
+        var quote = await payment.CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Click, new UzsTiyinAmount(100_000));
+        var intent = (await payment.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            quote.Id, "evidence-click")).Intent;
+        var api = new ClickShopApi(payment, Config);
+        var prepare = ClickFields(intent.Id, "0", "1000.00", null, "0");
+        Assert.Equal(0, (await api.HandleAsync(prepare, Serialize(prepare), 0)).Error);
+
+        var reconciliation = Reconciliation(services);
+        var observedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var evidence = new ProviderObservationInput(PaymentProvider.Click, "click-report-2026-09-28",
+            new string('b', 64), "line-1", "90001", ProviderObservationStatus.Paid,
+            new UzsTiyinAmount(200_000), observedAt, "merchant statement import");
+        var first = await reconciliation.RecordObservationAsync(seed.AccountId, evidence);
+        Assert.Contains("AmountMismatch", first.CaseReasons);
+        Assert.Contains("ProviderPaidLocallyUnpaid", first.CaseReasons);
+        var second = await reconciliation.RecordObservationAsync(seed.AccountId,
+            evidence with { RowReference = "line-2", Status = ProviderObservationStatus.Reversed });
+        Assert.Contains("DuplicateProviderTransaction", second.CaseReasons);
+        Assert.Contains("ProviderReversalUnapplied", second.CaseReasons);
+        var missing = await reconciliation.RecordObservationAsync(seed.AccountId,
+            evidence with { RowReference = "line-3", ExternalTransactionId = "missing-click-tx",
+                Amount = new UzsTiyinAmount(100_000) });
+        Assert.Contains("MissingLocalPayment", missing.CaseReasons);
+        Assert.True((await reconciliation.RecordObservationAsync(seed.AccountId, evidence)).Duplicate);
+
+        var cases = await reconciliation.ListCasesAsync(50);
+        Assert.Equal(5, cases.Count);
+        Assert.Single(cases, value => value.Reason == "DuplicateProviderTransaction");
+        Assert.Single(cases, value => value.Reason == "MissingLocalPayment" && value.IntentId is null);
+        var target = Assert.Single(cases, value => value.Reason == "AmountMismatch");
+        Assert.True(await reconciliation.ResolveCaseAsync(seed.AccountId, target.Id,
+            "checked merchant statement", "support-ticket-12345"));
+        Assert.False(await reconciliation.ResolveCaseAsync(seed.AccountId, target.Id,
+            "checked merchant statement", "support-ticket-12345"));
+        Assert.Equal("Resolved", Assert.Single(await reconciliation.ListCasesAsync(50),
+            value => value.Id == target.Id).Status);
+        var db = services.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(0, await db.Set<BillingLedgerEntryEntity>().CountAsync(value => value.Type == "TopUp"));
+        Assert.Equal(1, await db.Set<AuditEventEntity>().CountAsync(value =>
+            value.Action == "payment.reconciliation.resolved" && value.ResourceId == target.Id));
+        var alerts = (await services.GetRequiredService<IOperationalAlertDeliveryStore>()
+            .ListAsync()).Where(value => value.Kind == "PaymentReconciliation").ToArray();
+        Assert.Equal(5, alerts.Length);
+        Assert.Single(alerts, value => value.ResolvedAt is not null);
+
+        var later = await reconciliation.RecordObservationAsync(seed.AccountId,
+            evidence with { RowReference = "line-4" });
+        Assert.Contains("AmountMismatch", later.CaseReasons);
+        var renewed = (await reconciliation.ListCasesAsync(50))
+            .Where(value => value.Reason == "AmountMismatch").ToArray();
+        Assert.Equal(2, renewed.Length);
+        Assert.Single(renewed, value => value.Status == "Open" && value.Id != target.Id);
+    }
+
+    [Fact]
+    public async Task Paid_intent_without_independent_provider_evidence_gets_one_worker_case()
+    {
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var clock = new PaymentClock(DateTimeOffset.UtcNow);
+        var payment = Service(services, clock);
+        var quote = await payment.CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Payme, new UzsTiyinAmount(100_000));
+        var intent = (await payment.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            quote.Id, "missing-provider-evidence")).Intent;
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes("provider-evidence-fixture"));
+        Assert.Equal(PaymentCommandStatus.Accepted, (await payment.PrepareAsync(PaymentProvider.Payme,
+            intent.Id, "missing-evidence-tx", intent.Amount, 1000, "create:evidence", hash)).Status);
+        Assert.Equal(PaymentCommandStatus.Accepted, (await payment.CompleteAsync(PaymentProvider.Payme,
+            "missing-evidence-tx", null, null, "perform:evidence", hash)).Status);
+        var db = services.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(1, await db.Database.SqlQuery<int>($"""
+            SELECT COUNT(*) AS "Value" FROM ops.job
+            WHERE job_type = 'payment.reconcile' AND deduplication_key = {intent.Id.ToString("N") + ":paid"}
+            """)
+            .SingleAsync());
+        clock.UtcNow = clock.UtcNow.AddHours(13);
+        await new PaymentReconciliationJobHandler(payment).HandleAsync(new LeasedJob(
+            Guid.CreateVersion7(), "payment.reconcile", JsonSerializer.Serialize(new { intentId = intent.Id }),
+            $"{intent.Id:N}:paid", 1, 10), CancellationToken.None);
+        var first = await payment.ReconcileAsync(intent.Id);
+        var replay = await payment.ReconcileAsync(intent.Id);
+        Assert.Equal("ProviderEvidenceMissing", first.Outcome);
+        Assert.False(first.CaseCreated);
+        Assert.False(replay.CaseCreated);
+        Assert.Single(await db.Set<PaymentReconciliationCaseEntity>().Where(value =>
+            value.IntentId == intent.Id && value.Reason == "ProviderEvidenceMissing").ToListAsync());
+        Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>().CountAsync(value =>
+            value.ReferenceId == intent.Id && value.Type == "TopUp"));
+    }
 
     [Fact]
     public async Task Whole_Uzs_top_up_quote_and_intent_preserve_exact_tiyin_amount()
@@ -435,7 +590,7 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
         return (accountId, organizationId);
     }
 
-    private static PaymentService Service(IServiceProvider services)
+    private static PaymentService Service(IServiceProvider services, TimeProvider? clock = null)
     {
         var db = services.GetRequiredService<FoundationDbContext>();
         return new PaymentService(new PostgreSqlPaymentStore(db),
@@ -445,7 +600,24 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
             services.GetRequiredService<ILeasedJobStore>(),
             services.GetRequiredService<IOutboxStore>(),
             services.GetRequiredService<IOperationalAlertPublisher>(),
-            services.GetRequiredService<IPlatformControlStore>(), Config, TimeProvider.System);
+            services.GetRequiredService<IPlatformControlStore>(), Config, clock ?? TimeProvider.System);
+    }
+
+    private static PaymentReconciliationService Reconciliation(IServiceProvider services)
+    {
+        var db = services.GetRequiredService<FoundationDbContext>();
+        return new PaymentReconciliationService(new PostgreSqlPaymentReconciliationStore(db),
+            new PostgreSqlPaymentStore(db), Config,
+            new AuditTrail(new PostgreSqlAuditEventStore(db), TimeProvider.System),
+            services.GetRequiredService<IOperationalAlertPublisher>(),
+            services.GetRequiredService<IOperationalAlertDeliveryStore>(),
+            services.GetRequiredService<ITransactionCoordinator>(), TimeProvider.System);
+    }
+
+    private sealed class PaymentClock(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     // CLICK official Shop API examples use this exact concatenation, with the Prepare ID

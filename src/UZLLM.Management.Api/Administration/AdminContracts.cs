@@ -36,6 +36,20 @@ public sealed record AdminPaymentResponse(Guid Id, Guid OrganizationId, string P
     bool HasReversal, string? ReconciliationReason, string? ReconciliationStatus,
     int CallbackCount, DateTimeOffset CreatedAt);
 
+/// <summary>Operator transcription of one merchant statement row; never an automatic wallet credit.</summary>
+public sealed record RecordProviderObservationRequest(string Provider, string SourceReference,
+    string SourceSha256, string RowReference, string ExternalTransactionId, string Status,
+    string AmountTiyin, DateTimeOffset ProviderObservedAt, string Reason);
+
+/// <summary>Immutable provider-side observation with statement provenance.</summary>
+public sealed record AdminProviderObservationResponse(Guid Id, Guid? IntentId, string Provider,
+    string SourceReference, string SourceSha256, string RowReference, string ExternalTransactionId,
+    string Status, string AmountTiyin, DateTimeOffset ProviderObservedAt,
+    DateTimeOffset RecordedAt);
+
+/// <summary>Audited closure of one payment reconciliation case; no money is posted.</summary>
+public sealed record ResolvePaymentCaseRequest(string Reason, string ResolutionReference);
+
 /// <summary>Global admission and checkout incident switches.</summary>
 public sealed record AdminPlatformControlResponse(string Feature, bool Enabled, DateTimeOffset UpdatedAt);
 
