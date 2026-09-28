@@ -30,7 +30,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | CATALOG-001 | Completed | Model mappings, capabilities and effective pricing exist. | Customer discovery and operator publication UX incomplete. `DX-001`, `ADMIN-002`. |
 | USAGE-001–002 | Completed | Durable request/attempt/evidence and on-demand usage/activity queries exist. | No CSV export (`FR-095`), no durable near-real-time rollups (`FR-096`); separate `USAGE-005` and `USAGE-004`. |
 | PROVIDER-001–002, PROVIDER-006–009 | Completed | OpenAI, Anthropic, Gemini and DeepSeek adapters, normalized errors, contract fixtures and SSE paths exist. | Live agreement/quota/usage qualification external; BYOK supports only OpenAI/Anthropic. `BYOK-003`. |
-| GATEWAY-001, ROUTING-003–005 | Completed | Managed admission, chat/SSE, deterministic/advanced selection and bounded fallback exist. | Mapping-scoped health may let one tenant's BYOK failure affect others; Responses/embeddings not implemented. `ROUTING-006`, `GATEWAY-005–007`. |
+| GATEWAY-001, ROUTING-003–006 | Completed | Managed admission, chat/SSE, deterministic/advanced selection, bounded fallback and credential-isolated health with cross-node half-open probes exist. | Responses/embeddings not implemented. `GATEWAY-005–007`. |
 | PAYMENT-001 | Completed | Payme/CLICK protocol handlers, signatures, callback idempotency and contract fixtures exist. | Deployment edge omits callback routes; reconciliation is primarily local, live merchant verification external. `LAUNCH-001`, `PAYMENT-002`. |
 | FRONTEND-001, ADMIN-001 | Completed | Dashboard/admin applications, shell and mocked browser coverage exist. | Top-up unit mismatch, missing recovery/financial state/customer catalog and other flows. `FRONTEND-002–010`. |
 | NOTIFY-001–003 | Completed | Email, webhook, Telegram integrations and transport fixtures exist. | `OPS-004` adds the missing operational alert consumer and delivery status. Live on-call mailbox/SMTP receipt verification remains external. |
@@ -62,9 +62,9 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
    notification state and exposes operator-only alert metadata. SMTP has an
    unavoidable post-accept/pre-commit duplicate window; live mailbox routing
    and escalation acknowledgement remain external launch evidence.
-5. `RedisProviderHealthService` keys health by mapping ID. A BYOK tenant's
-   credential-specific 429/failure can therefore suppress a healthy managed
-   or other-tenant route. Scope health by failure domain and test isolation.
+5. `RedisProviderHealthService` formerly keyed all health by mapping ID.
+   `ROUTING-006` now isolates BYOK/Managed credential 401/429 failures from the
+   shared mapping outage circuit and bounds cross-node half-open probes.
 6. `SECURITY-003` replaced Management payment `Results.Forbid()` with an explicit
    403 and tested cross-tenant/role denials through a real HTTP host. Management
    responses now use `no-store`; this historical audit finding is resolved.

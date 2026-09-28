@@ -353,6 +353,15 @@ next mapping only before downstream output; 5xx, timeout, transport ambiguity,
 and mid-stream errors remain unknown financial outcomes and are not retried.
 The Redis circuit opens after three transient failures in one minute for 30
 seconds; an unavailable health dependency fails new managed admission closed.
+`ROUTING-006` scopes circuits to both the provider-model mapping and the
+credential (BYOK keys also include organization). Authentication rejection
+opens only that credential circuit; upstream 429/quota failures count only
+against that credential. Capacity, timeout and upstream 5xx failures count
+against the shared mapping circuit, so an endpoint outage excludes Managed and
+BYOK alike. On expiry, Redis admits one cross-node half-open probe before
+dispatch; neutral/client-disconnect outcomes release the probe without claiming
+recovery, and stale probe results cannot close a newer probe. Redis failure at
+either eligibility or dispatch fails closed and releases an undispatched hold.
 Detailed latency/throughput scoring remains later P1 work; explicit bounded
 cross-model fallback is delivered by `ROUTING-005`.
 

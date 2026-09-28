@@ -378,6 +378,43 @@ public sealed class GatewayExecutionTests
         Assert.Equal(17, fixture.Finance.LastMaximum!.Value.Value);
         Assert.Equal(fixture.AnthropicPriceId, fixture.Usage.VerifiedPriceId);
         Assert.Equal(1, fixture.Health.Failures);
+        Assert.Contains(fixture.Health.Outcomes, value =>
+            value.Outcome == ProviderHealthOutcome.CredentialThrottled
+            && value.Target.OrganizationId is null);
+    }
+
+    [Fact]
+    public async Task Byok_authentication_rejection_is_scoped_to_tenant_credential()
+    {
+        var fixture = new Scenario();
+        fixture.UseByok(allowManagedFallback: true);
+        fixture.Adapter.Error = new ProviderError(ProviderErrorCategory.Authentication,
+            ProviderExecutionCertainty.RejectedBeforeExecution, false, false, 401, null,
+            "Upstream credential rejected.");
+
+        await fixture.RunAsync();
+
+        Assert.Equal(1, fixture.Adapter.CompleteCalls);
+        Assert.Equal(0, fixture.Finance.Finalizes);
+        Assert.Contains(fixture.Health.Outcomes, value =>
+            value.Outcome == ProviderHealthOutcome.CredentialRejected
+            && value.Target.CredentialId == fixture.ByokCredentialId
+            && value.Target.OrganizationId is not null);
+    }
+
+    [Fact]
+    public async Task Busy_half_open_primary_probe_uses_eligible_same_model_fallback()
+    {
+        var fixture = new Scenario(twoProviders: true);
+        fixture.Health.BeginOpenPrimary = true;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+        Assert.Equal(1, fixture.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, fixture.Usage.Attempts);
+        Assert.Equal(1, fixture.Finance.Reserves);
+        Assert.Equal("anthropic", fixture.Context.Response.Headers["X-Uzllm-Provider"]);
     }
 
     [Fact]
@@ -830,6 +867,21 @@ public sealed class GatewayExecutionTests
     }
 
     [Fact]
+    public async Task Health_dependency_failure_after_reservation_releases_without_dispatch()
+    {
+        var fixture = new Scenario();
+        fixture.Health.BeginUnavailable = true;
+
+        await fixture.RunAsync();
+
+        Assert.Equal(503, fixture.Context.Response.StatusCode);
+        Assert.Equal(1, fixture.Finance.Reserves);
+        Assert.Equal(1, fixture.Finance.Releases);
+        Assert.Equal(0, fixture.Usage.Attempts);
+        Assert.Equal(0, fixture.Adapter.CompleteCalls);
+    }
+
+    [Fact]
     public async Task Model_limit_rejection_remains_a_client_error_with_multiple_mappings()
     {
         var fixture = new Scenario(twoProviders: true, outputTokens: 10000);
@@ -1249,18 +1301,32 @@ public sealed class GatewayExecutionTests
 
     private sealed class FakeHealth(Guid primaryMappingId) : IProviderHealthService
     {
-        public bool OpenPrimary, Unavailable;
+        public bool OpenPrimary, BeginOpenPrimary, BeginUnavailable, Unavailable;
         public int Failures;
-        public Task<ProviderHealthState> CheckAsync(Guid providerModelId,
+        public readonly List<(ProviderHealthTarget Target, ProviderHealthOutcome Outcome)> Outcomes = [];
+        public Task<ProviderHealthState> CheckAsync(ProviderHealthTarget target,
             CancellationToken cancellationToken = default) => Task.FromResult(Unavailable
                 ? ProviderHealthState.DependencyUnavailable
-                : OpenPrimary && providerModelId == primaryMappingId ? ProviderHealthState.Open
+                : OpenPrimary && target.ProviderModelId == primaryMappingId ? ProviderHealthState.Open
                     : ProviderHealthState.Healthy);
-        public Task RecordSuccessAsync(Guid providerModelId,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task RecordTransientFailureAsync(Guid providerModelId,
+        public async Task<ProviderHealthAttempt> BeginAttemptAsync(ProviderHealthTarget target,
             CancellationToken cancellationToken = default)
-        { Failures++; return Task.CompletedTask; }
+        {
+            var state = await CheckAsync(target, cancellationToken);
+            if (BeginUnavailable) state = ProviderHealthState.DependencyUnavailable;
+            if (BeginOpenPrimary && target.ProviderModelId == primaryMappingId)
+                state = ProviderHealthState.Open;
+            return new ProviderHealthAttempt(state, state == ProviderHealthState.Healthy
+                ? new ProviderHealthPermit(target, Guid.NewGuid()) : null);
+        }
+        public Task CompleteAttemptAsync(ProviderHealthPermit permit, ProviderHealthOutcome outcome,
+            CancellationToken cancellationToken = default)
+        {
+            Outcomes.Add((permit.Target, outcome));
+            if (outcome is ProviderHealthOutcome.CredentialThrottled or ProviderHealthOutcome.EndpointTransientFailure)
+                Failures++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakePerformance : IProviderPerformanceService

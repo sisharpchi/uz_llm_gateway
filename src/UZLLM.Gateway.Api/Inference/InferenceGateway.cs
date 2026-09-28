@@ -220,7 +220,8 @@ public sealed class InferenceGateway(
                         continue;
                     }
                     constraintAllowed = true;
-                    var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                    var healthState = await health.CheckAsync(new ProviderHealthTarget(
+                        mapping.Mapping.Id, byok.Id, tenant.OrganizationId), cancellationToken);
                     if (healthState == ProviderHealthState.DependencyUnavailable)
                     {
                         await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
@@ -284,7 +285,8 @@ public sealed class InferenceGateway(
                         return;
                     }
                     if (quotaDecision.Outcome != ProviderQuotaOutcome.Available) continue;
-                    var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                    var healthState = await health.CheckAsync(new ProviderHealthTarget(
+                        mapping.Mapping.Id, credentialId.Value), cancellationToken);
                     if (healthState == ProviderHealthState.DependencyUnavailable)
                     {
                         await WriteErrorAsync(context, new(503, "provider_health_unavailable", "server_error",
@@ -359,7 +361,8 @@ public sealed class InferenceGateway(
                         if (quotaDecision.Outcome == ProviderQuotaOutcome.DependencyUnavailable)
                             throw new InvalidOperationException("Provider eligibility is unavailable.");
                         if (quotaDecision.Outcome != ProviderQuotaOutcome.Available) continue;
-                        var healthState = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                        var healthState = await health.CheckAsync(new ProviderHealthTarget(
+                            mapping.Mapping.Id, credentialId.Value), cancellationToken);
                         if (healthState == ProviderHealthState.DependencyUnavailable)
                             throw new InvalidOperationException("Provider eligibility is unavailable.");
                         if (healthState == ProviderHealthState.Open) continue;
@@ -560,6 +563,7 @@ public sealed class InferenceGateway(
         var httpStatus = 200;
         var execution = ExecutionState.Succeeded;
         var fallbackCount = 0;
+        ProviderHealthPermit? healthPermit = null;
         var performanceObservations = new List<ProviderPerformanceObservation>();
         var executionStartedAt = clock.GetUtcNow();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -587,7 +591,9 @@ public sealed class InferenceGateway(
                             "Managed fallback is unavailable.");
                         break;
                     }
-                    var currentHealth = await health.CheckAsync(mapping.Mapping.Id, cancellationToken);
+                    var currentHealth = await health.CheckAsync(new ProviderHealthTarget(
+                        mapping.Mapping.Id, credentialId,
+                        candidate.IsByok ? reservation.OrganizationId : null), cancellationToken);
                     var currentQuota = candidate.IsByok
                         ? new ProviderQuotaDecision(ProviderQuotaOutcome.Available, null)
                         : await quota.CheckAsync(credentialId, cancellationToken);
@@ -605,6 +611,21 @@ public sealed class InferenceGateway(
                     throw new ProviderExecutionException(new ProviderError(ProviderErrorCategory.Timeout,
                         ProviderExecutionCertainty.NotDispatched, false, false, null, null,
                         "Provider attempt deadline expired."));
+                var begin = await health.BeginAttemptAsync(new ProviderHealthTarget(
+                    mapping.Mapping.Id, credentialId,
+                    candidate.IsByok ? reservation.OrganizationId : null), cancellationToken);
+                if (begin.State == ProviderHealthState.DependencyUnavailable)
+                    throw new InvalidOperationException("Provider health dependency is unavailable.");
+                if (begin.State == ProviderHealthState.Open)
+                {
+                    providerError = new ProviderError(ProviderErrorCategory.Capacity,
+                        ProviderExecutionCertainty.NotDispatched, false, false, null, null,
+                        "Provider circuit is unavailable.");
+                    if (index + 1 < candidates.Count) continue;
+                    break;
+                }
+                healthPermit = begin.Permit ?? throw new InvalidOperationException(
+                    "Provider health admission returned no permit.");
                 selectedCandidate = candidate;
                 attempt = await usage.StartAttemptAsync(reservation.RequestId, mapping.Mapping.Id,
                     credentialId, cancellationToken);
@@ -696,7 +717,8 @@ public sealed class InferenceGateway(
                             observed.OutputTokens / attemptTimer.Elapsed.TotalSeconds);
                 }
                 if (providerError is not null) telemetry.RecordProviderFailure(providerMetric);
-                await RecordHealthAsync(mapping.Mapping.Id, providerError, completed);
+                await RecordHealthAsync(healthPermit, providerError, completed);
+                healthPermit = null;
                 if (!candidate.IsByok)
                     performanceObservations.Add(new ProviderPerformanceObservation(attempt.Id,
                         mapping.Mapping.Id, parsed.Stream, completed && providerError is null, firstTokenMs,
@@ -742,6 +764,11 @@ public sealed class InferenceGateway(
             providerError = new ProviderError(ProviderErrorCategory.Unknown,
                 ProviderExecutionCertainty.Unknown, false, false, null, providerRequestId,
                 "Provider outcome is unknown.");
+        }
+        finally
+        {
+            if (healthPermit is not null)
+                await RecordHealthAsync(healthPermit, null, false);
         }
 
         if (providerError is not null)
@@ -876,18 +903,25 @@ public sealed class InferenceGateway(
         return delivered;
     }
 
-    private async Task RecordHealthAsync(Guid mappingId, ProviderError? error, bool completed)
+    private async Task RecordHealthAsync(ProviderHealthPermit permit, ProviderError? error, bool completed)
     {
+        var outcome = completed && error is null ? ProviderHealthOutcome.Success
+            : error?.Category switch
+            {
+                ProviderErrorCategory.Authentication => ProviderHealthOutcome.CredentialRejected,
+                ProviderErrorCategory.RateLimited or ProviderErrorCategory.QuotaExhausted =>
+                    ProviderHealthOutcome.CredentialThrottled,
+                ProviderErrorCategory.Capacity or ProviderErrorCategory.Timeout
+                    or ProviderErrorCategory.Upstream5xx => ProviderHealthOutcome.EndpointTransientFailure,
+                _ => ProviderHealthOutcome.Neutral
+            };
         try
         {
-            if (completed && error is null)
-                await health.RecordSuccessAsync(mappingId, CancellationToken.None);
-            else if (error?.Category is ProviderErrorCategory.RateLimited or ProviderErrorCategory.Capacity
-                or ProviderErrorCategory.Timeout or ProviderErrorCategory.Upstream5xx)
-                await health.RecordTransientFailureAsync(mappingId, CancellationToken.None);
+            await health.CompleteAttemptAsync(permit, outcome, CancellationToken.None);
         }
         catch (Exception exception)
-        { logger.LogWarning(exception, "Provider health update failed for mapping {MappingId}", mappingId); }
+        { logger.LogWarning(exception, "Provider health update failed for mapping {MappingId}",
+            permit.Target.ProviderModelId); }
     }
 
     private async Task RecordPerformanceAsync(ProviderPerformanceObservation observation)
