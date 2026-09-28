@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using UZLLM.Modules.Audit.Contracts;
 using UZLLM.Modules.Identity.Application;
 using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
@@ -12,7 +13,7 @@ internal sealed class IdentityFixture
     public IdentityFixture()
     {
         Service = new IdentityService(Store, new Pbkdf2PasswordHasher(), new TestSecretProtector(),
-            Totp, Clock, Notifications, new IdentityNoopTransactionCoordinator());
+            Totp, Clock, Notifications, new IdentityNoopTransactionCoordinator(), Audit);
         Csrf = new CsrfTokenValidator(Store, Clock);
     }
 
@@ -24,6 +25,8 @@ internal sealed class IdentityFixture
 
     public RecordingIdentityNotificationQueue Notifications { get; } = new();
 
+    public RecordingIdentityAuditTrail Audit { get; } = new();
+
     public IIdentityService Service { get; }
 
     public ICsrfTokenValidator Csrf { get; }
@@ -33,6 +36,18 @@ internal sealed class IdentityFixture
         var registration = await Service.RegisterAsync("person@example.uz", "correct horse battery staple");
         Assert.True(await Service.VerifyEmailAsync(registration.VerificationToken));
         return registration;
+    }
+}
+
+internal sealed class RecordingIdentityAuditTrail : IAuditTrail
+{
+    public List<AuditEventInput> Events { get; } = [];
+    public Task<AuditEvent> RecordAsync(AuditEventInput input, CancellationToken cancellationToken = default)
+    {
+        Events.Add(input);
+        return Task.FromResult(new AuditEvent(Guid.CreateVersion7(), input.OrganizationId,
+            input.ActorAccountId, input.Action, input.ResourceType, input.ResourceId,
+            input.IpAddress, input.MetadataJson ?? "{}", DateTimeOffset.UtcNow));
     }
 }
 
@@ -233,23 +248,65 @@ internal sealed class InMemoryIdentityStore : IIdentityStore
         }
     }
 
-    public Task SetOperatorMfaAsync(Guid accountId, string protectedTotpSecret, DateTimeOffset enabledAt, CancellationToken cancellationToken = default)
+    public Task<bool> TryBeginOperatorMfaEnrollmentAsync(Guid accountId, string protectedTotpSecret,
+        DateTimeOffset now, DateTimeOffset expiresAt, CancellationToken cancellationToken = default)
     {
         lock (gate)
         {
-            var access = operatorAccesses.GetValueOrDefault(accountId) ?? throw new InvalidOperationException("The operator does not exist.");
-            operatorAccesses[accountId] = access with { ProtectedTotpSecret = protectedTotpSecret, MfaEnabledAt = enabledAt };
-            return Task.CompletedTask;
+            if (operatorAccesses.GetValueOrDefault(accountId) is not { IsActive: true, MfaEnabledAt: null } access
+                || access.MfaEnrollmentExpiresAt > now) return Task.FromResult(false);
+            operatorAccesses[accountId] = access with { ProtectedTotpSecret = protectedTotpSecret,
+                MfaEnrollmentExpiresAt = expiresAt, LastTotpStep = null };
+            return Task.FromResult(true);
         }
     }
 
-    public Task RecordMfaReauthenticationAsync(Guid sessionId, DateTimeOffset reauthenticatedAt, CancellationToken cancellationToken = default)
+    public Task<bool> TryConfirmOperatorMfaEnrollmentAsync(Guid accountId, Guid sessionId,
+        string protectedTotpSecret, long timeStep, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
     {
         lock (gate)
         {
-            var session = sessions.GetValueOrDefault(sessionId) ?? throw new InvalidOperationException("The session does not exist.");
-            sessions[sessionId] = session with { MfaReauthenticatedAt = reauthenticatedAt };
-            return Task.CompletedTask;
+            if (operatorAccesses.GetValueOrDefault(accountId) is not { IsActive: true, MfaEnabledAt: null } access
+                || access.ProtectedTotpSecret != protectedTotpSecret
+                || access.MfaEnrollmentExpiresAt is not { } expiresAt || expiresAt <= now
+                || sessions.GetValueOrDefault(sessionId) is not { RevokedAt: null } session
+                || session.AccountId != accountId || session.ExpiresAt <= now) return Task.FromResult(false);
+            operatorAccesses[accountId] = access with { MfaEnabledAt = now,
+                MfaEnrollmentExpiresAt = null, LastTotpStep = timeStep };
+            sessions[sessionId] = session with { MfaReauthenticatedAt = now };
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task<bool> TryRecordMfaReauthenticationAsync(Guid accountId, Guid sessionId,
+        long timeStep, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            if (operatorAccesses.GetValueOrDefault(accountId) is not { IsActive: true, MfaEnabledAt: not null } access
+                || access.LastTotpStep >= timeStep
+                || sessions.GetValueOrDefault(sessionId) is not { RevokedAt: null } session
+                || session.AccountId != accountId || session.ExpiresAt <= now) return Task.FromResult(false);
+            operatorAccesses[accountId] = access with { LastTotpStep = timeStep };
+            sessions[sessionId] = session with { MfaReauthenticatedAt = now };
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task<bool> TryResetOperatorMfaAsync(Guid targetAccountId, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            if (operatorAccesses.GetValueOrDefault(targetAccountId) is not { IsActive: true, MfaEnabledAt: not null } access)
+                return Task.FromResult(false);
+            operatorAccesses[targetAccountId] = access with { ProtectedTotpSecret = null,
+                MfaEnabledAt = null, MfaEnrollmentExpiresAt = null, LastTotpStep = null };
+            foreach (var sessionId in sessions.Where(pair => pair.Value.AccountId == targetAccountId
+                && pair.Value.RevokedAt == null).Select(pair => pair.Key).ToArray())
+                sessions[sessionId] = sessions[sessionId] with { RevokedAt = now };
+            return Task.FromResult(true);
         }
     }
 

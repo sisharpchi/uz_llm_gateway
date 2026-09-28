@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using UZLLM.Modules.Audit.Infrastructure;
 using UZLLM.Modules.Identity.Application;
 using UZLLM.Modules.Identity.Contracts;
 
@@ -11,6 +12,7 @@ public static class IdentityServiceCollectionExtensions
 {
     public static IServiceCollection AddUzllmIdentity(this IServiceCollection services)
     {
+        services.AddUzllmAudit();
         services.AddDataProtection();
         services.AddScoped<IIdentityStore, PostgreSqlIdentityStore>();
         services.AddSingleton<IdentityEmailPayloadCodec>();
@@ -143,17 +145,24 @@ public static class IdentityServiceCollectionExtensions
                 : Results.Unauthorized())
             .RequireIdentityCsrf();
 
+        auth.MapPost("/operator/mfa/confirm", async (TotpRequest request, HttpRequest httpRequest,
+            IIdentityService identityService, CancellationToken cancellationToken) =>
+            await identityService.ConfirmOperatorMfaAsync(
+                httpRequest.Cookies[IdentityCookieNames.Session] ?? string.Empty, request.Code, cancellationToken)
+                ? Results.NoContent()
+                : Results.Unauthorized()).RequireIdentityCsrf();
+
         auth.MapPost("/operator/mfa/enroll", async (OperatorMfaEnrollmentRequest request,
             HttpContext context, IIdentityService identityService, CancellationToken cancellationToken) =>
         {
             if (context.User.FindFirst("uzllm:operator")?.Value != "true"
-                || !Guid.TryParse(context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var actor)
-                || !await identityService.VerifyOperatorPasswordAsync(actor, request.Password, cancellationToken))
+                || !Guid.TryParse(context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var actor))
                 return Results.StatusCode(StatusCodes.Status403Forbidden);
             try
             {
-                return Results.Ok(await identityService.EnrollOperatorMfaAsync(actor, cancellationToken));
+                return Results.Ok(await identityService.EnrollOperatorMfaAsync(actor, request.Password, cancellationToken));
             }
+            catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             catch (InvalidOperationException)
             {
                 return Results.Conflict();

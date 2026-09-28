@@ -20,6 +20,12 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   decryption certs during rotation until all protected MFA records and pending
   identity-email outbox payloads have migrated. Worker and Management must use
   the same ring and application name.
+- Keep two separately enrolled operators available. A lost TOTP device can be
+  reset only by a different operator who has verified MFA within 15 minutes:
+  `POST /management/v1/admin/operators/{accountId}/mfa/reset` with CSRF proof
+  and an incident reason. The target's sessions are revoked and re-enrollment
+  needs their password. There is no self-service or unaudited database reset;
+  agree an out-of-band, two-person break-glass recovery before paid launch.
 - `UZLLM_CERT_DIR` contains `public.crt`, `public.key`, `internal-ca.crt`,
   `gateway.pfx` (SAN `gateway.internal`), `management.pfx` (SAN
   `management.internal`), and `keyring.pfx`. Both edge replicas verify the

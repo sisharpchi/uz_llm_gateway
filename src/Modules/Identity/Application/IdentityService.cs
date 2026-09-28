@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using UZLLM.Modules.Audit.Contracts;
 using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Persistence;
 
@@ -12,12 +14,14 @@ public sealed class IdentityService(
     ITotpAuthenticator totpAuthenticator,
     TimeProvider timeProvider,
     IIdentityNotificationQueue notifications,
-    ITransactionCoordinator transactions) : IIdentityService
+    ITransactionCoordinator transactions,
+    IAuditTrail audit) : IIdentityService
 {
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(14);
     private static readonly TimeSpan VerificationLifetime = TimeSpan.FromHours(24);
     private static readonly TimeSpan RecoveryLifetime = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan OperatorReauthenticationLifetime = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan OperatorEnrollmentLifetime = TimeSpan.FromMinutes(10);
 
     public async Task<IdentityRegistration> RegisterAsync(string email, string password, CancellationToken cancellationToken = default)
     {
@@ -147,26 +151,52 @@ public sealed class IdentityService(
     public Task GrantOperatorAccessAsync(Guid accountId, CancellationToken cancellationToken = default) =>
         store.GrantOperatorAccessAsync(accountId, cancellationToken);
 
-    public async Task<OperatorMfaEnrollment> EnrollOperatorMfaAsync(Guid accountId, CancellationToken cancellationToken = default)
+    public async Task<OperatorMfaEnrollment> EnrollOperatorMfaAsync(Guid accountId, string password,
+        CancellationToken cancellationToken = default)
     {
-        var access = await store.FindOperatorAccessAsync(accountId, cancellationToken);
-        if (access is not { IsActive: true, MfaEnabledAt: null })
-        {
-            throw new InvalidOperationException("Only an active operator without existing MFA may enroll.");
-        }
-
+        if (!await VerifyOperatorPasswordAsync(accountId, password, cancellationToken))
+            throw new UnauthorizedAccessException("Active operator password proof is required.");
         var sharedSecret = totpAuthenticator.CreateSharedSecret();
-        await store.SetOperatorMfaAsync(accountId, secretProtector.Protect(sharedSecret), timeProvider.GetUtcNow(), cancellationToken);
-        return new OperatorMfaEnrollment(sharedSecret);
+        var now = timeProvider.GetUtcNow();
+        var expiresAt = now.Add(OperatorEnrollmentLifetime);
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        if (!await store.TryBeginOperatorMfaEnrollmentAsync(accountId, secretProtector.Protect(sharedSecret),
+            now, expiresAt, cancellationToken))
+            throw new InvalidOperationException("MFA is active or an enrollment is already pending.");
+        await audit.RecordAsync(new AuditEventInput(null, accountId, "operator.mfa.enrollment_started",
+            "operator", accountId, null, JsonSerializer.Serialize(new { expiresAt })), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new OperatorMfaEnrollment(sharedSecret, expiresAt);
     }
 
-    public async Task<bool> VerifyOperatorPasswordAsync(Guid accountId, string password,
+    private async Task<bool> VerifyOperatorPasswordAsync(Guid accountId, string password,
         CancellationToken cancellationToken = default)
     {
         var account = await store.FindAccountByIdAsync(accountId, cancellationToken);
-        return account is { Status: IdentityAccountStatus.Active }
+        return account is { Status: IdentityAccountStatus.Active, IsEmailVerified: true }
             && (await store.FindOperatorAccessAsync(accountId, cancellationToken)) is { IsActive: true }
             && passwordHasher.Verify(password, account.PasswordHash);
+    }
+
+    public async Task<bool> ConfirmOperatorMfaAsync(string sessionToken, string code,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await GetValidSessionAsync(sessionToken, cancellationToken);
+        if (session is null) return false;
+        var access = await store.FindOperatorAccessAsync(session.AccountId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        if (access is not { IsActive: true, ProtectedTotpSecret: not null,
+                MfaEnabledAt: null, MfaEnrollmentExpiresAt: { } expiresAt } || expiresAt <= now)
+            return false;
+        var step = MatchStep(access.ProtectedTotpSecret, code, now);
+        if (step is null) return false;
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        if (!await store.TryConfirmOperatorMfaEnrollmentAsync(session.AccountId, session.Id,
+            access.ProtectedTotpSecret, step.Value, now, cancellationToken)) return false;
+        await audit.RecordAsync(new AuditEventInput(null, session.AccountId, "operator.mfa.enabled",
+            "operator", session.AccountId, null, "{}"), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 
     public async Task<bool> VerifyOperatorMfaAsync(string sessionToken, string code, CancellationToken cancellationToken = default)
@@ -183,22 +213,31 @@ public sealed class IdentityService(
             return false;
         }
 
-        string sharedSecret;
-        try
-        {
-            sharedSecret = secretProtector.Unprotect(access.ProtectedTotpSecret);
-        }
-        catch (CryptographicException)
-        {
-            return false;
-        }
+        var now = timeProvider.GetUtcNow();
+        var step = MatchStep(access.ProtectedTotpSecret, code, now);
+        if (step is null) return false;
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        if (!await store.TryRecordMfaReauthenticationAsync(session.AccountId, session.Id,
+            step.Value, now, cancellationToken)) return false;
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
 
-        if (!totpAuthenticator.VerifyCode(sharedSecret, code, timeProvider.GetUtcNow()))
-        {
-            return false;
-        }
-
-        await store.RecordMfaReauthenticationAsync(session.Id, timeProvider.GetUtcNow(), cancellationToken);
+    public async Task<bool> ResetOperatorMfaAsync(string actorSessionToken, Guid targetAccountId,
+        string reason, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length is < 8 or > 500)
+            throw new ArgumentException("An 8–500 character reason is required.", nameof(reason));
+        var actor = await GetValidSessionAsync(actorSessionToken, cancellationToken);
+        if (actor is null || actor.AccountId == targetAccountId
+            || !await HasRecentOperatorReauthenticationAsync(actorSessionToken, cancellationToken))
+            throw new UnauthorizedAccessException("A different recently verified operator is required.");
+        var now = timeProvider.GetUtcNow();
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        if (!await store.TryResetOperatorMfaAsync(targetAccountId, now, cancellationToken)) return false;
+        await audit.RecordAsync(new AuditEventInput(null, actor.AccountId, "operator.mfa.reset",
+            "operator", targetAccountId, null, JsonSerializer.Serialize(new { reason = reason.Trim() })), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return true;
     }
 
@@ -211,7 +250,17 @@ public sealed class IdentityService(
             return false;
         }
 
-        return (await store.FindOperatorAccessAsync(session.AccountId, cancellationToken)) is { IsActive: true, MfaEnabledAt: not null };
+        return (await store.FindOperatorAccessAsync(session.AccountId, cancellationToken)) is
+            { IsActive: true, MfaEnabledAt: { } enabledAt } && reauthenticatedAt >= enabledAt;
+    }
+
+    private long? MatchStep(string protectedSecret, string code, DateTimeOffset now)
+    {
+        try { return totpAuthenticator.MatchTimeStep(secretProtector.Unprotect(protectedSecret), code, now); }
+        catch (Exception exception) when (exception is CryptographicException or FormatException)
+        {
+            return null;
+        }
     }
 
     private async Task<IdentitySession?> GetValidSessionAsync(string sessionToken, CancellationToken cancellationToken)

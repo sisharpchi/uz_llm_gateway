@@ -124,7 +124,17 @@ an unconfigured ASP.NET authentication forbid handler.
 
 Operator routes require an active operator grant and a TOTP verification within
 the last 15 minutes. First-time enrollment requires the operator's password and
-cannot replace an existing secret through the browser. Mutations also require
+cannot replace an existing secret through the browser. Enrollment stores only
+an encrypted pending secret for up to 10 minutes; a valid code must confirm it
+before operator access becomes active. Every accepted TOTP time step is consumed
+atomically in PostgreSQL across sessions and nodes. Only a different operator
+with recent MFA may reset a lost authenticator; reset revokes all target
+sessions and records the actor and reason in the same transaction. Enrollment,
+confirmation, and reset are audited. A sole operator cannot self-recover;
+provision a second operator or follow a separately approved, auditable
+out-of-band recovery procedure before launch. Pre-existing enabled secrets
+remain enabled after migration; their first successful verification initializes
+the replay counter. Mutations also require
 session-bound CSRF proof, a reason of 8–500 characters, and an append-only audit
 event in the same database transaction as the configuration change. The
 operator UI never receives platform credential ciphertext or plaintext. Granting

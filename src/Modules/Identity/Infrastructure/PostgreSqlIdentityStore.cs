@@ -198,7 +198,8 @@ public sealed class PostgreSqlIdentityStore(FoundationDbContext dbContext) : IId
         (await dbContext.Set<IdentityOperatorAccessEntity>()
             .AsNoTracking()
             .SingleOrDefaultAsync(access => access.AccountId == accountId, cancellationToken)) is { } access
-            ? new IdentityOperatorAccess(access.AccountId, access.IsActive, access.ProtectedTotpSecret, access.MfaEnabledAt)
+            ? new IdentityOperatorAccess(access.AccountId, access.IsActive, access.ProtectedTotpSecret,
+                access.MfaEnabledAt, access.MfaEnrollmentExpiresAt, access.LastTotpStep)
             : null;
 
     public async Task GrantOperatorAccessAsync(Guid accountId, CancellationToken cancellationToken = default)
@@ -228,25 +229,62 @@ public sealed class PostgreSqlIdentityStore(FoundationDbContext dbContext) : IId
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task SetOperatorMfaAsync(
-        Guid accountId,
-        string protectedTotpSecret,
-        DateTimeOffset enabledAt,
-        CancellationToken cancellationToken = default)
-    {
-        _ = await dbContext.Set<IdentityOperatorAccessEntity>()
-            .Where(access => access.AccountId == accountId && access.IsActive)
+    public async Task<bool> TryBeginOperatorMfaEnrollmentAsync(Guid accountId, string protectedTotpSecret,
+        DateTimeOffset now, DateTimeOffset expiresAt, CancellationToken cancellationToken = default) =>
+        await dbContext.Set<IdentityOperatorAccessEntity>()
+            .Where(access => access.AccountId == accountId && access.IsActive && access.MfaEnabledAt == null
+                && (access.MfaEnrollmentExpiresAt == null || access.MfaEnrollmentExpiresAt <= now))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(access => access.ProtectedTotpSecret, protectedTotpSecret)
-                .SetProperty(access => access.MfaEnabledAt, enabledAt), cancellationToken);
+                .SetProperty(access => access.MfaEnrollmentExpiresAt, expiresAt)
+                .SetProperty(access => access.LastTotpStep, (long?)null), cancellationToken) == 1;
+
+    public async Task<bool> TryConfirmOperatorMfaEnrollmentAsync(Guid accountId, Guid sessionId,
+        string protectedTotpSecret, long timeStep, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await dbContext.Set<IdentityOperatorAccessEntity>()
+            .Where(access => access.AccountId == accountId && access.IsActive && access.MfaEnabledAt == null
+                && access.ProtectedTotpSecret == protectedTotpSecret && access.MfaEnrollmentExpiresAt > now)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(access => access.MfaEnabledAt, now)
+                .SetProperty(access => access.MfaEnrollmentExpiresAt, (DateTimeOffset?)null)
+                .SetProperty(access => access.LastTotpStep, timeStep), cancellationToken);
+        return updated == 1 && await StampSessionAsync(accountId, sessionId, now, cancellationToken);
     }
 
-    public async Task RecordMfaReauthenticationAsync(Guid sessionId, DateTimeOffset reauthenticatedAt, CancellationToken cancellationToken = default)
+    public async Task<bool> TryRecordMfaReauthenticationAsync(Guid accountId, Guid sessionId,
+        long timeStep, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
-        _ = await dbContext.Set<IdentitySessionEntity>()
-            .Where(session => session.Id == sessionId && session.RevokedAt == null)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(session => session.MfaReauthenticatedAt, reauthenticatedAt), cancellationToken);
+        var updated = await dbContext.Set<IdentityOperatorAccessEntity>()
+            .Where(access => access.AccountId == accountId && access.IsActive && access.MfaEnabledAt != null
+                && (access.LastTotpStep == null || access.LastTotpStep < timeStep))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(access => access.LastTotpStep, timeStep), cancellationToken);
+        return updated == 1 && await StampSessionAsync(accountId, sessionId, now, cancellationToken);
     }
+
+    public async Task<bool> TryResetOperatorMfaAsync(Guid targetAccountId, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await dbContext.Set<IdentityOperatorAccessEntity>()
+            .Where(access => access.AccountId == targetAccountId && access.IsActive && access.MfaEnabledAt != null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(access => access.ProtectedTotpSecret, (string?)null)
+                .SetProperty(access => access.MfaEnabledAt, (DateTimeOffset?)null)
+                .SetProperty(access => access.MfaEnrollmentExpiresAt, (DateTimeOffset?)null)
+                .SetProperty(access => access.LastTotpStep, (long?)null), cancellationToken);
+        if (updated != 1) return false;
+        await dbContext.Set<IdentitySessionEntity>()
+            .Where(session => session.AccountId == targetAccountId && session.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(session => session.RevokedAt, now), cancellationToken);
+        return true;
+    }
+
+    private async Task<bool> StampSessionAsync(Guid accountId, Guid sessionId, DateTimeOffset now,
+        CancellationToken cancellationToken) => await dbContext.Set<IdentitySessionEntity>()
+        .Where(session => session.Id == sessionId && session.AccountId == accountId
+            && session.RevokedAt == null && session.ExpiresAt > now)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(session => session.MfaReauthenticatedAt, now), cancellationToken) == 1;
 
     private static IdentityAccount ToContract(IdentityAccountEntity account) => new(
         account.Id,

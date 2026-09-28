@@ -468,6 +468,7 @@ POST /management/v1/auth/recover
 POST /management/v1/auth/reset-password
 POST /management/v1/auth/operator/mfa/verify
 POST /management/v1/auth/operator/mfa/enroll
+POST /management/v1/auth/operator/mfa/confirm
 ```
 
 Successful login issues an opaque server-backed `__Host-uzllm-session` cookie
@@ -475,6 +476,16 @@ Successful login issues an opaque server-backed `__Host-uzllm-session` cookie
 cookie. State-changing authenticated browser endpoints require the matching
 `X-CSRF-Token` header. Verification and recovery tokens are one-time opaque
 secrets and must never be returned in HTTP responses or logs.
+
+Operator MFA enrollment takes `{ "password": "..." }` and returns a show-once
+`sharedSecret` and `expiresAt`. It remains pending for at most 10 minutes and
+does not grant admin access. `confirm` takes `{ "code": "123456" }` from the
+pending secret and returns `204` only when it atomically enables MFA and marks
+the current session recently verified. `verify` uses the same body for later
+reauthentication. An accepted 30-second TOTP step cannot be reused, including
+from another session or node; invalid/expired/replayed codes return `401`.
+Enrollment conflicts return `409`. These authenticated mutations require CSRF
+proof and all responses are `no-store`.
 
 ### Operator endpoints implemented by ADMIN-001
 
@@ -496,7 +507,14 @@ GET   /controls
 POST  /providers | /models | /mappings | /credentials | /prices
 PATCH /providers/{id} | /models/{id} | /mappings/{id}
 PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
+POST  /operators/{accountId}/mfa/reset
 ```
+
+`mfa/reset` requires a *different* recently MFA-verified operator, CSRF proof,
+and `{ "reason": "8–500 characters" }`. It clears the target's TOTP state and
+revokes all target sessions in the same transaction as an audit entry. Success
+returns `204`; inactive/unconfigured targets return `404`; self-reset or stale
+operator proof returns `403`. Re-enrollment requires the target's password.
 
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the

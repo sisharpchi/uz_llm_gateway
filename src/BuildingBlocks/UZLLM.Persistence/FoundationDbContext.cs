@@ -142,6 +142,8 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(access => access.IsActive).HasColumnName("is_active");
             entity.Property(access => access.ProtectedTotpSecret).HasColumnName("protected_totp_secret");
             entity.Property(access => access.MfaEnabledAt).HasColumnName("mfa_enabled_at");
+            entity.Property(access => access.MfaEnrollmentExpiresAt).HasColumnName("mfa_enrollment_expires_at");
+            entity.Property(access => access.LastTotpStep).HasColumnName("last_totp_step");
             entity.HasOne(access => access.Account)
                 .WithOne(account => account.OperatorAccess)
                 .HasForeignKey<IdentityOperatorAccessEntity>(access => access.AccountId)

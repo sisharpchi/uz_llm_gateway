@@ -106,7 +106,8 @@ public sealed class IdentityEmailIntegrationTests(PersistenceIntegrationFixture 
         var failing = new IdentityService(store, services.GetRequiredService<IPasswordHasher>(),
             services.GetRequiredService<IIdentitySecretProtector>(),
             services.GetRequiredService<ITotpAuthenticator>(), TimeProvider.System,
-            new FailingNotificationQueue(), services.GetRequiredService<ITransactionCoordinator>());
+            new FailingNotificationQueue(), services.GetRequiredService<ITransactionCoordinator>(),
+            services.GetRequiredService<UZLLM.Modules.Audit.Contracts.IAuditTrail>());
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             failing.RegisterAsync("rollback@example.uz", "correct horse battery staple"));
         Assert.Null(await store.FindAccountByEmailAsync("rollback@example.uz"));

@@ -47,6 +47,18 @@ public static class AdminEndpoints
         admin.MapGet("/audit", (int? limit, IAdminService service, CancellationToken ct) => service.ListAuditAsync(limit ?? 50, ct));
         admin.MapGet("/controls", (IAdminService service, CancellationToken ct) => service.ListControlsAsync(ct));
 
+        admin.MapPost("/operators/{accountId:guid}/mfa/reset", async (Guid accountId,
+            ResetOperatorMfaRequest request, HttpContext http, IIdentityService identity, CancellationToken ct) =>
+        {
+            try
+            {
+                return await identity.ResetOperatorMfaAsync(
+                    http.Request.Cookies[IdentityCookieNames.Session] ?? string.Empty,
+                    accountId, request.Reason, ct) ? Results.NoContent() : Results.NotFound();
+            }
+            catch (UnauthorizedAccessException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        }).RequireManagementCsrf();
+
         admin.MapPost("/providers", async (CreateAdminProviderRequest request, HttpContext http, IAdminService service, CancellationToken ct) =>
             Results.Created($"/management/v1/admin/providers", new { id = await service.CreateProviderAsync(Actor(http), request, ct) })).RequireManagementCsrf();
         admin.MapPost("/models", async (CreateAdminModelRequest request, HttpContext http, IAdminService service, CancellationToken ct) =>
@@ -76,4 +88,6 @@ public static class AdminEndpoints
     private static bool IsOperator(HttpContext context) => context.User.FindFirst("uzllm:operator")?.Value == "true";
     private static Guid Actor(HttpContext context) => Guid.Parse(
         context.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    private sealed record ResetOperatorMfaRequest(string Reason);
 }

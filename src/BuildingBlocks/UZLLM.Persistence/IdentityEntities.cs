@@ -73,5 +73,9 @@ public sealed class IdentityOperatorAccessEntity
 
     public DateTimeOffset? MfaEnabledAt { get; set; }
 
+    public DateTimeOffset? MfaEnrollmentExpiresAt { get; set; }
+
+    public long? LastTotpStep { get; set; }
+
     public IdentityAccountEntity Account { get; set; } = null!;
 }

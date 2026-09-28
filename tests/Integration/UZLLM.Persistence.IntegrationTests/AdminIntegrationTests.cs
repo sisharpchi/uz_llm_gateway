@@ -85,9 +85,17 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             Assert.Equal("no-store", enroll.Headers.CacheControl?.ToString());
             var secret = (await enroll.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sharedSecret").GetString()!;
             var code = new TotpAuthenticator().CreateCode(secret, clock.GetUtcNow());
-            using var verified = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/verify",
+            using (var pending = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, pending.StatusCode);
+            using (var premature = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/verify",
+                operatorSession, new { code }, true)))
+                Assert.Equal(HttpStatusCode.Unauthorized, premature.StatusCode);
+            using var verified = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/confirm",
                 operatorSession, new { code }, true));
             Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+            using (var replay = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/verify",
+                operatorSession, new { code }, true)))
+                Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
             {
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -101,8 +109,36 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             using (var response = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/admin/providers",
                 operatorSession, providerRequest, true)))
                 Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+            var secondOperator = await identity.RegisterAsync("admin-second-operator@example.uz", "correct horse battery staple");
+            Assert.True(await identity.VerifyEmailAsync(secondOperator.VerificationToken));
+            await identity.GrantOperatorAccessAsync(secondOperator.AccountId);
+            var secondSession = (await identity.AuthenticateAsync("admin-second-operator@example.uz", "correct horse battery staple"))!;
+            using var secondEnroll = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/enroll",
+                secondSession, new { password = "correct horse battery staple" }, true));
+            Assert.Equal(HttpStatusCode.OK, secondEnroll.StatusCode);
+            var secondSecret = (await secondEnroll.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sharedSecret").GetString()!;
+            var secondCode = new TotpAuthenticator().CreateCode(secondSecret, clock.GetUtcNow());
+            using (var secondConfirm = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/confirm",
+                secondSession, new { code = secondCode }, true)))
+                Assert.Equal(HttpStatusCode.NoContent, secondConfirm.StatusCode);
+
+            var resetPath = $"/management/v1/admin/operators/{operatorAccount.AccountId}/mfa/reset";
+            var resetBody = new { reason = "Lost authenticator during operator recovery" };
+            using (var missingCsrf = await client.SendAsync(Request(HttpMethod.Post, resetPath, secondSession, resetBody)))
+                Assert.Equal(HttpStatusCode.Forbidden, missingCsrf.StatusCode);
+            using (var selfReset = await client.SendAsync(Request(HttpMethod.Post,
+                $"/management/v1/admin/operators/{secondOperator.AccountId}/mfa/reset", secondSession, resetBody, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, selfReset.StatusCode);
+            using (var reset = await client.SendAsync(Request(HttpMethod.Post, resetPath, secondSession, resetBody, true)))
+                Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+            using (var revoked = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
+                Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
+            using (var replayReset = await client.SendAsync(Request(HttpMethod.Post, resetPath, secondSession, resetBody, true)))
+                Assert.Equal(HttpStatusCode.NotFound, replayReset.StatusCode);
+
             clock.Advance(TimeSpan.FromMinutes(16));
-            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", secondSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
         finally

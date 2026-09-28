@@ -101,23 +101,26 @@ public sealed class TotpAuthenticator : ITotpAuthenticator
         return (value % 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    public bool VerifyCode(string sharedSecret, string code, DateTimeOffset timestamp)
+    public bool VerifyCode(string sharedSecret, string code, DateTimeOffset timestamp) =>
+        MatchTimeStep(sharedSecret, code, timestamp) is not null;
+
+    public long? MatchTimeStep(string sharedSecret, string code, DateTimeOffset timestamp)
     {
         if (string.IsNullOrWhiteSpace(code) || code.Length != 6 || code.Any(character => !char.IsAsciiDigit(character)))
         {
-            return false;
+            return null;
         }
 
-        for (var offset = -1; offset <= 1; offset++)
+        for (var offset = 1; offset >= -1; offset--)
         {
             var candidate = CreateCode(sharedSecret, timestamp.AddSeconds(offset * TimeStepSeconds));
             if (CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(candidate), Encoding.UTF8.GetBytes(code)))
             {
-                return true;
+                return timestamp.ToUnixTimeSeconds() / TimeStepSeconds + offset;
             }
         }
 
-        return false;
+        return null;
     }
 }
 
