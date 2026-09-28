@@ -16,6 +16,14 @@ Base:
 https://api.example.uz/management/v1
 ```
 
+Public `POST /management/v1/auth/{register,login,verify-email,recover,reset-password}`
+and team invitation create/accept routes accept at most 8 KiB. The edge may
+return 429 by client IP; Management returns 429 with `Retry-After` when a
+distributed per-IP or per-account attempt limit is reached, or 503 if its
+Redis limiter is unavailable. `POST /auth/recover` and duplicate registration
+return an indistinguishable 202 for known and unknown addresses. Auth-limit
+responses use `Cache-Control: no-store`.
+
 ### Payment callbacks
 Provider-specific:
 

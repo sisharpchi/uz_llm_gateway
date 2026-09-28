@@ -58,6 +58,13 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   `real_ip_recursive on;`. Do not trust a public CIDR. An L4 source-preserving
   LB needs no real-IP override. Verify the observed source against the merchant
   test callback before enabling CLICK, and firewall backend ports to the edge.
+- Public auth and invitation POSTs have an 8 KiB edge/body cap and a shared
+  edge client-IP zone (30/minute, burst ten). Management also uses Redis-backed
+  per-operation IP and normalized-account limits; it returns 503 while Redis is
+  unavailable rather than accepting unmetered attempts. Keep Management ports
+  private: its direct-connection IP bucket is a high-volume backstop because
+  proxied requests share the edge source IP. Monitor sustained 429/503 counts,
+  especially after edge failover; never disable limits to restore login.
 - Set `UZLLM_SMTP_HOST`, `UZLLM_SMTP_PORT` (default 587), and
   `UZLLM_SMTP_FROM`. Put SMTP username/password in
   `UZLLM_SECRET_DIR/Email__Username` and `Email__Password`. Worker requires

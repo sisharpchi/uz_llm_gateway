@@ -44,6 +44,16 @@ public sealed class Pbkdf2PasswordHasher : IPasswordHasher
             return false;
         }
     }
+
+    public bool VerifyUnknown(string password)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
+        // Do the same work as a real verification without exposing whether the
+        // email has an active, verified account.
+        _ = Rfc2898DeriveBytes.Pbkdf2(password, new byte[SaltLength], IterationCount,
+            HashAlgorithmName.SHA512, HashLength);
+        return false;
+    }
 }
 
 public sealed class DataProtectionIdentitySecretProtector(IDataProtectionProvider dataProtectionProvider) : IIdentitySecretProtector

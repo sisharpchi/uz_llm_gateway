@@ -127,6 +127,33 @@ test('LAUNCH-001 payment callback edge ingress', async t => {
     await waitForEdge(defaultEdge.port);
     command('docker', ['exec', edges.at(-1), 'nginx', '-t']);
 
+    await t.test('SECURITY-002 auth_and_invitation_body_bounds_apply_at_edge', async () => {
+      const login = await send(defaultEdge.port, '/management/v1/auth/login', 'POST', '{}',
+        { 'Content-Type': 'application/json', 'X-Forwarded-For': '198.51.100.44' });
+      assert.equal(login.status, 200);
+      assert.notEqual(login.json.forwardedFor, '198.51.100.44');
+      const invite = await send(defaultEdge.port,
+        '/management/v1/organizations/11111111-1111-1111-1111-111111111111/team/invitations',
+        'POST', '{}');
+      assert.equal(invite.status, 200);
+      const body = JSON.stringify({ padding: 'x'.repeat(8200) });
+      assert.equal((await send(defaultEdge.port, '/management/v1/auth/recover', 'POST', body)).status, 413);
+      assert.equal((await send(defaultEdge.port, '/management/v1/team/invitations/accept', 'POST', body,
+        { 'Transfer-Encoding': 'chunked' })).status, 413);
+    });
+
+    await t.test('SECURITY-002 spoofed_forwarding_cannot_escape_client_IP_throttle', async () => {
+      const results = await Promise.all(Array.from({ length: 25 }, (_, index) =>
+        send(defaultEdge.port, '/management/v1/auth/login', 'POST', '{}',
+          { 'X-Forwarded-For': `198.51.100.${index + 1}` })));
+      assert.ok(results.some(result => result.status === 429));
+      assert.ok(results.some(result => result.status === 200));
+      const invitation = await send(defaultEdge.port,
+        '/MANAGEMENT/V1/ORGANIZATIONS/11111111-1111-1111-1111-111111111111/TEAM/INVITATIONS/',
+        'POST', '{}');
+      assert.equal(invitation.status, 429);
+    });
+
     await t.test('Payme_authenticated_callback_reaches_management_over_TLS_with_original_body', async () => {
       const body = JSON.stringify({ id: 11, method: 'CheckPerformTransaction', params: { amount: 100000 } });
       const result = await send(defaultEdge.port, '/payments/payme/callback', 'POST', body,

@@ -20,6 +20,8 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IIdentitySecretProtector, DataProtectionIdentitySecretProtector>();
         services.AddSingleton<ITotpAuthenticator, TotpAuthenticator>();
+        services.AddSingleton(AuthAbusePolicy.Default);
+        services.AddSingleton<IAuthAttemptLimiter, RedisAuthAttemptLimiter>();
         return services;
     }
 
@@ -68,9 +70,10 @@ public static class IdentityServiceCollectionExtensions
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = [exception.Message] });
             }
-            catch (InvalidOperationException)
+            catch (DuplicateIdentityAccountException)
             {
-                return Results.Conflict();
+                // Duplicate registration must not reveal whether an address exists.
+                return Results.Accepted();
             }
         });
 
@@ -100,7 +103,8 @@ public static class IdentityServiceCollectionExtensions
 
         auth.MapPost("/recover", async (RecoveryRequest request, IIdentityService identityService, CancellationToken cancellationToken) =>
         {
-            _ = await identityService.BeginPasswordRecoveryAsync(request.Email, cancellationToken);
+            try { _ = await identityService.BeginPasswordRecoveryAsync(request.Email, cancellationToken); }
+            catch (ArgumentException) { /* Malformed or unknown addresses share the accepted response. */ }
             return Results.Accepted();
         });
 

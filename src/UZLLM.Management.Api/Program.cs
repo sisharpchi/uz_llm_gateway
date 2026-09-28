@@ -39,6 +39,7 @@ builder.Services.AddScoped<IBudgetManagementService, BudgetManagementService>();
 var app = builder.Build();
 
 app.UseUzllmRequestCorrelation();
+app.UseUzllmAuthAbuseProtection();
 app.UseUzllmManagementSession();
 app.MapUzllmHealthEndpoints();
 app.MapUzllmIdentityEndpoints();

@@ -360,6 +360,8 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
         Password = RuntimePassword
     }.ConnectionString;
 
+    public string RedisConnectionString => redis.GetConnectionString();
+
     public async Task InitializeAsync()
     {
         await Task.WhenAll(postgres.StartAsync(), redis.StartAsync());

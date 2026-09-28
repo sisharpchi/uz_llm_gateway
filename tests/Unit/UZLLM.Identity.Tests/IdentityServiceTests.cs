@@ -7,6 +7,26 @@ namespace UZLLM.Identity.Tests;
 public sealed class IdentityServiceTests
 {
     [Fact]
+    public async Task AuthenticateAsync_performs_password_work_for_missing_and_unverified_accounts()
+    {
+        var fixture = new IdentityFixture();
+        var hasher = new CountingPasswordHasher();
+        var service = new IdentityService(fixture.Store, hasher, new TestSecretProtector(),
+            fixture.Totp, fixture.Clock, fixture.Notifications, new IdentityNoopTransactionCoordinator());
+
+        Assert.Null(await service.AuthenticateAsync("missing@example.uz", "candidate-password"));
+        var registration = await service.RegisterAsync("pending@example.uz", "candidate-password");
+        Assert.Null(await service.AuthenticateAsync("pending@example.uz", "candidate-password"));
+        Assert.Equal(2, hasher.UnknownCalls);
+        Assert.Equal(0, hasher.KnownCalls);
+
+        Assert.True(await service.VerifyEmailAsync(registration.VerificationToken));
+        Assert.Null(await service.AuthenticateAsync("pending@example.uz", "candidate-password"));
+        Assert.Equal(1, hasher.KnownCalls);
+        Assert.Equal(2, hasher.UnknownCalls);
+    }
+
+    [Fact]
     public void Verify_with_a_malformed_persisted_password_hash_fails_closed()
     {
         var passwordHasher = new Pbkdf2PasswordHasher();
@@ -148,5 +168,22 @@ public sealed class IdentityServiceTests
         Assert.True(await fixture.Service.VerifyOperatorPasswordAsync(registration.AccountId, "correct horse battery staple"));
         _ = await fixture.Service.EnrollOperatorMfaAsync(registration.AccountId);
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.EnrollOperatorMfaAsync(registration.AccountId));
+    }
+}
+
+internal sealed class CountingPasswordHasher : IPasswordHasher
+{
+    public int KnownCalls { get; private set; }
+    public int UnknownCalls { get; private set; }
+    public string Hash(string password) => "test-password-hash";
+    public bool Verify(string password, string passwordHash)
+    {
+        KnownCalls++;
+        return false;
+    }
+    public bool VerifyUnknown(string password)
+    {
+        UnknownCalls++;
+        return false;
     }
 }

@@ -295,6 +295,22 @@ Management uses secure, server-backed browser sessions with `HttpOnly`,
 access is separate from organization roles, requires MFA and recent
 reauthentication for sensitive actions, and is audited.
 
+Public registration, login, verification, recovery/reset, and team-invitation
+attempts are capped at 8 KiB before JSON binding. Management atomically counts
+attempts in Redis by operation and source IP (600 per five minutes as a
+conservative proxy-aggregate backstop) and by a SHA-256 fingerprint of the
+normalized email or token (10 per five minutes). Rate-limited attempts return
+429 with `Retry-After`; Redis loss returns 503 and does not execute the handler.
+The edge additionally enforces 30 requests/minute per actual client IP with a
+burst of ten, using only its trusted real-IP policy. Never trust arbitrary
+browser-supplied forwarding headers. Recovery and duplicate registration both
+return 202 regardless of whether an email is registered; malformed recovery
+addresses also receive the same response. No plaintext email/token enters a
+Redis key. This is an abuse bound, not a guarantee against distributed IP
+rotation or all timing analysis; unknown/unverified login accounts still run
+one PBKDF2 verification-equivalent operation to narrow email enumeration.
+Keep edge and Redis telemetry under review.
+
 Verification and recovery token hashes live in Identity challenges. The
 plaintext token and recipient are Data-Protection-encrypted before being
 written to the transactional outbox; Management and Worker share the protected

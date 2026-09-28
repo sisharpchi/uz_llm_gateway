@@ -41,7 +41,7 @@ public sealed class IdentityService(
             cancellationToken);
         if (!created)
         {
-            throw new InvalidOperationException("An account already exists for this email address.");
+            throw new DuplicateIdentityAccountException();
         }
 
         await notifications.QueueAsync(new IdentityEmailNotification(normalizedEmail, verificationToken,
@@ -57,10 +57,12 @@ public sealed class IdentityService(
     public async Task<BrowserSessionTokens?> AuthenticateAsync(string email, string password, CancellationToken cancellationToken = default)
     {
         var account = await store.FindAccountByEmailAsync(EmailAddress.Normalize(email), cancellationToken);
-        if (account is null
-            || account.Status != IdentityAccountStatus.Active
-            || !account.IsEmailVerified
-            || !passwordHasher.Verify(password, account.PasswordHash))
+        if (account is not { Status: IdentityAccountStatus.Active, IsEmailVerified: true })
+        {
+            _ = passwordHasher.VerifyUnknown(password);
+            return null;
+        }
+        if (!passwordHasher.Verify(password, account.PasswordHash))
         {
             return null;
         }
@@ -231,6 +233,8 @@ public sealed class IdentityService(
         return session;
     }
 }
+
+public sealed class DuplicateIdentityAccountException() : InvalidOperationException("An account already exists for this email address.");
 
 public sealed class CsrfTokenValidator(IIdentityStore store, TimeProvider timeProvider) : ICsrfTokenValidator
 {

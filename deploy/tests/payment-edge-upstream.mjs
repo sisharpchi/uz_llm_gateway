@@ -45,6 +45,8 @@ createServer({
       + (fields.get('sign_time') ?? '');
     const expected = createHash('md5').update(material).digest('hex');
     result = { ...common, error: fields.get('sign_string') === expected ? 0 : -1 };
+  } else if (path.startsWith('/management/v1/auth/') || path.includes('/team/invitations')) {
+    result = common;
   } else {
     response.writeHead(404).end();
     return;
