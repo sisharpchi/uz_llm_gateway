@@ -23,6 +23,10 @@ distributed per-IP or per-account attempt limit is reached, or 503 if its
 Redis limiter is unavailable. `POST /auth/recover` and duplicate registration
 return an indistinguishable 202 for known and unknown addresses. Auth-limit
 responses use `Cache-Control: no-store`.
+All `/management/v1` responses, including authentication cookies, show-once
+secrets, recovery outcomes, checkout links, and denials, use
+`Cache-Control: no-store`. A missing/invalid session returns `401`; an authenticated account
+without the required tenant, project, or operator role returns `403`.
 
 ### Payment callbacks
 Provider-specific:
@@ -34,14 +38,16 @@ https://api.example.uz/payments/click/callback
 
 ### P0 top-up control plane
 
-An authenticated organization owner uses `POST /management/v1/organizations/{organizationId}/billing/quotes`
+An authenticated member with billing-management permission uses `POST /management/v1/organizations/{organizationId}/billing/quotes`
 with `{ "provider": "Payme", "amountTiyin": "100000" }`, then
 `POST /management/v1/organizations/{organizationId}/billing/topups` with
 `{ "quoteId": "..." }` and an `Idempotency-Key` header. Both writes require the
 management session and CSRF header. The latter returns an intent and provider
 checkout URL; the key may be replayed only for the same quote. `GET` endpoints
-for `/billing/topups`, `/billing/topups/{intentId}`, and `/billing/wallet` are
-owner-scoped. Top-up amount input, quote/intent amounts, FX rate, and wallet
+for `/billing/topups`, `/billing/topups/{intentId}`, and `/billing/wallet` require
+billing-read permission (including `BillingViewer`). Cross-tenant or
+insufficient-role access returns `403`, not a framework authentication challenge.
+Top-up amount input, quote/intent amounts, FX rate, and wallet
 USD micro-units are JSON decimal strings; the server parses them as fixed-
 precision values using the quote's immutable FX snapshot. This prevents
 JavaScript number precision loss in the browser.

@@ -15,6 +15,7 @@ public static class AdminEndpoints
         var access = endpoints.MapGroup("/management/v1/admin");
         access.MapGet("/access", async (HttpContext context, IIdentityService identity, CancellationToken ct) =>
         {
+            if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
             if (!IsOperator(context)) return Results.StatusCode(StatusCodes.Status403Forbidden);
             return Results.Ok(new { recentMfa = await identity.HasRecentOperatorReauthenticationAsync(
                 context.Request.Cookies[IdentityCookieNames.Session] ?? string.Empty, ct) });

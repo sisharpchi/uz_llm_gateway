@@ -38,6 +38,7 @@ builder.Services.AddUzllmAdministration();
 builder.Services.AddScoped<IBudgetManagementService, BudgetManagementService>();
 var app = builder.Build();
 
+app.UseUzllmManagementNoStore();
 app.UseUzllmRequestCorrelation();
 app.UseUzllmAuthAbuseProtection();
 app.UseUzllmManagementSession();

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UZLLM.Management.Api;
 using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.ApiKeys.Infrastructure;
 using UZLLM.Modules.Audit.Infrastructure;
@@ -42,6 +43,7 @@ public sealed class ApiKeyRotationEndpointIntegrationTests(PersistenceIntegratio
         builder.Services.AddUzllmProjects();
         builder.Services.AddUzllmApiKeys(builder.Configuration);
         await using var app = builder.Build();
+        app.UseUzllmManagementNoStore();
         app.UseUzllmManagementSession();
         app.MapUzllmApiKeyEndpoints();
         await app.StartAsync();
@@ -68,6 +70,31 @@ public sealed class ApiKeyRotationEndpointIntegrationTests(PersistenceIntegratio
             var initial = await keys.CreateAsync(owner.AccountId, project.Id, "Production", null);
             var path = $"/management/v1/api-keys/{initial.ApiKey.Id}/rotate";
 
+            using (var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Post,
+                $"/management/v1/projects/{project.Id}/api-keys")
+            {
+                Headers = { { "Cookie", $"{IdentityCookieNames.Session}={ownerSession.SessionToken}; " +
+                    $"{IdentityCookieNames.Csrf}={ownerSession.CsrfToken}" },
+                    { IdentityCookieNames.CsrfHeader, ownerSession.CsrfToken } },
+                Content = JsonContent.Create(new { name = "Additional", expiresAt = (DateTimeOffset?)null })
+            }))
+            {
+                Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+                Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+                Assert.False(string.IsNullOrWhiteSpace((await response.Content.ReadFromJsonAsync<JsonElement>())
+                    .GetProperty("secret").GetString()));
+            }
+            using (var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Get,
+                $"/management/v1/projects/{project.Id}/api-keys")
+            {
+                Headers = { { "Cookie", $"{IdentityCookieNames.Session}={outsiderSession.SessionToken}" } }
+            }))
+            {
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+                Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+            }
+            using (var response = await client.PostAsync(path, null))
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
             using (var response = await client.SendAsync(Request(path, outsiderSession, csrf: true)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(path, ownerSession, csrf: false)))

@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UZLLM.Management.Api.Administration;
+using UZLLM.Management.Api;
 using UZLLM.Modules.Audit.Application;
 using UZLLM.Modules.Audit.Infrastructure;
 using UZLLM.Modules.Catalog.Application;
@@ -47,6 +48,7 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
         builder.Services.AddUzllmProviders(builder.Configuration);
         builder.Services.AddUzllmAdministration();
         await using var app = builder.Build();
+        app.UseUzllmManagementNoStore();
         app.UseUzllmManagementSession();
         app.MapUzllmIdentityEndpoints();
         app.MapUzllmAdminEndpoints();
@@ -66,6 +68,12 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             await identity.GrantOperatorAccessAsync(operatorAccount.AccountId);
             var operatorSession = (await identity.AuthenticateAsync("admin-operator@example.uz", "correct horse battery staple"))!;
 
+            using (var response = await client.GetAsync("/management/v1/admin/access"))
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            using (var response = await client.GetAsync("/management/v1/admin/providers"))
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/access", customerSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", customerSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
@@ -74,13 +82,17 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             using var enroll = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/enroll",
                 operatorSession, new { password = "correct horse battery staple" }, true));
             Assert.Equal(HttpStatusCode.OK, enroll.StatusCode);
+            Assert.Equal("no-store", enroll.Headers.CacheControl?.ToString());
             var secret = (await enroll.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("sharedSecret").GetString()!;
             var code = new TotpAuthenticator().CreateCode(secret, clock.GetUtcNow());
             using var verified = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/auth/operator/mfa/verify",
                 operatorSession, new { code }, true));
             Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
+            {
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+            }
 
             var providerRequest = new { code = "auth-test", name = "Auth Test", reason = "operator test" };
             using (var response = await client.SendAsync(Request(HttpMethod.Post, "/management/v1/admin/providers",

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UZLLM.Management.Api;
 using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Persistence;
@@ -34,9 +35,15 @@ public sealed class AuthAbuseEndpointIntegrationTests(PersistenceIntegrationFixt
         builder.Services.AddSingleton(new AuthAbusePolicy(20, 2, TimeSpan.FromMinutes(5), 8192,
             $"test:auth:{Guid.NewGuid():N}"));
         await using var app = builder.Build();
+        app.UseUzllmManagementNoStore();
         app.UseUzllmAuthAbuseProtection();
         app.MapUzllmIdentityEndpoints();
         app.MapPost("/management/v1/team/invitations/accept", () => Results.Ok());
+        app.MapGet("/management/v1/cache-override", (HttpContext context) =>
+        {
+            context.Response.Headers.CacheControl = "public, max-age=3600";
+            return Results.Ok(new { value = "sensitive" });
+        });
         await app.StartAsync();
         try
         {
@@ -57,6 +64,8 @@ public sealed class AuthAbuseEndpointIntegrationTests(PersistenceIntegrationFixt
                 new { email = "missing@example.uz" });
             Assert.Equal(HttpStatusCode.Accepted, known.StatusCode);
             Assert.Equal(known.StatusCode, unknown.StatusCode);
+            Assert.Equal("no-store", known.Headers.CacheControl?.ToString());
+            Assert.Equal("no-store", unknown.Headers.CacheControl?.ToString());
             Assert.Equal(await known.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
 
             using var secondKnown = await client.PostAsJsonAsync("/management/v1/auth/recover",
@@ -73,6 +82,7 @@ public sealed class AuthAbuseEndpointIntegrationTests(PersistenceIntegrationFixt
                 new { email = "fresh@example.uz", password = "correct horse battery staple" });
             Assert.Equal(HttpStatusCode.Accepted, firstRegistration.StatusCode);
             Assert.Equal(firstRegistration.StatusCode, duplicateRegistration.StatusCode);
+            Assert.Equal("no-store", firstRegistration.Headers.CacheControl?.ToString());
             Assert.Equal(await firstRegistration.Content.ReadAsStringAsync(),
                 await duplicateRegistration.Content.ReadAsStringAsync());
 
@@ -82,8 +92,25 @@ public sealed class AuthAbuseEndpointIntegrationTests(PersistenceIntegrationFixt
                 new { email = "not-registered@example.uz", password = "incorrect password" });
             Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
             Assert.Equal(wrongPassword.StatusCode, missingAccount.StatusCode);
+            Assert.Equal("no-store", wrongPassword.Headers.CacheControl?.ToString());
             Assert.Equal(await wrongPassword.Content.ReadAsStringAsync(),
                 await missingAccount.Content.ReadAsStringAsync());
+
+            using var successfulLogin = await client.PostAsJsonAsync("/management/v1/auth/login",
+                new { email = "known@example.uz", password = "correct horse battery staple" });
+            Assert.Equal(HttpStatusCode.NoContent, successfulLogin.StatusCode);
+            Assert.Equal("no-store", successfulLogin.Headers.CacheControl?.ToString());
+            Assert.Contains(successfulLogin.Headers.GetValues("Set-Cookie"), value =>
+                value.StartsWith(IdentityCookieNames.Session, StringComparison.Ordinal));
+            var sessionCookie = successfulLogin.Headers.GetValues("Set-Cookie").Single(value =>
+                value.StartsWith(IdentityCookieNames.Session, StringComparison.Ordinal)).Split(';')[0];
+            using var sessionRequest = new HttpRequestMessage(HttpMethod.Get, "/management/v1/auth/session");
+            sessionRequest.Headers.Add("Cookie", sessionCookie);
+            using var sessionResponse = await client.SendAsync(sessionRequest);
+            Assert.Equal(HttpStatusCode.OK, sessionResponse.StatusCode);
+            Assert.Equal("no-store", sessionResponse.Headers.CacheControl?.ToString());
+            using var overridden = await client.GetAsync("/management/v1/cache-override");
+            Assert.Equal("no-store", overridden.Headers.CacheControl?.ToString());
 
             using var oversized = await client.PostAsync("/management/v1/auth/login",
                 new StringContent(new string('x', 8193)));

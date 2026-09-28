@@ -115,6 +115,12 @@ ReadOnly
 ```
 
 Never trust project ID from browser without ownership/membership check.
+The Management host sends `Cache-Control: no-store` for every `/management/v1`
+response, including session cookies, key creation/rotation, MFA enrollment,
+recovery, checkout links, and denial responses. Missing sessions return `401`;
+authenticated callers lacking a tenant/project/operator permission receive
+`403`. Payment authorization returns an explicit status rather than invoking
+an unconfigured ASP.NET authentication forbid handler.
 
 Operator routes require an active operator grant and a TOTP verification within
 the last 15 minutes. First-time enrollment requires the operator's password and

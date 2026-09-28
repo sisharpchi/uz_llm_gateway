@@ -24,9 +24,9 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 |---|---|---|---|
 | FOUNDATION-001–003 | Completed | Buildable .NET 10 solution, three hosts, migrator, Compose, CI, PostgreSQL/Redis baseline. | None invalidating completion; module isolation is structural rather than independently deployable (`ARCH-001`). |
 | OPS-001, OPS-002 | Completed | Health, OpenTelemetry baseline, outbox/jobs, runbooks and local drill exist. | Custom gateway/business instruments are not emitted; alert events lack consumer; Worker leases/retries need hardening. `OPS-003–007`. |
-| IDENTITY-001, ORGS-001, TEAM-001, AUDIT-001 | Completed | Accounts/sessions, organizations, membership, projects, audit and invitations exist. | Abuse throttling addressed by `SECURITY-002`; MFA enrollment proof/replay, denial behavior and recovery UX still need `SECURITY-003–004`, `FRONTEND-004`. |
+| IDENTITY-001, ORGS-001, TEAM-001, AUDIT-001 | Completed | Accounts/sessions, organizations, membership, projects, audit and invitations exist. | Abuse throttling addressed by `SECURITY-002`; denial/cache behavior by `SECURITY-003`. MFA enrollment proof/replay and recovery UX still need `SECURITY-004`, `FRONTEND-004`. |
 | BILLING-001–002, BUDGET-001, LIMITS-001 | Completed | Conditional wallet update, append-only ledger, holds, terminal settlement, debt and caps are implemented. | Recovery operations, settlement exposure alerts, operator fee/FX publishing and refund flow remain. `BILLING-003`, `ADMIN-002`, `REFUND-001`. |
-| APIKEYS-001, APIKEYS-003 | Completed | Hashed show-once keys, revocation/rotation and key budgets exist. | New-key response cache policy and fingerprint-key rotation need follow-ups. `SECURITY-003`, `SECURITY-005`. |
+| APIKEYS-001, APIKEYS-003 | Completed | Hashed show-once keys, revocation/rotation and key budgets exist. | New-key response cache policy addressed by `SECURITY-003`; fingerprint-key rotation still needs `SECURITY-005`. |
 | CATALOG-001 | Completed | Model mappings, capabilities and effective pricing exist. | Customer discovery and operator publication UX incomplete. `DX-001`, `ADMIN-002`. |
 | USAGE-001–002 | Completed | Durable request/attempt/evidence and on-demand usage/activity queries exist. | No CSV export (`FR-095`), no durable near-real-time rollups (`FR-096`); separate `USAGE-005` and `USAGE-004`. |
 | PROVIDER-001–002, PROVIDER-006–009 | Completed | OpenAI, Anthropic, Gemini and DeepSeek adapters, normalized errors, contract fixtures and SSE paths exist. | Live agreement/quota/usage qualification external; BYOK supports only OpenAI/Anthropic. `BYOK-003`. |
@@ -65,9 +65,9 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 5. `RedisProviderHealthService` keys health by mapping ID. A BYOK tenant's
    credential-specific 429/failure can therefore suppress a healthy managed
    or other-tenant route. Scope health by failure domain and test isolation.
-6. Management payment authorization uses `Results.Forbid()` without a
-   registered authentication handler in the Management host. Verify the actual
-   response and replace it with a deliberate 403 contract if required.
+6. `SECURITY-003` replaced Management payment `Results.Forbid()` with an explicit
+   403 and tested cross-tenant/role denials through a real HTTP host. Management
+   responses now use `no-store`; this historical audit finding is resolved.
 7. Management has internal payment/fee services but lacks a complete audited
    operator path for FX/fee publication and external reconciliation evidence.
    The current payment reconciliation checks local state; it does not prove

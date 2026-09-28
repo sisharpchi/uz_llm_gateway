@@ -29,7 +29,7 @@ public static class PaymentEndpointExtensions
                 return Results.BadRequest(new { error = "invalid_provider_or_amount" });
             try { return Results.Ok(Quote(await payments.CreateQuoteAsync(accountId, organizationId,
                 provider, new UzsTiyinAmount(amountTiyin), token))); }
-            catch (TenantAccessDeniedException) { return Results.Forbid(); }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             catch (ArgumentException) { return Results.BadRequest(new { error = "invalid_amount" }); }
             catch (InvalidOperationException) { return Results.Problem("Payment quote is unavailable.", statusCode: 503); }
         }).RequireManagementCsrf();
@@ -47,7 +47,7 @@ public static class PaymentEndpointExtensions
                 return result.Duplicate ? Results.Ok(body) : Results.Created(
                     $"/management/v1/organizations/{organizationId}/billing/topups/{result.Intent.Id}", body);
             }
-            catch (TenantAccessDeniedException) { return Results.Forbid(); }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
             catch (KeyNotFoundException) { return Results.NotFound(); }
             catch (ArgumentException) { return Results.BadRequest(new { error = "invalid_quote_or_key" }); }
             catch (InvalidOperationException) { return Results.Conflict(new { error = "quote_or_merchant_unavailable" }); }
@@ -58,7 +58,7 @@ public static class PaymentEndpointExtensions
         {
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
             try { return Results.Ok((await payments.ListIntentsAsync(accountId, organizationId, token)).Select(Intent)); }
-            catch (TenantAccessDeniedException) { return Results.Forbid(); }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
 
         billing.MapGet("/topups/{intentId:guid}", async (Guid organizationId, Guid intentId,
@@ -67,7 +67,7 @@ public static class PaymentEndpointExtensions
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
             try { return await payments.GetIntentAsync(accountId, organizationId, intentId, token) is { } intent
                 ? Results.Ok(Intent(intent)) : Results.NotFound(); }
-            catch (TenantAccessDeniedException) { return Results.Forbid(); }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
 
         billing.MapGet("/wallet", async (Guid organizationId, HttpContext context,
@@ -85,7 +85,7 @@ public static class PaymentEndpointExtensions
                         availableBalanceMicroUsd = value.AvailableBalance.Value.ToString(CultureInfo.InvariantCulture),
                         value.Version }) : Results.NotFound();
             }
-            catch (TenantAccessDeniedException) { return Results.Forbid(); }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
 
         endpoints.MapPost("/payments/payme/callback", async (HttpContext context,
