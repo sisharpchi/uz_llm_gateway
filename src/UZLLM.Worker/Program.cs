@@ -21,6 +21,7 @@ builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmPayments(builder.Configuration);
 builder.Services.AddUzllmIdentityEmailDelivery(builder.Configuration);
+builder.Services.AddUzllmOperationalAlertDelivery(builder.Configuration);
 builder.Services.AddUzllmCustomerAlerts(builder.Configuration);
 builder.Services.AddScoped<ILeasedJobHandler, PaymentReconciliationJobHandler>();
 builder.Services.AddScoped<IOutboxHandler>(services => new PaymentEventLogHandler(
@@ -51,6 +52,10 @@ builder.Services.AddScoped<IOutboxHandler>(services => new BillingFinancialAlert
     services.GetRequiredService<IOperationalAlertPublisher>(),
     services.GetRequiredService<ITransactionCoordinator>(),
     services.GetRequiredService<IConsumerInboxStore>(), "billing.late_exposure.recorded"));
+builder.Services.AddScoped<IOutboxHandler>(services => new BillingFinancialAlertHandler(
+    services.GetRequiredService<IOperationalAlertPublisher>(),
+    services.GetRequiredService<ITransactionCoordinator>(),
+    services.GetRequiredService<IConsumerInboxStore>(), "billing.late_external_spend.recorded"));
 builder.Services.AddUzllmObservability(builder.Configuration, "UZLLM.Worker");
 builder.Services.AddScoped<OutboxDispatchCycle>();
 builder.Services.AddScoped<LeasedJobDispatchCycle>();

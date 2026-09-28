@@ -69,6 +69,15 @@ public sealed class BillingFinancialAlertHandler(IOperationalAlertPublisher aler
                 document.RootElement.GetProperty("evidenceId").GetGuid().ToString("N"),
                 JsonSerializer.Serialize(new { lateEvidence = true, exposureMicroUsd = exposure }), cancellationToken);
         }
+        else if (EventType == "billing.late_external_spend.recorded")
+        {
+            var evidenceId = document.RootElement.GetProperty("evidenceId").GetGuid();
+            var reservationId = document.RootElement.GetProperty("reservationId").GetGuid();
+            var exposure = document.RootElement.GetProperty("exposureMicroUsd").GetInt64();
+            await alerts.RaiseAsync(OperationalAlertKind.LateExternalSpend,
+                evidenceId.ToString("N"),
+                JsonSerializer.Serialize(new { reservationId, evidenceId, exposureMicroUsd = exposure }), cancellationToken);
+        }
         await transaction.CommitAsync(cancellationToken);
     }
 }

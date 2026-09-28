@@ -126,6 +126,35 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Contains("PermanentFailure", body);
                 Assert.DoesNotContain("do-not-return", body);
             }
+            var operationalAlert = await scope.ServiceProvider.GetRequiredService<IOperationalAlertPublisher>()
+                .RaiseAsync(OperationalAlertKind.SettlementFailure, "admin-alert-test",
+                    "{\"secret\":\"do-not-return\"}");
+            using (var denied = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/work/alerts", customerSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+            using (var visible = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/work/alerts", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, visible.StatusCode);
+                var body = await visible.Content.ReadAsStringAsync();
+                Assert.Contains(operationalAlert.Id.ToString(), body);
+                Assert.Contains("Pending", body);
+                Assert.DoesNotContain("do-not-return", body);
+            }
+            var notificationEventId = (await scope.ServiceProvider.GetRequiredService<IOperationalAlertDeliveryStore>()
+                .FindAsync(operationalAlert.Id))!.NotificationEventId!.Value;
+            await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync(
+                "UPDATE ops.outbox SET dead_lettered_at = now(), last_error = 'TestFailure' WHERE id = {0}",
+                notificationEventId);
+            using (var deadAlert = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/work/alerts", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, deadAlert.StatusCode);
+                var body = await deadAlert.Content.ReadAsStringAsync();
+                Assert.Contains("DeadLettered", body);
+                Assert.Contains(notificationEventId.ToString(), body);
+                Assert.DoesNotContain("do-not-return", body);
+            }
+            using (var invalidLimit = await client.SendAsync(Request(HttpMethod.Get,
+                "/management/v1/admin/work/alerts?limit=101", operatorSession)))
+                Assert.Equal(HttpStatusCode.BadRequest, invalidLimit.StatusCode);
 
             var secondOperator = await identity.RegisterAsync("admin-second-operator@example.uz", "correct horse battery staple");
             Assert.True(await identity.VerifyEmailAsync(secondOperator.VerificationToken));
@@ -264,8 +293,12 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
         var id = Guid.CreateVersion7();
         db.Set<IdentityAccountEntity>().Add(new IdentityAccountEntity
         {
-            Id = id, Email = $"admin-test-{id:N}@example.uz", PasswordHash = "test-only",
-            Status = "Active", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+            Id = id,
+            Email = $"admin-test-{id:N}@example.uz",
+            PasswordHash = "test-only",
+            Status = "Active",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
         });
         await db.SaveChangesAsync();
         return id;

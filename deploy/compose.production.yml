@@ -70,6 +70,7 @@ x-worker: &worker
     Email__SmtpHost: ${UZLLM_SMTP_HOST:?Set UZLLM_SMTP_HOST}
     Email__SmtpPort: ${UZLLM_SMTP_PORT:-587}
     Email__FromAddress: ${UZLLM_SMTP_FROM:?Set UZLLM_SMTP_FROM}
+    Operations__AlertEmail: ${UZLLM_OPERATIONS_ALERT_EMAIL:?Set UZLLM_OPERATIONS_ALERT_EMAIL}
     Payments__FeeBasisPoints: ${UZLLM_PAYMENT_FEE_BPS}
     Payments__FixedFeeTiyin: ${UZLLM_PAYMENT_FIXED_FEE_TIYIN}
   volumes:

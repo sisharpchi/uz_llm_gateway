@@ -23,7 +23,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | Historical task(s) | Documented as | Actual repository state | Gap / follow-up |
 |---|---|---|---|
 | FOUNDATION-001–003 | Completed | Buildable .NET 10 solution, three hosts, migrator, Compose, CI, PostgreSQL/Redis baseline. | None invalidating completion; module isolation is structural rather than independently deployable (`ARCH-001`). |
-| OPS-001, OPS-002 | Completed | Health, OpenTelemetry baseline, outbox/jobs, runbooks and local drill exist. | Worker lease/retry and dead-letter visibility addressed by `OPS-003`; custom gateway/business instruments and alert consumer remain `OPS-004–007`. |
+| OPS-001, OPS-002 | Completed | Health, OpenTelemetry baseline, outbox/jobs, runbooks and local drill exist. | Worker lease/retry/dead-letter visibility addressed by `OPS-003`; operator alert delivery by `OPS-004`. Custom gateway/business instruments and qualification remain `OPS-005–007`. |
 | IDENTITY-001, ORGS-001, TEAM-001, AUDIT-001 | Completed | Accounts/sessions, organizations, membership, projects, audit and invitations exist. | Abuse throttling addressed by `SECURITY-002`; denial/cache behavior by `SECURITY-003`; MFA proof/replay and audited operator reset by `SECURITY-004`. Customer verification/recovery UX still needs `FRONTEND-004`. |
 | BILLING-001–002, BUDGET-001, LIMITS-001 | Completed | Conditional wallet update, append-only ledger, holds, terminal settlement, debt and caps are implemented. | Recovery operations, settlement exposure alerts, operator fee/FX publishing and refund flow remain. `BILLING-003`, `ADMIN-002`, `REFUND-001`. |
 | APIKEYS-001, APIKEYS-003 | Completed | Hashed show-once keys, revocation/rotation and key budgets exist. | New-key response cache policy addressed by `SECURITY-003`; fingerprint-key rotation still needs `SECURITY-005`. |
@@ -33,7 +33,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | GATEWAY-001, ROUTING-003–005 | Completed | Managed admission, chat/SSE, deterministic/advanced selection and bounded fallback exist. | Mapping-scoped health may let one tenant's BYOK failure affect others; Responses/embeddings not implemented. `ROUTING-006`, `GATEWAY-005–007`. |
 | PAYMENT-001 | Completed | Payme/CLICK protocol handlers, signatures, callback idempotency and contract fixtures exist. | Deployment edge omits callback routes; reconciliation is primarily local, live merchant verification external. `LAUNCH-001`, `PAYMENT-002`. |
 | FRONTEND-001, ADMIN-001 | Completed | Dashboard/admin applications, shell and mocked browser coverage exist. | Top-up unit mismatch, missing recovery/financial state/customer catalog and other flows. `FRONTEND-002–010`. |
-| NOTIFY-001–003 | Completed | Email, webhook, Telegram integrations and transport fixtures exist. | `ops.alert.raised` is enqueued but has no Worker consumer; live credentials/chats external. `OPS-004`. |
+| NOTIFY-001–003 | Completed | Email, webhook, Telegram integrations and transport fixtures exist. | `OPS-004` adds the missing operational alert consumer and delivery status. Live on-call mailbox/SMTP receipt verification remains external. |
 | BYOK-001–002, PRIVACY-001 | Completed | Tenant-scoped encrypted keys, BYOK execution and opt-in bounded payload retention exist. | Credential/metadata lifecycle and additional provider parity need qualification. `SECURITY-006`, `PRIVACY-002`, `BYOK-003`. |
 
 ## Concrete repository/document gaps
@@ -56,13 +56,12 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
    `src/BuildingBlocks/UZLLM.Observability/ObservabilityServiceCollectionExtensions.cs`
    but no Gateway caller emits its custom instruments. Automatic HTTP traces
    alone do not satisfy spend, token, TTFT or active-stream visibility.
-4. `OperationalWork` enqueues `ops.alert.raised` (and
-   `billing.late_external_spend.recorded`), but
-   `src/UZLLM.Worker/Program.cs` has no matching consumer. Worker dispatch is
-   previously processed a preclaimed batch sequentially with a one-minute
-   lease and could reclaim beyond the retry ceiling. `OPS-003` narrows claims
-   to one item, renews active leases, fences updates, and exposes terminal
-   metadata; `OPS-004` still owns alert consumption and escalation.
+4. `OPS-003` narrowed Worker claims to one item, renews active leases, fences
+   updates and exposes terminal metadata. `OPS-004` registers consumers for
+   `ops.alert.raised` and `billing.late_external_spend.recorded`, records email
+   notification state and exposes operator-only alert metadata. SMTP has an
+   unavoidable post-accept/pre-commit duplicate window; live mailbox routing
+   and escalation acknowledgement remain external launch evidence.
 5. `RedisProviderHealthService` keys health by mapping ID. A BYOK tenant's
    credential-specific 429/failure can therefore suppress a healthy managed
    or other-tenant route. Scope health by failure domain and test isolation.

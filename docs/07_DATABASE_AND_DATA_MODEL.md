@@ -407,6 +407,12 @@ the same owner and attempt before lease expiry. Claims require
 `dead_lettered_at` rather than being reclaimed indefinitely. Partial indexes
 on exhausted active leases keep that sweep bounded. `ops.consumer_inbox`
 deduplicates committed consumer effects independently of lease retries.
+`ops.operational_alert.notification_event_id` identifies the unique outbox
+event sent to the on-call channel; nullable legacy alerts remain readable.
+`notified_at` and the consumer inbox are committed together after transport
+success. A dead-lettered notification remains visible through the operator
+alert status and correlated dead-letter metadata. Neither column proves SMTP
+exactly-once delivery across a crash after remote acceptance.
 
 Use composite tenant foreign keys where a row contains organization, project,
 or key identifiers. Require unique operation identities for payment credit,

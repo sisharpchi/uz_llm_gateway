@@ -505,6 +505,7 @@ GET   /payments?organizationId=<optional>&limit=50
 GET   /audit?limit=50
 GET   /controls
 GET   /work/dead-letters?limit=50
+GET   /work/alerts?limit=50
 POST  /providers | /models | /mappings | /credentials | /prices
 PATCH /providers/{id} | /models/{id} | /mappings/{id}
 PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
@@ -521,6 +522,11 @@ operator proof returns `403`. Re-enrollment requires the target's password.
 outbox/job records with `id`, `kind`, `workType`, `attemptCount`, `maxAttempts`,
 `deadLetteredAt`, and sanitized `lastError`. It never returns work payloads or
 secrets. A limit outside 1–100 returns `400`.
+`work/alerts` has the same operator/recent-MFA gate and limit. It returns at
+most 100 newest alert metadata records (`id`, `kind`, `severity`, `occurredAt`,
+`notificationEventId`, `notifiedAt`, `resolvedAt`, `deliveryStatus`), without
+the JSON details, deduplication key or message body. Delivery status is
+`Pending`, `Delivered`, `DeadLettered`, or `Unlinked` for legacy records.
 
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the

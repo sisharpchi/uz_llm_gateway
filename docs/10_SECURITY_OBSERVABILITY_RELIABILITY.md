@@ -292,6 +292,14 @@ recently MFA-verified operator through the metadata-only dead-letter API.
 External sends remain at-least-once: handlers must use inbox/domain
 idempotency, and a remote send accepted immediately before a crash may be
 repeated when the remote service offers no idempotency key.
+`ops.alert.raised` is consumed by Worker and sent by STARTTLS to the configured
+on-call mailbox using a stable Message-ID and no raw alert details. The
+notification timestamp and inbox entry commit together. A failed send retries
+to a terminal dead letter; recently MFA-verified operators can correlate its
+outbox event ID with the alert's `DeadLettered` status. Late external BYOK
+spend raises a distinct critical operational alert. Mailbox ownership,
+delivery verification and human escalation remain launch evidence, not code
+assumptions.
 
 New managed-credit inference should normally fail closed if financial reservation cannot be guaranteed.
 

@@ -128,7 +128,8 @@ public enum OperationalAlertKind
     ElevatedServerErrors,
     OutboxBacklog,
     FinancialExposure,
-    RecoveryDebt
+    RecoveryDebt,
+    LateExternalSpend
 }
 
 public sealed record OperationalAlert(
@@ -144,6 +145,19 @@ public interface IOperationalAlertPublisher
         OperationalAlertKind kind,
         string deduplicationKey,
         string details,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record OperationalAlertDelivery(Guid Id, string Kind, string Severity,
+    DateTimeOffset OccurredAt, Guid? NotificationEventId, DateTimeOffset? NotifiedAt,
+    DateTimeOffset? ResolvedAt, string DeliveryStatus);
+
+public interface IOperationalAlertDeliveryStore
+{
+    Task<OperationalAlertDelivery?> FindAsync(Guid alertId, CancellationToken cancellationToken = default);
+    Task<bool> MarkNotifiedAsync(Guid alertId, DateTimeOffset notifiedAt,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<OperationalAlertDelivery>> ListAsync(int limit = 50,
         CancellationToken cancellationToken = default);
 }
 
@@ -165,6 +179,7 @@ internal sealed class PostgreSqlOperationalAlertPublisher(FoundationDbContext db
             deduplicationKey,
             details,
             timeProvider.GetUtcNow());
+        var notificationEventId = Guid.CreateVersion7();
         dbContext.OperationalAlerts.Add(new OperationalAlertEntity
         {
             Id = alert.Id,
@@ -172,11 +187,12 @@ internal sealed class PostgreSqlOperationalAlertPublisher(FoundationDbContext db
             Severity = "critical",
             DeduplicationKey = alert.DeduplicationKey,
             Details = alert.Details,
-            OccurredAt = alert.OccurredAt
+            OccurredAt = alert.OccurredAt,
+            NotificationEventId = notificationEventId
         });
         dbContext.OutboxMessages.Add(new OutboxMessageEntity
         {
-            Id = Guid.CreateVersion7(),
+            Id = notificationEventId,
             EventType = "ops.alert.raised",
             Payload = JsonSerializer.Serialize(new { alert.Id, alert.Kind, alert.DeduplicationKey }),
             OccurredAt = alert.OccurredAt,
@@ -198,6 +214,51 @@ internal sealed class PostgreSqlOperationalAlertPublisher(FoundationDbContext db
             throw new ArgumentException("Alert details must be valid JSON.", nameof(details), exception);
         }
     }
+}
+
+internal sealed class PostgreSqlOperationalAlertDeliveryStore(FoundationDbContext dbContext) : IOperationalAlertDeliveryStore
+{
+    public async Task<OperationalAlertDelivery?> FindAsync(Guid alertId,
+        CancellationToken cancellationToken = default)
+    {
+        var alert = await dbContext.OperationalAlerts.AsNoTracking()
+            .SingleOrDefaultAsync(value => value.Id == alertId, cancellationToken);
+        if (alert is null) return null;
+        var deadLettered = alert.NotificationEventId is not null &&
+            await dbContext.OutboxMessages.AsNoTracking().AnyAsync(value =>
+                value.Id == alert.NotificationEventId && value.DeadLetteredAt != null, cancellationToken);
+        return ToDelivery(alert, deadLettered);
+    }
+
+    public async Task<bool> MarkNotifiedAsync(Guid alertId, DateTimeOffset notifiedAt,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.OperationalAlerts
+            .Where(value => value.Id == alertId && value.NotifiedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.NotifiedAt, notifiedAt),
+                cancellationToken) == 1;
+
+    public async Task<IReadOnlyList<OperationalAlertDelivery>> ListAsync(int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(limit));
+        var alerts = await dbContext.OperationalAlerts.AsNoTracking()
+            .OrderByDescending(value => value.OccurredAt).ThenByDescending(value => value.Id)
+            .Take(limit).ToListAsync(cancellationToken);
+        var eventIds = alerts.Where(value => value.NotificationEventId.HasValue)
+            .Select(value => value.NotificationEventId!.Value).ToArray();
+        var deadLettered = await dbContext.OutboxMessages.AsNoTracking()
+            .Where(value => eventIds.Contains(value.Id) && value.DeadLetteredAt != null)
+            .Select(value => value.Id).ToListAsync(cancellationToken);
+        var deadLetterIds = deadLettered.ToHashSet();
+        return alerts.Select(alert => ToDelivery(alert,
+            alert.NotificationEventId is Guid id && deadLetterIds.Contains(id))).ToArray();
+    }
+
+    private static OperationalAlertDelivery ToDelivery(OperationalAlertEntity alert, bool deadLettered) =>
+        new(alert.Id, alert.Kind, alert.Severity, alert.OccurredAt,
+            alert.NotificationEventId, alert.NotifiedAt, alert.ResolvedAt,
+            alert.NotifiedAt is not null ? "Delivered" : deadLettered ? "DeadLettered" :
+            alert.NotificationEventId is null ? "Unlinked" : "Pending");
 }
 
 internal sealed class PostgreSqlOutboxStore(FoundationDbContext dbContext, TimeProvider timeProvider) : IOutboxStore

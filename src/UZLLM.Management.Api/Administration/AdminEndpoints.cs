@@ -49,6 +49,8 @@ public static class AdminEndpoints
         admin.MapGet("/controls", (IAdminService service, CancellationToken ct) => service.ListControlsAsync(ct));
         admin.MapGet("/work/dead-letters", (int? limit, IOperationalWorkMonitor monitor, CancellationToken ct) =>
             monitor.ListDeadLettersAsync(limit ?? 50, ct));
+        admin.MapGet("/work/alerts", (int? limit, IOperationalAlertDeliveryStore alerts, CancellationToken ct) =>
+            alerts.ListAsync(limit ?? 50, ct));
 
         admin.MapPost("/operators/{accountId:guid}/mfa/reset", async (Guid accountId,
             ResetOperatorMfaRequest request, HttpContext http, IIdentityService identity, CancellationToken ct) =>

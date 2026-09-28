@@ -79,5 +79,9 @@ internal sealed class OperationalAlertEntity
 
     public DateTimeOffset OccurredAt { get; set; }
 
+    public Guid? NotificationEventId { get; set; }
+
+    public DateTimeOffset? NotifiedAt { get; set; }
+
     public DateTimeOffset? ResolvedAt { get; set; }
 }

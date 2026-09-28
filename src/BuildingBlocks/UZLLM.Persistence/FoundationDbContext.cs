@@ -656,8 +656,11 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(alert => alert.DeduplicationKey).HasColumnName("deduplication_key").HasMaxLength(200);
             entity.Property(alert => alert.Details).HasColumnName("details").HasColumnType("jsonb");
             entity.Property(alert => alert.OccurredAt).HasColumnName("occurred_at");
+            entity.Property(alert => alert.NotificationEventId).HasColumnName("notification_event_id");
+            entity.Property(alert => alert.NotifiedAt).HasColumnName("notified_at");
             entity.Property(alert => alert.ResolvedAt).HasColumnName("resolved_at");
             entity.HasIndex(alert => new { alert.Kind, alert.OccurredAt });
+            entity.HasIndex(alert => alert.NotificationEventId).IsUnique();
         });
     }
 }

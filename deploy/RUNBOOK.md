@@ -77,6 +77,10 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   STARTTLS and refuses startup without sender configuration. Verify real SMTP
   delivery, SPF/DKIM/DMARC and mailbox placement before customer launch.
   Passwords and one-time tokens must never appear in logs or traces.
+- Set `UZLLM_OPERATIONS_ALERT_EMAIL` to an owned on-call mailbox before starting
+  Worker. Trigger a test operational alert in staging and verify mailbox receipt,
+  routing, human acknowledgement and escalation coverage; a configured address
+  alone does not prove the operational launch gate.
 
 The Payme/CLICK production merchant IDs, keys, callback IP policy, and
 merchant-account verification remain external launch prerequisites. Do not
@@ -88,14 +92,20 @@ uses the same token and deterministic Message-ID. After token expiry Worker
 skips delivery and marks the event complete; inspect dead-letter/outbox backlog
 for persistent transport failures.
 
-For Worker failures, inspect `GET /management/v1/admin/work/dead-letters?limit=50`
-with a recently MFA-verified operator session. The response contains only work
+For operational incidents, inspect `GET /management/v1/admin/work/alerts?limit=50`
+with a recently MFA-verified operator session. It shows alert identity, kind,
+severity and delivery state without details. `Pending` means not yet confirmed
+sent; `DeadLettered` requires immediate manual escalation. Correlate its
+`notificationEventId` with `GET /management/v1/admin/work/dead-letters?limit=50`.
+The dead-letter response contains only work
 identity, type, attempts, terminal time and sanitized failure kind—not payloads.
 Claims stop at `maxAttempts`; a final-attempt crash is marked `LeaseExpired` on
 the next poll. Investigate the associated domain state and external provider
 receipt before any replay: a remote send may have succeeded before the Worker
 crashed. Do not blindly reset `attempt_count` or clear `dead_lettered_at` in
-PostgreSQL. Escalation and delivery for these cases are added by `OPS-004`.
+PostgreSQL. Operator alerts are sent to the configured mailbox with a stable
+Message-ID. The inbox prevents a second send on normal replay, but SMTP cannot
+guarantee exactly once after remote acceptance followed by Worker crash.
 
 ## Release sequence
 
