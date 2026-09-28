@@ -22,6 +22,15 @@ public sealed record LeasedJob(
     int AttemptCount,
     int MaxAttempts);
 
+public sealed record DeadLetteredWork(Guid Id, string Kind, string WorkType,
+    int AttemptCount, int MaxAttempts, DateTimeOffset DeadLetteredAt, string? LastError);
+
+public interface IOperationalWorkMonitor
+{
+    Task<IReadOnlyList<DeadLetteredWork>> ListDeadLettersAsync(int limit = 50,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IOutboxStore
 {
     Task<Guid> EnqueueAsync(
@@ -36,11 +45,16 @@ public interface IOutboxStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken = default);
 
-    Task<bool> MarkProcessedAsync(Guid eventId, string workerId, CancellationToken cancellationToken = default);
+    Task<bool> RenewLeaseAsync(Guid eventId, string workerId, int attemptCount,
+        TimeSpan leaseDuration, CancellationToken cancellationToken = default);
+
+    Task<bool> MarkProcessedAsync(Guid eventId, string workerId, int attemptCount,
+        CancellationToken cancellationToken = default);
 
     Task<bool> MarkFailedAsync(
         Guid eventId,
         string workerId,
+        int attemptCount,
         TimeSpan retryDelay,
         string failureKind,
         CancellationToken cancellationToken = default);
@@ -76,11 +90,16 @@ public interface ILeasedJobStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken = default);
 
-    Task<bool> MarkCompletedAsync(Guid jobId, string workerId, CancellationToken cancellationToken = default);
+    Task<bool> RenewLeaseAsync(Guid jobId, string workerId, int attemptCount,
+        TimeSpan leaseDuration, CancellationToken cancellationToken = default);
+
+    Task<bool> MarkCompletedAsync(Guid jobId, string workerId, int attemptCount,
+        CancellationToken cancellationToken = default);
 
     Task<bool> MarkFailedAsync(
         Guid jobId,
         string workerId,
+        int attemptCount,
         TimeSpan retryDelay,
         string failureKind,
         CancellationToken cancellationToken = default);
@@ -215,12 +234,14 @@ internal sealed class PostgreSqlOutboxStore(FoundationDbContext dbContext, TimeP
         ValidateClaim(workerId, maxCount, leaseDuration);
         var now = timeProvider.GetUtcNow();
         var leaseExpiresAt = now.Add(leaseDuration);
+        await DeadLetterExpiredExhaustedAsync("outbox", "processed_at", now, cancellationToken);
         const string sql = """
             WITH candidates AS (
                 SELECT id
                 FROM ops.outbox
                 WHERE processed_at IS NULL
                   AND dead_lettered_at IS NULL
+                  AND attempt_count < max_attempts
                   AND available_at <= @now
                   AND (lease_expires_at IS NULL OR lease_expires_at <= @now)
                 ORDER BY occurred_at, id
@@ -255,21 +276,28 @@ internal sealed class PostgreSqlOutboxStore(FoundationDbContext dbContext, TimeP
             cancellationToken);
     }
 
-    public Task<bool> MarkProcessedAsync(Guid eventId, string workerId, CancellationToken cancellationToken = default) =>
-        ExecuteLeaseCompletionAsync("outbox", eventId, workerId, null, null, cancellationToken);
+    public Task<bool> RenewLeaseAsync(Guid eventId, string workerId, int attemptCount,
+        TimeSpan leaseDuration, CancellationToken cancellationToken = default) =>
+        RenewLeaseCoreAsync("outbox", "processed_at", eventId, workerId, attemptCount, leaseDuration, cancellationToken);
+
+    public Task<bool> MarkProcessedAsync(Guid eventId, string workerId, int attemptCount,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLeaseCompletionAsync("outbox", eventId, workerId, attemptCount, null, null, cancellationToken);
 
     public Task<bool> MarkFailedAsync(
         Guid eventId,
         string workerId,
+        int attemptCount,
         TimeSpan retryDelay,
         string failureKind,
         CancellationToken cancellationToken = default) =>
-        ExecuteLeaseCompletionAsync("outbox", eventId, workerId, retryDelay, failureKind, cancellationToken);
+        ExecuteLeaseCompletionAsync("outbox", eventId, workerId, attemptCount, retryDelay, failureKind, cancellationToken);
 
     private async Task<bool> ExecuteLeaseCompletionAsync(
         string table,
         Guid id,
         string workerId,
+        int attemptCount,
         TimeSpan? retryDelay,
         string? failureKind,
         CancellationToken cancellationToken)
@@ -277,13 +305,14 @@ internal sealed class PostgreSqlOutboxStore(FoundationDbContext dbContext, TimeP
         ArgumentException.ThrowIfNullOrWhiteSpace(workerId);
         var now = timeProvider.GetUtcNow();
         var sql = retryDelay is null
-            ? $"UPDATE ops.{table} SET processed_at = @now, lease_owner = NULL, lease_expires_at = NULL WHERE id = @id AND lease_owner = @worker_id AND lease_expires_at > @now;"
-            : $"UPDATE ops.{table} SET lease_owner = NULL, lease_expires_at = NULL, available_at = @next_attempt_at, dead_lettered_at = CASE WHEN attempt_count >= max_attempts THEN @now ELSE NULL END, last_error = @last_error WHERE id = @id AND lease_owner = @worker_id AND lease_expires_at > @now;";
+            ? $"UPDATE ops.{table} SET processed_at = @now, lease_owner = NULL, lease_expires_at = NULL WHERE id = @id AND lease_owner = @worker_id AND attempt_count = @attempt_count AND lease_expires_at > @now;"
+            : $"UPDATE ops.{table} SET lease_owner = NULL, lease_expires_at = NULL, available_at = @next_attempt_at, dead_lettered_at = CASE WHEN attempt_count >= max_attempts THEN @now ELSE NULL END, last_error = @last_error WHERE id = @id AND lease_owner = @worker_id AND attempt_count = @attempt_count AND lease_expires_at > @now;";
 
         var parameters = new List<NpgsqlParameter>
         {
             new("id", id),
             new("worker_id", workerId),
+            new("attempt_count", attemptCount),
             new("now", now)
         };
         if (retryDelay is not null)
@@ -294,6 +323,30 @@ internal sealed class PostgreSqlOutboxStore(FoundationDbContext dbContext, TimeP
 
         return await ExecuteNonQueryAsync(sql, parameters, cancellationToken) == 1;
     }
+
+    internal async Task<bool> RenewLeaseCoreAsync(string table, string terminalColumn, Guid id,
+        string workerId, int attemptCount, TimeSpan leaseDuration, CancellationToken cancellationToken)
+    {
+        ValidateClaim(workerId, 1, leaseDuration);
+        var now = timeProvider.GetUtcNow();
+        return await ExecuteNonQueryAsync($"""
+            UPDATE ops.{table} SET lease_expires_at = @expires_at
+            WHERE id = @id AND {terminalColumn} IS NULL AND dead_lettered_at IS NULL
+              AND lease_owner = @worker_id AND attempt_count = @attempt_count
+              AND lease_expires_at > @now;
+            """, [new("id", id), new("worker_id", workerId), new("attempt_count", attemptCount),
+                new("now", now), new("expires_at", now.Add(leaseDuration))], cancellationToken) == 1;
+    }
+
+    internal Task DeadLetterExpiredExhaustedAsync(string table, string terminalColumn,
+        DateTimeOffset now, CancellationToken cancellationToken) => ExecuteNonQueryAsync($"""
+            UPDATE ops.{table}
+            SET dead_lettered_at = @now, lease_owner = NULL, lease_expires_at = NULL,
+                last_error = 'LeaseExpired'
+            WHERE {terminalColumn} IS NULL AND dead_lettered_at IS NULL
+              AND attempt_count >= max_attempts
+              AND (lease_expires_at IS NULL OR lease_expires_at <= @now);
+            """, [new("now", now)], cancellationToken);
 
     private async Task<IReadOnlyList<T>> ExecuteQueryAsync<T>(
         string sql,
@@ -492,12 +545,19 @@ internal sealed class PostgreSqlLeasedJobStore(FoundationDbContext dbContext, Ti
         PostgreSqlOutboxStore.ValidateClaim(workerId, maxCount, leaseDuration);
         var now = timeProvider.GetUtcNow();
         var leaseExpiresAt = now.Add(leaseDuration);
+        await dbContext.Database.ExecuteSqlRawAsync("""
+            UPDATE ops.job SET dead_lettered_at = {0}, lease_owner = NULL, lease_expires_at = NULL,
+                last_error = 'LeaseExpired'
+            WHERE completed_at IS NULL AND dead_lettered_at IS NULL AND attempt_count >= max_attempts
+              AND (lease_expires_at IS NULL OR lease_expires_at <= {0});
+            """, [now], cancellationToken);
         const string sql = """
             WITH candidates AS (
                 SELECT id
                 FROM ops.job
                 WHERE completed_at IS NULL
                   AND dead_lettered_at IS NULL
+                  AND attempt_count < max_attempts
                   AND available_at <= @now
                   AND (lease_expires_at IS NULL OR lease_expires_at <= @now)
                 ORDER BY available_at, id
@@ -559,20 +619,35 @@ internal sealed class PostgreSqlLeasedJobStore(FoundationDbContext dbContext, Ti
         }
     }
 
-    public Task<bool> MarkCompletedAsync(Guid jobId, string workerId, CancellationToken cancellationToken = default) =>
-        CompleteLeaseAsync(jobId, workerId, null, null, cancellationToken);
+    public async Task<bool> RenewLeaseAsync(Guid jobId, string workerId, int attemptCount,
+        TimeSpan leaseDuration, CancellationToken cancellationToken = default)
+    {
+        PostgreSqlOutboxStore.ValidateClaim(workerId, 1, leaseDuration);
+        var now = timeProvider.GetUtcNow();
+        return await dbContext.Database.ExecuteSqlRawAsync("""
+            UPDATE ops.job SET lease_expires_at = {0}
+            WHERE id = {1} AND completed_at IS NULL AND dead_lettered_at IS NULL
+              AND lease_owner = {2} AND attempt_count = {3} AND lease_expires_at > {4};
+            """, [now.Add(leaseDuration), jobId, workerId, attemptCount, now], cancellationToken) == 1;
+    }
+
+    public Task<bool> MarkCompletedAsync(Guid jobId, string workerId, int attemptCount,
+        CancellationToken cancellationToken = default) =>
+        CompleteLeaseAsync(jobId, workerId, attemptCount, null, null, cancellationToken);
 
     public Task<bool> MarkFailedAsync(
         Guid jobId,
         string workerId,
+        int attemptCount,
         TimeSpan retryDelay,
         string failureKind,
         CancellationToken cancellationToken = default) =>
-        CompleteLeaseAsync(jobId, workerId, retryDelay, failureKind, cancellationToken);
+        CompleteLeaseAsync(jobId, workerId, attemptCount, retryDelay, failureKind, cancellationToken);
 
     private async Task<bool> CompleteLeaseAsync(
         Guid jobId,
         string workerId,
+        int attemptCount,
         TimeSpan? retryDelay,
         string? failureKind,
         CancellationToken cancellationToken)
@@ -580,12 +655,13 @@ internal sealed class PostgreSqlLeasedJobStore(FoundationDbContext dbContext, Ti
         ArgumentException.ThrowIfNullOrWhiteSpace(workerId);
         var now = timeProvider.GetUtcNow();
         var sql = retryDelay is null
-            ? "UPDATE ops.job SET completed_at = @now, lease_owner = NULL, lease_expires_at = NULL WHERE id = @id AND lease_owner = @worker_id AND lease_expires_at > @now;"
-            : "UPDATE ops.job SET lease_owner = NULL, lease_expires_at = NULL, available_at = @next_attempt_at, dead_lettered_at = CASE WHEN attempt_count >= max_attempts THEN @now ELSE NULL END, last_error = @last_error WHERE id = @id AND lease_owner = @worker_id AND lease_expires_at > @now;";
+            ? "UPDATE ops.job SET completed_at = @now, lease_owner = NULL, lease_expires_at = NULL WHERE id = @id AND lease_owner = @worker_id AND attempt_count = @attempt_count AND lease_expires_at > @now;"
+            : "UPDATE ops.job SET lease_owner = NULL, lease_expires_at = NULL, available_at = @next_attempt_at, dead_lettered_at = CASE WHEN attempt_count >= max_attempts THEN @now ELSE NULL END, last_error = @last_error WHERE id = @id AND lease_owner = @worker_id AND attempt_count = @attempt_count AND lease_expires_at > @now;";
         var parameters = new List<NpgsqlParameter>
         {
             new("id", jobId),
             new("worker_id", workerId),
+            new("attempt_count", attemptCount),
             new("now", now)
         };
         if (retryDelay is not null)
@@ -619,5 +695,30 @@ internal sealed class PostgreSqlLeasedJobStore(FoundationDbContext dbContext, Ti
                 await connection.CloseAsync();
             }
         }
+    }
+}
+
+internal sealed class PostgreSqlOperationalWorkMonitor(FoundationDbContext dbContext) : IOperationalWorkMonitor
+{
+    public async Task<IReadOnlyList<DeadLetteredWork>> ListDeadLettersAsync(int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(limit));
+        var outbox = await dbContext.OutboxMessages.AsNoTracking()
+            .Where(message => message.DeadLetteredAt != null)
+            .OrderByDescending(message => message.DeadLetteredAt)
+            .Take(limit)
+            .Select(message => new DeadLetteredWork(message.Id, "Outbox", message.EventType,
+                message.AttemptCount, message.MaxAttempts, message.DeadLetteredAt!.Value, message.LastError))
+            .ToListAsync(cancellationToken);
+        var jobs = await dbContext.LeasedJobs.AsNoTracking()
+            .Where(job => job.DeadLetteredAt != null)
+            .OrderByDescending(job => job.DeadLetteredAt)
+            .Take(limit)
+            .Select(job => new DeadLetteredWork(job.Id, "Job", job.JobType,
+                job.AttemptCount, job.MaxAttempts, job.DeadLetteredAt!.Value, job.LastError))
+            .ToListAsync(cancellationToken);
+        return outbox.Concat(jobs).OrderByDescending(item => item.DeadLetteredAt)
+            .ThenBy(item => item.Id).Take(limit).ToArray();
     }
 }

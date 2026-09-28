@@ -281,6 +281,18 @@ accounting.
 
 ## 12. Database failure behavior
 
+Worker outbox and jobs are claimed one item per dispatch, with a unique lease
+owner and a PostgreSQL heartbeat from a separate scope while a handler runs.
+Renewal, completion, and failure updates are fenced by owner, attempt number,
+and unexpired lease. A lost lease cancels cooperative work; it must not record
+success from the stale owner. An expired final attempt is dead-lettered on the
+next poll, even if the Worker crashed before recording failure. Claims stop at
+`maxAttempts`; retry exhaustion and handler failures remain visible to a
+recently MFA-verified operator through the metadata-only dead-letter API.
+External sends remain at-least-once: handlers must use inbox/domain
+idempotency, and a remote send accepted immediately before a crash may be
+repeated when the remote service offers no idempotency key.
+
 New managed-credit inference should normally fail closed if financial reservation cannot be guaranteed.
 
 Returning `503` is safer than unmetered spend.

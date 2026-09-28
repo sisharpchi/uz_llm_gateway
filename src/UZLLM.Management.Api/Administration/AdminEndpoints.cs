@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
+using UZLLM.Persistence;
 
 namespace UZLLM.Management.Api.Administration;
 
@@ -46,6 +47,8 @@ public static class AdminEndpoints
             service.ListPaymentsAsync(organizationId, limit ?? 50, ct));
         admin.MapGet("/audit", (int? limit, IAdminService service, CancellationToken ct) => service.ListAuditAsync(limit ?? 50, ct));
         admin.MapGet("/controls", (IAdminService service, CancellationToken ct) => service.ListControlsAsync(ct));
+        admin.MapGet("/work/dead-letters", (int? limit, IOperationalWorkMonitor monitor, CancellationToken ct) =>
+            monitor.ListDeadLettersAsync(limit ?? 50, ct));
 
         admin.MapPost("/operators/{accountId:guid}/mfa/reset", async (Guid accountId,
             ResetOperatorMfaRequest request, HttpContext http, IIdentityService identity, CancellationToken ct) =>

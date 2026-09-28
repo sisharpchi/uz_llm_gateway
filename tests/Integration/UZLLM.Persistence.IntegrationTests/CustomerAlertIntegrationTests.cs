@@ -288,10 +288,10 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
         Assert.Empty(sender.Messages);
         await handler.HandleAsync(messages[0], default);
         await handler.HandleAsync(messages[0], default);
-        Assert.True(await outbox.MarkProcessedAsync(messages[0].Id, "alert-test"));
+        Assert.True(await outbox.MarkProcessedAsync(messages[0].Id, "alert-test", messages[0].AttemptCount));
         Assert.Single(sender.Messages);
         await handler.HandleAsync(messages[1], default);
-        Assert.True(await outbox.MarkProcessedAsync(messages[1].Id, "alert-test"));
+        Assert.True(await outbox.MarkProcessedAsync(messages[1].Id, "alert-test", messages[1].AttemptCount));
         Assert.Equal(2, sender.Messages.Count);
         Assert.All(await db.CustomerAlertEvents.ToArrayAsync(), value => Assert.Equal("Delivered", value.Status));
         Assert.True(await service.SetRuleEnabledAsync(owner, org.Id, rule.Id, false));

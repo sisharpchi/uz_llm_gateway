@@ -110,6 +110,23 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 operatorSession, providerRequest, true)))
                 Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
+            var outbox = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+            var deadLetterId = await outbox.EnqueueAsync("test.dead-letter", "{\"secret\":\"do-not-return\"}", 1);
+            var claimed = Assert.Single(await outbox.ClaimAvailableAsync("admin-dead-letter-test", 50,
+                TimeSpan.FromMinutes(1)), item => item.Id == deadLetterId);
+            Assert.True(await outbox.MarkFailedAsync(deadLetterId, "admin-dead-letter-test",
+                claimed.AttemptCount, TimeSpan.Zero, "PermanentFailure"));
+            using (var denied = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/work/dead-letters", customerSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+            using (var visible = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/work/dead-letters", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, visible.StatusCode);
+                var body = await visible.Content.ReadAsStringAsync();
+                Assert.Contains(deadLetterId.ToString(), body);
+                Assert.Contains("PermanentFailure", body);
+                Assert.DoesNotContain("do-not-return", body);
+            }
+
             var secondOperator = await identity.RegisterAsync("admin-second-operator@example.uz", "correct horse battery staple");
             Assert.True(await identity.VerifyEmailAsync(secondOperator.VerificationToken));
             await identity.GrantOperatorAccessAsync(secondOperator.AccountId);

@@ -607,6 +607,9 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(message => message.DeadLetteredAt).HasColumnName("dead_lettered_at");
             entity.Property(message => message.LastError).HasColumnName("last_error").HasMaxLength(500);
             entity.HasIndex(message => new { message.ProcessedAt, message.AvailableAt, message.LeaseExpiresAt });
+            entity.HasIndex(message => message.LeaseExpiresAt)
+                .HasDatabaseName("ix_outbox_exhausted_lease")
+                .HasFilter("processed_at IS NULL AND dead_lettered_at IS NULL AND attempt_count >= max_attempts");
         });
 
         modelBuilder.Entity<ConsumerInboxEntryEntity>(entity =>
@@ -637,6 +640,9 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(job => job.DeadLetteredAt).HasColumnName("dead_lettered_at");
             entity.Property(job => job.LastError).HasColumnName("last_error").HasMaxLength(500);
             entity.HasIndex(job => new { job.CompletedAt, job.AvailableAt, job.LeaseExpiresAt });
+            entity.HasIndex(job => job.LeaseExpiresAt)
+                .HasDatabaseName("ix_job_exhausted_lease")
+                .HasFilter("completed_at IS NULL AND dead_lettered_at IS NULL AND attempt_count >= max_attempts");
             entity.HasIndex(job => new { job.JobType, job.DeduplicationKey }).IsUnique();
         });
 

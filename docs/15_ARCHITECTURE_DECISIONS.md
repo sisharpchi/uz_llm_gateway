@@ -231,7 +231,7 @@ UI supports Uzbek/Russian/English through i18n.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** OPS-001 infrastructure baseline implemented
+**Implementation status:** OPS-001 infrastructure baseline and OPS-003 lease/retry hardening implemented; OPS-004 alert delivery remains
 
 Examples:
 - payment completed;

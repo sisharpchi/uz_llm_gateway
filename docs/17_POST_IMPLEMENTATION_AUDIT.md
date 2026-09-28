@@ -23,7 +23,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | Historical task(s) | Documented as | Actual repository state | Gap / follow-up |
 |---|---|---|---|
 | FOUNDATION-001–003 | Completed | Buildable .NET 10 solution, three hosts, migrator, Compose, CI, PostgreSQL/Redis baseline. | None invalidating completion; module isolation is structural rather than independently deployable (`ARCH-001`). |
-| OPS-001, OPS-002 | Completed | Health, OpenTelemetry baseline, outbox/jobs, runbooks and local drill exist. | Custom gateway/business instruments are not emitted; alert events lack consumer; Worker leases/retries need hardening. `OPS-003–007`. |
+| OPS-001, OPS-002 | Completed | Health, OpenTelemetry baseline, outbox/jobs, runbooks and local drill exist. | Worker lease/retry and dead-letter visibility addressed by `OPS-003`; custom gateway/business instruments and alert consumer remain `OPS-004–007`. |
 | IDENTITY-001, ORGS-001, TEAM-001, AUDIT-001 | Completed | Accounts/sessions, organizations, membership, projects, audit and invitations exist. | Abuse throttling addressed by `SECURITY-002`; denial/cache behavior by `SECURITY-003`; MFA proof/replay and audited operator reset by `SECURITY-004`. Customer verification/recovery UX still needs `FRONTEND-004`. |
 | BILLING-001–002, BUDGET-001, LIMITS-001 | Completed | Conditional wallet update, append-only ledger, holds, terminal settlement, debt and caps are implemented. | Recovery operations, settlement exposure alerts, operator fee/FX publishing and refund flow remain. `BILLING-003`, `ADMIN-002`, `REFUND-001`. |
 | APIKEYS-001, APIKEYS-003 | Completed | Hashed show-once keys, revocation/rotation and key budgets exist. | New-key response cache policy addressed by `SECURITY-003`; fingerprint-key rotation still needs `SECURITY-005`. |
@@ -59,9 +59,10 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 4. `OperationalWork` enqueues `ops.alert.raised` (and
    `billing.late_external_spend.recorded`), but
    `src/UZLLM.Worker/Program.cs` has no matching consumer. Worker dispatch is
-   sequential with a one-minute lease; a slow callback can outlive it, and
-   the claim query does not stop at the retry ceiling. Delivery and
-   dead-letter handling need evidence.
+   previously processed a preclaimed batch sequentially with a one-minute
+   lease and could reclaim beyond the retry ceiling. `OPS-003` narrows claims
+   to one item, renews active leases, fences updates, and exposes terminal
+   metadata; `OPS-004` still owns alert consumption and escalation.
 5. `RedisProviderHealthService` keys health by mapping ID. A BYOK tenant's
    credential-specific 429/failure can therefore suppress a healthy managed
    or other-tenant route. Scope health by failure domain and test isolation.

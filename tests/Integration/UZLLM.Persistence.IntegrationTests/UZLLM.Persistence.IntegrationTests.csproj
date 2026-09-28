@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\..\src\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
     <ProjectReference Include="..\..\..\src\UZLLM.Gateway.Api\UZLLM.Gateway.Api.csproj" />
     <ProjectReference Include="..\..\..\src\UZLLM.Management.Api\UZLLM.Management.Api.csproj" />
+    <ProjectReference Include="..\..\..\src\UZLLM.Worker\UZLLM.Worker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -148,8 +148,8 @@ public sealed class PersistenceIntegrationTests(PersistenceIntegrationFixture fi
             ? (workerTwoStore, "worker-two")
             : (workerOneStore, "worker-one");
 
-        Assert.True(await winningWorker.Store.MarkProcessedAsync(eventId, winningWorker.Worker));
-        Assert.False(await losingWorker.Store.MarkProcessedAsync(eventId, losingWorker.Worker));
+        Assert.True(await winningWorker.Store.MarkProcessedAsync(eventId, winningWorker.Worker, claimed.AttemptCount));
+        Assert.False(await losingWorker.Store.MarkProcessedAsync(eventId, losingWorker.Worker, claimed.AttemptCount));
     }
 
     [Fact]
@@ -190,7 +190,8 @@ public sealed class PersistenceIntegrationTests(PersistenceIntegrationFixture fi
         var eventId = await firstStore.EnqueueAsync("payment.completed", "{}");
         var firstLease = Assert.Single(await firstStore.ClaimAvailableAsync("worker-one", 1, TimeSpan.FromMinutes(1)));
 
-        Assert.True(await firstStore.MarkFailedAsync(eventId, "worker-one", TimeSpan.Zero, "TransientFailure"));
+        Assert.True(await firstStore.MarkFailedAsync(eventId, "worker-one", firstLease.AttemptCount,
+            TimeSpan.Zero, "TransientFailure"));
 
         await using var secondProvider = fixture.CreateServiceProvider();
         await using var secondScope = secondProvider.CreateAsyncScope();
@@ -214,7 +215,7 @@ public sealed class PersistenceIntegrationTests(PersistenceIntegrationFixture fi
         var lease = Assert.Single(await store.ClaimAvailableAsync("worker-one", 1, TimeSpan.FromMinutes(1)));
 
         Assert.Equal(jobId, lease.Id);
-        Assert.True(await store.MarkCompletedAsync(jobId, "worker-one"));
+        Assert.True(await store.MarkCompletedAsync(jobId, "worker-one", lease.AttemptCount));
         Assert.Empty(await store.ClaimAvailableAsync("worker-two", 1, TimeSpan.FromMinutes(1)));
     }
 

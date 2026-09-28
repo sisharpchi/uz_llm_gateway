@@ -504,6 +504,7 @@ GET   /organizations/{id}/ledger?limit=50
 GET   /payments?organizationId=<optional>&limit=50
 GET   /audit?limit=50
 GET   /controls
+GET   /work/dead-letters?limit=50
 POST  /providers | /models | /mappings | /credentials | /prices
 PATCH /providers/{id} | /models/{id} | /mappings/{id}
 PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
@@ -515,6 +516,11 @@ and `{ "reason": "8–500 characters" }`. It clears the target's TOTP state and
 revokes all target sessions in the same transaction as an audit entry. Success
 returns `204`; inactive/unconfigured targets return `404`; self-reset or stale
 operator proof returns `403`. Re-enrollment requires the target's password.
+
+`work/dead-letters` is operator-only and returns at most 100 newest terminal
+outbox/job records with `id`, `kind`, `workType`, `attemptCount`, `maxAttempts`,
+`deadLetteredAt`, and sanitized `lastError`. It never returns work payloads or
+secrets. A limit outside 1–100 returns `400`.
 
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the

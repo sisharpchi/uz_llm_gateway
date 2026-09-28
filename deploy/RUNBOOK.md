@@ -88,6 +88,15 @@ uses the same token and deterministic Message-ID. After token expiry Worker
 skips delivery and marks the event complete; inspect dead-letter/outbox backlog
 for persistent transport failures.
 
+For Worker failures, inspect `GET /management/v1/admin/work/dead-letters?limit=50`
+with a recently MFA-verified operator session. The response contains only work
+identity, type, attempts, terminal time and sanitized failure kind—not payloads.
+Claims stop at `maxAttempts`; a final-attempt crash is marked `LeaseExpired` on
+the next poll. Investigate the associated domain state and external provider
+receipt before any replay: a remote send may have succeeded before the Worker
+crashed. Do not blindly reset `attempt_count` or clear `dead_lettered_at` in
+PostgreSQL. Escalation and delivery for these cases are added by `OPS-004`.
+
 ## Release sequence
 
 1. Pin image digests and run CI gates: restore/build/all tests, frontend build,

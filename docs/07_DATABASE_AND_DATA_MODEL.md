@@ -400,6 +400,14 @@ Add `usage.attempt`, `usage.evidence`, `billing.settlement`,
 and `ops.job`. A request has ordered attempts; evidence is append-only; a
 reservation has at most one settlement.
 
+`ops.outbox` and `ops.job` use `lease_owner`, `lease_expires_at`, and
+`attempt_count` as a fenced claim identity. Renew/complete/fail updates require
+the same owner and attempt before lease expiry. Claims require
+`attempt_count < max_attempts`; an expired final attempt transitions to
+`dead_lettered_at` rather than being reclaimed indefinitely. Partial indexes
+on exhausted active leases keep that sweep bounded. `ops.consumer_inbox`
+deduplicates committed consumer effects independently of lease retries.
+
 Use composite tenant foreign keys where a row contains organization, project,
 or key identifiers. Require unique operation identities for payment credit,
 reversal, reservation, settlement, and `(consumer, event_id)`. Require

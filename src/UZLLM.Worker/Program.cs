@@ -54,6 +54,7 @@ builder.Services.AddScoped<IOutboxHandler>(services => new BillingFinancialAlert
 builder.Services.AddUzllmObservability(builder.Configuration, "UZLLM.Worker");
 builder.Services.AddScoped<OutboxDispatchCycle>();
 builder.Services.AddScoped<LeasedJobDispatchCycle>();
+builder.Services.AddSingleton<IOperationalLeaseRenewer, ScopedOperationalLeaseRenewer>();
 builder.Services.AddHostedService<OutboxDispatchWorker>();
 builder.Services.AddHostedService<LeasedJobDispatchWorker>();
 builder.Services.AddHostedService<ExpiredPayloadDeletionWorker>();
