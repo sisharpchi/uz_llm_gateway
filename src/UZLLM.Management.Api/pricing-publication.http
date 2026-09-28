@@ -1,0 +1,41 @@
+@base = http://localhost:5063
+@session = replace-with-recent-mfa-operator-session
+@csrf = replace-with-session-csrf
+@feeEffectiveFrom = replace-with-future-UTC-iso-time
+@fxObservedAt = replace-with-current-UTC-iso-time
+
+### Publish a future-effective managed inference fee (not the top-up processing fee).
+POST {{base}}/management/v1/admin/fee-policies
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "policyCode": "default",
+  "markupBasisPoints": 500,
+  "fixedFeeMicroUsd": "0",
+  "effectiveFrom": "{{feeEffectiveFrom}}",
+  "effectiveTo": null,
+  "reason": "Finance-approved inference tariff"
+}
+
+### Inspect immutable fee values and effective windows.
+GET {{base}}/management/v1/admin/fee-policies/default
+Cookie: __Host-uzllm-session={{session}}
+
+### Publish the next controlled FX rate for UZS top-up quotes.
+POST {{base}}/management/v1/admin/fx-rates
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "source": "finance-approved-cbu",
+  "uzsTiyinPerUsd": "1250000.25",
+  "observedAt": "{{fxObservedAt}}",
+  "reason": "Daily FX approval reference FIN-123"
+}
+
+### Inspect FX publication history.
+GET {{base}}/management/v1/admin/fx-rates?limit=50
+Cookie: __Host-uzllm-session={{session}}

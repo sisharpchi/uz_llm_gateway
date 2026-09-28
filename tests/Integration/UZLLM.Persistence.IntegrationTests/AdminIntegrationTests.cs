@@ -13,6 +13,8 @@ using UZLLM.Management.Api.Administration;
 using UZLLM.Management.Api;
 using UZLLM.Modules.Audit.Application;
 using UZLLM.Modules.Audit.Infrastructure;
+using UZLLM.Modules.Billing.Application;
+using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Catalog.Application;
 using UZLLM.Modules.Catalog.Infrastructure;
 using UZLLM.Modules.Providers.Application;
@@ -47,6 +49,7 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
         builder.Services.AddUzllmPersistence(builder.Configuration);
         builder.Services.AddUzllmIdentity();
         builder.Services.AddUzllmAudit();
+        builder.Services.AddUzllmBilling();
         builder.Services.AddUzllmCatalog();
         builder.Services.AddUzllmProviders(builder.Configuration);
         builder.Services.AddUzllmPayments(builder.Configuration);
@@ -119,6 +122,62 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Contains("dataAsOf", body);
                 Assert.DoesNotContain("do-not-return", body);
             }
+            var feeAt = clock.GetUtcNow().AddHours(1);
+            feeAt = feeAt.AddTicks(-(feeAt.Ticks % TimeSpan.TicksPerSecond));
+            var feeRequest = new PublishAdminFeePolicyRequest("default", 200, "17",
+                feeAt, null, "approved finance policy");
+            using (var denied = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/fee-policies", customerSession, feeRequest, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+            using (var noCsrf = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/fee-policies", operatorSession, feeRequest)))
+                Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+            Guid firstFeeId;
+            using (var published = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/fee-policies", operatorSession, feeRequest, true)))
+            {
+                Assert.Equal(HttpStatusCode.Created, published.StatusCode);
+                firstFeeId = (await published.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            }
+            using (var overlap = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/fee-policies", operatorSession, feeRequest, true)))
+                Assert.Equal(HttpStatusCode.Conflict, overlap.StatusCode);
+            using (var next = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/fee-policies", operatorSession,
+                feeRequest with { MarkupBasisPoints = 300, EffectiveFrom = feeAt.AddHours(1) }, true)))
+                Assert.Equal(HttpStatusCode.Created, next.StatusCode);
+            using (var versions = await client.SendAsync(Request(HttpMethod.Get,
+                "/management/v1/admin/fee-policies/default", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, versions.StatusCode);
+                var values = (await versions.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().ToArray();
+                Assert.Equal(2, values.Length);
+                Assert.Equal(feeAt.AddHours(1), values[1].GetProperty("effectiveTo").GetDateTimeOffset());
+                Assert.Equal("17", values[1].GetProperty("fixedFeeMicroUsd").GetString());
+            }
+            var fxRequest = new PublishAdminFxRateRequest("approved-cbu", "1250000.25",
+                clock.GetUtcNow().AddSeconds(-1), "finance daily rate approved");
+            using (var published = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/fx-rates", operatorSession, fxRequest, true)))
+                Assert.Equal(HttpStatusCode.Created, published.StatusCode);
+            using (var replay = await client.SendAsync(Request(HttpMethod.Post,
+                "/management/v1/admin/fx-rates", operatorSession, fxRequest, true)))
+                Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
+            using (var rates = await client.SendAsync(Request(HttpMethod.Get,
+                "/management/v1/admin/fx-rates", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, rates.StatusCode);
+                Assert.Equal("1250000.25", Assert.Single(
+                    (await rates.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().ToArray())
+                    .GetProperty("uzsTiyinPerUsd").GetString());
+            }
+            var pricingDb = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            Assert.Equal(2, await pricingDb.Set<AuditEventEntity>().CountAsync(value =>
+                value.Action == "fee-policy.published"));
+            Assert.Equal(1, await pricingDb.Set<AuditEventEntity>().CountAsync(value =>
+                value.Action == "fx-rate.published"));
+            Assert.Equal(firstFeeId, (await pricingDb.Set<AuditEventEntity>().SingleAsync(value =>
+                value.Action == "fee-policy.published" && value.ResourceId == firstFeeId)).ResourceId);
             var observationRequest = new
             {
                 provider = "Payme", sourceReference = "payme-report-2026-09-28",
@@ -388,6 +447,7 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             new CatalogService(new PostgreSqlCatalogStore(db), TimeProvider.System),
             new PlatformCredentialService(new PostgreSqlProviderCredentialStore(db),
                 new ProviderEnvelopeSecretProtector(config), TimeProvider.System),
+            new PricingHistoryService(new PostgreSqlPricingHistoryStore(db), TimeProvider.System),
             new PostgreSqlPlatformControlStore(db),
             new AuditTrail(new PostgreSqlAuditEventStore(db), TimeProvider.System),
             services.GetRequiredService<ITransactionCoordinator>(), TimeProvider.System);

@@ -256,7 +256,7 @@ do not make models interchangeable; P0 failover remains same-model only.
 
 **Status:** Accepted  
 **Basis:** User-confirmed choice  
-**Implementation status:** Wallet, FX history and payment-linked snapshots implemented by `BILLING-001`/`PAYMENT-001`; audited operator publication remains `ADMIN-002`
+**Implementation status:** Wallet, FX history and payment-linked snapshots implemented by `BILLING-001`/`PAYMENT-001`; `ADMIN-002` adds audited operator FX and fee publication with database-enforced effective windows
 
 Customers pay UZS and receive USD-denominated credits from a frozen quote and
 payment FX snapshot. Historical values are never recomputed.

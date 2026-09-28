@@ -127,7 +127,15 @@ public interface IPricingHistoryStore
 {
     Task AppendFeePolicyVersionAsync(FeePolicyVersion version, CancellationToken cancellationToken = default);
 
+    Task ScheduleFeePolicyVersionAsync(FeePolicyVersion version, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FeePolicyVersion>> ListFeePolicyVersionsAsync(string policyCode, CancellationToken cancellationToken = default);
+
     Task AppendFxRateSnapshotAsync(FxRateSnapshot snapshot, CancellationToken cancellationToken = default);
+
+    Task PublishFxRateSnapshotAsync(FxRateSnapshot snapshot, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FxRateSnapshot>> ListFxRateSnapshotsAsync(int limit, CancellationToken cancellationToken = default);
 }
 
 public interface IWalletLedgerService
@@ -139,6 +147,19 @@ public interface IWalletLedgerService
 
 public interface IPricingHistoryService
 {
+    Task<FeePolicyVersion> ScheduleFeePolicyVersionAsync(string policyCode, int markupBasisPoints,
+        UsdMicroAmount fixedFee, DateTimeOffset effectiveFrom, DateTimeOffset? effectiveTo,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FeePolicyVersion>> ListFeePolicyVersionsAsync(string policyCode,
+        CancellationToken cancellationToken = default);
+
+    Task<FxRateSnapshot> PublishFxRateSnapshotAsync(string source, decimal uzsTiyinPerUsd,
+        DateTimeOffset observedAt, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FxRateSnapshot>> ListFxRateSnapshotsAsync(int limit,
+        CancellationToken cancellationToken = default);
+
     Task<FeePolicyVersion> AddFeePolicyVersionAsync(
         string policyCode,
         int markupBasisPoints,

@@ -93,6 +93,24 @@ public sealed record CreateAdminPriceRequest(Guid ProviderModelId, DateTimeOffse
     long InputPriceMicroUsdPerMillion, long OutputPriceMicroUsdPerMillion,
     long? CachedInputPriceMicroUsdPerMillion, string Reason);
 
+/// <summary>Publish a future-effective managed or BYOK fee; USD amounts are decimal strings.</summary>
+public sealed record PublishAdminFeePolicyRequest(string PolicyCode, int MarkupBasisPoints,
+    string FixedFeeMicroUsd, DateTimeOffset EffectiveFrom, DateTimeOffset? EffectiveTo,
+    string Reason);
+
+/// <summary>Immutable fee values and the half-open effective window.</summary>
+public sealed record AdminFeePolicyResponse(Guid Id, string PolicyCode, int MarkupBasisPoints,
+    string FixedFeeMicroUsd, DateTimeOffset EffectiveFrom, DateTimeOffset? EffectiveTo,
+    DateTimeOffset CreatedAt);
+
+/// <summary>Publish a controlled UZS-tiyin-per-USD snapshot; effective from ObservedAt.</summary>
+public sealed record PublishAdminFxRateRequest(string Source, string UzsTiyinPerUsd,
+    DateTimeOffset ObservedAt, string Reason);
+
+/// <summary>Append-only FX snapshot; active until the next published observation.</summary>
+public sealed record AdminFxRateResponse(Guid Id, string Source, string UzsTiyinPerUsd,
+    DateTimeOffset ObservedAt);
+
 /// <summary>Change an operational status with a mandatory reason.</summary>
 public sealed record SetAdminStatusRequest(bool Enabled, string Reason);
 
@@ -127,6 +145,10 @@ public interface IAdminService
     Task<Guid> CreateMappingAsync(Guid actorId, CreateAdminMappingRequest request, CancellationToken cancellationToken);
     Task<Guid> CreateCredentialAsync(Guid actorId, CreateAdminCredentialRequest request, CancellationToken cancellationToken);
     Task<Guid> SchedulePriceAsync(Guid actorId, CreateAdminPriceRequest request, CancellationToken cancellationToken);
+    Task<Guid> PublishFeePolicyAsync(Guid actorId, PublishAdminFeePolicyRequest request, CancellationToken cancellationToken);
+    Task<Guid> PublishFxRateAsync(Guid actorId, PublishAdminFxRateRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AdminFeePolicyResponse>> ListFeePoliciesAsync(string policyCode, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AdminFxRateResponse>> ListFxRatesAsync(int limit, CancellationToken cancellationToken);
     Task<bool> SetProviderEnabledAsync(Guid actorId, Guid providerId, SetAdminStatusRequest request, CancellationToken cancellationToken);
     Task<bool> SetModelEnabledAsync(Guid actorId, Guid modelId, SetAdminStatusRequest request, CancellationToken cancellationToken);
     Task<bool> SetMappingEnabledAsync(Guid actorId, Guid mappingId, SetAdminStatusRequest request, CancellationToken cancellationToken);

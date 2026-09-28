@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Globalization;
 using UZLLM.Modules.Audit.Contracts;
+using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Persistence;
@@ -8,6 +10,7 @@ namespace UZLLM.Management.Api.Administration;
 
 public sealed class AdminService(
     IAdminReadStore reads, ICatalogService catalog, IPlatformCredentialService credentials,
+    IPricingHistoryService pricing,
     IPlatformControlStore controls, IAuditTrail audit, ITransactionCoordinator transactions,
     TimeProvider clock) : IAdminService
 {
@@ -29,6 +32,17 @@ public sealed class AdminService(
             value.Feature.ToString(), value.Enabled, value.UpdatedAt)).ToArray();
     public Task<AdminFinancialRiskResponse> GetFinancialRiskAsync(int limit, CancellationToken ct) =>
         reads.GetFinancialRiskAsync(clock.GetUtcNow(), ValidateLimit(limit), ct);
+
+    public async Task<IReadOnlyList<AdminFeePolicyResponse>> ListFeePoliciesAsync(string policyCode, CancellationToken ct) =>
+        (await pricing.ListFeePolicyVersionsAsync(policyCode, ct)).Select(value =>
+            new AdminFeePolicyResponse(value.Id, value.PolicyCode, value.MarkupBasisPoints,
+                value.FixedFee.Value.ToString(CultureInfo.InvariantCulture), value.EffectiveFrom,
+                value.EffectiveTo, value.CreatedAt)).ToArray();
+
+    public async Task<IReadOnlyList<AdminFxRateResponse>> ListFxRatesAsync(int limit, CancellationToken ct) =>
+        (await pricing.ListFxRateSnapshotsAsync(ValidateLimit(limit), ct)).Select(value =>
+            new AdminFxRateResponse(value.Id, value.Source,
+                value.UzsTiyinPerUsd.ToString("G29", CultureInfo.InvariantCulture), value.ObservedAt)).ToArray();
 
     public Task<Guid> CreateProviderAsync(Guid actorId, CreateAdminProviderRequest request, CancellationToken ct) =>
         CreateAsync(actorId, request.Reason, "provider.created", "provider", async () =>
@@ -61,6 +75,27 @@ public sealed class AdminService(
             return (await catalog.AddPriceAsync(request.ProviderModelId, request.EffectiveFrom, null,
                 request.InputPriceMicroUsdPerMillion, request.OutputPriceMicroUsdPerMillion,
                 request.CachedInputPriceMicroUsdPerMillion, null, ct)).Id;
+        }, ct);
+
+    public Task<Guid> PublishFeePolicyAsync(Guid actorId, PublishAdminFeePolicyRequest request, CancellationToken ct) =>
+        CreateAsync(actorId, request.Reason, "fee-policy.published", "fee_policy_version", async () =>
+        {
+            if (!long.TryParse(request.FixedFeeMicroUsd, NumberStyles.None,
+                CultureInfo.InvariantCulture, out var fixedFee))
+                throw new ArgumentException("Fixed fee must be a nonnegative USD micro-unit integer.");
+            return (await pricing.ScheduleFeePolicyVersionAsync(request.PolicyCode,
+                request.MarkupBasisPoints, new UsdMicroAmount(fixedFee), request.EffectiveFrom,
+                request.EffectiveTo, ct)).Id;
+        }, ct);
+
+    public Task<Guid> PublishFxRateAsync(Guid actorId, PublishAdminFxRateRequest request, CancellationToken ct) =>
+        CreateAsync(actorId, request.Reason, "fx-rate.published", "fx_rate_snapshot", async () =>
+        {
+            if (!decimal.TryParse(request.UzsTiyinPerUsd, NumberStyles.AllowDecimalPoint,
+                CultureInfo.InvariantCulture, out var rate))
+                throw new ArgumentException("FX rate must be a positive fixed-precision decimal.");
+            return (await pricing.PublishFxRateSnapshotAsync(request.Source, rate,
+                request.ObservedAt, ct)).Id;
         }, ct);
 
     public Task<bool> SetProviderEnabledAsync(Guid actorId, Guid id, SetAdminStatusRequest request, CancellationToken ct) =>

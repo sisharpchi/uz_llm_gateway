@@ -193,6 +193,26 @@ public sealed class BillingServicesTests
         await Assert.ThrowsAsync<ArgumentException>(() => service.AddFeePolicyVersionAsync("managed", 0, UsdMicroAmount.Zero, at, at));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.CaptureFxRateSnapshotAsync("cbu", 1.123456789m, at));
     }
+
+    [Fact]
+    public async Task Operator_publication_requires_future_fee_window_and_bounded_UTC_FX_time()
+    {
+        var store = new InMemoryPricingHistoryStore();
+        var clock = new FixedBillingTimeProvider();
+        var service = new PricingHistoryService(store, clock);
+        var now = clock.GetUtcNow();
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ScheduleFeePolicyVersionAsync(
+            "default", 100, UsdMicroAmount.Zero, now, null));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.ScheduleFeePolicyVersionAsync(
+            "default", 100, new UsdMicroAmount(-1), now.AddHours(1), null));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.PublishFxRateSnapshotAsync(
+            "cbu", 1_000_000m, now.AddDays(-2)));
+        var fee = await service.ScheduleFeePolicyVersionAsync("default", 100,
+            new UsdMicroAmount(5), now.AddHours(1), null);
+        var fx = await service.PublishFxRateSnapshotAsync("cbu", 1_000_000m, now);
+        Assert.Equal(fee, Assert.Single(await service.ListFeePolicyVersionsAsync("default")));
+        Assert.Equal(fx, Assert.Single(await service.ListFxRateSnapshotsAsync(5)));
+    }
 }
 
 internal sealed class InMemoryWalletLedgerStore(Wallet wallet) : IWalletLedgerStore
@@ -234,6 +254,20 @@ internal sealed class InMemoryPricingHistoryStore : IPricingHistoryStore
         Policies.Add(version);
         return Task.CompletedTask;
     }
+
+    public Task ScheduleFeePolicyVersionAsync(FeePolicyVersion version, CancellationToken cancellationToken = default) =>
+        AppendFeePolicyVersionAsync(version, cancellationToken);
+
+    public Task<IReadOnlyList<FeePolicyVersion>> ListFeePolicyVersionsAsync(string policyCode,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<FeePolicyVersion>>(Policies.Where(value => value.PolicyCode == policyCode).ToArray());
+
+    public Task PublishFxRateSnapshotAsync(FxRateSnapshot snapshot, CancellationToken cancellationToken = default) =>
+        AppendFxRateSnapshotAsync(snapshot, cancellationToken);
+
+    public Task<IReadOnlyList<FxRateSnapshot>> ListFxRateSnapshotsAsync(int limit,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<FxRateSnapshot>>(Snapshots.Take(limit).ToArray());
 
     public Task AppendFxRateSnapshotAsync(FxRateSnapshot snapshot, CancellationToken cancellationToken = default)
     {

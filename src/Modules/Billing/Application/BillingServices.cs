@@ -89,6 +89,39 @@ public sealed class WalletLedgerService(
 
 public sealed class PricingHistoryService(IPricingHistoryStore store, TimeProvider timeProvider) : IPricingHistoryService
 {
+    public async Task<FeePolicyVersion> ScheduleFeePolicyVersionAsync(string policyCode,
+        int markupBasisPoints, UsdMicroAmount fixedFee, DateTimeOffset effectiveFrom,
+        DateTimeOffset? effectiveTo, CancellationToken cancellationToken = default)
+    {
+        if (effectiveFrom.Offset != TimeSpan.Zero || effectiveFrom <= timeProvider.GetUtcNow()
+            || effectiveTo is { } end && (end.Offset != TimeSpan.Zero || end <= effectiveFrom))
+            throw new ArgumentException("Fee policy must have a future UTC effective window.");
+        var version = NewFeeVersion(policyCode, markupBasisPoints, fixedFee, effectiveFrom, effectiveTo);
+        await store.ScheduleFeePolicyVersionAsync(version, cancellationToken);
+        return version;
+    }
+
+    public Task<IReadOnlyList<FeePolicyVersion>> ListFeePolicyVersionsAsync(string policyCode,
+        CancellationToken cancellationToken = default) =>
+        store.ListFeePolicyVersionsAsync(NormalizeText(policyCode, 100, nameof(policyCode)), cancellationToken);
+
+    public async Task<FxRateSnapshot> PublishFxRateSnapshotAsync(string source,
+        decimal uzsTiyinPerUsd, DateTimeOffset observedAt,
+        CancellationToken cancellationToken = default)
+    {
+        if (observedAt.Offset != TimeSpan.Zero || observedAt < timeProvider.GetUtcNow().AddHours(-24)
+            || observedAt > timeProvider.GetUtcNow().AddHours(24))
+            throw new ArgumentException("FX effective time must be UTC and within 24 hours of publication.");
+        var snapshot = NewFxSnapshot(source, uzsTiyinPerUsd, observedAt);
+        await store.PublishFxRateSnapshotAsync(snapshot, cancellationToken);
+        return snapshot;
+    }
+
+    public Task<IReadOnlyList<FxRateSnapshot>> ListFxRateSnapshotsAsync(int limit,
+        CancellationToken cancellationToken = default) =>
+        store.ListFxRateSnapshotsAsync(limit is >= 1 and <= 100 ? limit
+            : throw new ArgumentOutOfRangeException(nameof(limit)), cancellationToken);
+
     public async Task<FeePolicyVersion> AddFeePolicyVersionAsync(
         string policyCode,
         int markupBasisPoints,
@@ -97,25 +130,7 @@ public sealed class PricingHistoryService(IPricingHistoryStore store, TimeProvid
         DateTimeOffset? effectiveTo,
         CancellationToken cancellationToken = default)
     {
-        var normalizedCode = NormalizeText(policyCode, 100, nameof(policyCode));
-        if (markupBasisPoints is < 0 or > 100_000)
-        {
-            throw new ArgumentOutOfRangeException(nameof(markupBasisPoints));
-        }
-
-        if (effectiveTo is not null && effectiveTo <= effectiveFrom)
-        {
-            throw new ArgumentException("The fee policy effective end must be after its start.", nameof(effectiveTo));
-        }
-
-        var version = new FeePolicyVersion(
-            Guid.CreateVersion7(),
-            normalizedCode,
-            markupBasisPoints,
-            fixedFee,
-            effectiveFrom,
-            effectiveTo,
-            timeProvider.GetUtcNow());
+        var version = NewFeeVersion(policyCode, markupBasisPoints, fixedFee, effectiveFrom, effectiveTo);
         await store.AppendFeePolicyVersionAsync(version, cancellationToken);
         return version;
     }
@@ -126,21 +141,36 @@ public sealed class PricingHistoryService(IPricingHistoryStore store, TimeProvid
         DateTimeOffset observedAt,
         CancellationToken cancellationToken = default)
     {
-        var normalizedSource = NormalizeText(source, 100, nameof(source));
-        if (uzsTiyinPerUsd <= 0 || decimal.Round(uzsTiyinPerUsd, 8) != uzsTiyinPerUsd)
-        {
-            throw new ArgumentOutOfRangeException(nameof(uzsTiyinPerUsd));
-        }
-
-        var snapshot = new FxRateSnapshot(Guid.CreateVersion7(), normalizedSource, uzsTiyinPerUsd, observedAt);
+        var snapshot = NewFxSnapshot(source, uzsTiyinPerUsd, observedAt);
         await store.AppendFxRateSnapshotAsync(snapshot, cancellationToken);
         return snapshot;
+    }
+
+    private FeePolicyVersion NewFeeVersion(string policyCode, int markupBasisPoints,
+        UsdMicroAmount fixedFee, DateTimeOffset effectiveFrom, DateTimeOffset? effectiveTo)
+    {
+        var normalizedCode = NormalizeText(policyCode, 100, nameof(policyCode));
+        if (markupBasisPoints is < 0 or > 100_000 || fixedFee.Value < 0)
+            throw new ArgumentOutOfRangeException(nameof(markupBasisPoints));
+        if (effectiveTo is not null && effectiveTo <= effectiveFrom)
+            throw new ArgumentException("The fee policy effective end must be after its start.", nameof(effectiveTo));
+        return new FeePolicyVersion(Guid.CreateVersion7(), normalizedCode, markupBasisPoints,
+            fixedFee, effectiveFrom, effectiveTo, timeProvider.GetUtcNow());
+    }
+
+    private static FxRateSnapshot NewFxSnapshot(string source, decimal uzsTiyinPerUsd,
+        DateTimeOffset observedAt)
+    {
+        var normalizedSource = NormalizeText(source, 100, nameof(source));
+        if (uzsTiyinPerUsd <= 0 || decimal.Round(uzsTiyinPerUsd, 8) != uzsTiyinPerUsd)
+            throw new ArgumentOutOfRangeException(nameof(uzsTiyinPerUsd));
+        return new FxRateSnapshot(Guid.CreateVersion7(), normalizedSource, uzsTiyinPerUsd, observedAt);
     }
 
     private static string NormalizeText(string value, int maximumLength, string parameterName)
     {
         var normalized = value?.Trim() ?? string.Empty;
-        if (normalized.Length is < 1 or > 100)
+        if (normalized.Length < 1 || normalized.Length > maximumLength)
         {
             throw new ArgumentException($"A value up to {maximumLength} characters is required.", parameterName);
         }

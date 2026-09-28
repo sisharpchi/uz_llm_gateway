@@ -8,6 +8,7 @@ using UZLLM.Modules.Audit.Application;
 using UZLLM.Modules.Audit.Infrastructure;
 using UZLLM.Management.Api.Administration;
 using UZLLM.Modules.Billing.Contracts;
+using UZLLM.Modules.Billing.Application;
 using UZLLM.Modules.Billing.Infrastructure;
 using UZLLM.Modules.Organizations.Application;
 using UZLLM.Modules.Organizations.Contracts;
@@ -24,6 +25,35 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
 {
     private static readonly PaymentConfiguration Config = new(100, 0, "payme-test-merchant",
         "payme-test-key", "click-test-merchant", "click-test-service", "click-test-secret");
+
+    [Fact]
+    public async Task Published_FX_rate_never_revalues_existing_quote_or_payment_intent()
+    {
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<FoundationDbContext>();
+        var first = await Service(services).CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Payme, new UzsTiyinAmount(1_000_000));
+        var newEffective = DateTimeOffset.UtcNow.AddMinutes(1);
+        await using (var tx = await services.GetRequiredService<ITransactionCoordinator>().BeginAsync())
+        {
+            await new PricingHistoryService(new PostgreSqlPricingHistoryStore(db), TimeProvider.System)
+                .PublishFxRateSnapshotAsync("finance-approved", 2_000_000m, newEffective);
+            await tx.CommitAsync();
+        }
+        var futurePayment = Service(services, new PaymentClock(newEffective.AddMinutes(1)));
+        var second = await futurePayment.CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Payme, new UzsTiyinAmount(1_000_000));
+        var oldIntent = (await futurePayment.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            first.Id, "fx-before-publication")).Intent;
+        Assert.NotEqual(first.FxSnapshotId, second.FxSnapshotId);
+        Assert.Equal(first.FxSnapshotId, oldIntent.FxSnapshotId);
+        Assert.Equal(first.Credit, oldIntent.Credit);
+        Assert.Equal(first.UzsTiyinPerUsd, oldIntent.UzsTiyinPerUsd);
+        Assert.NotEqual(first.Credit, second.Credit);
+    }
 
     [Fact]
     public async Task Payme_provider_observation_replay_is_immutable_and_never_double_credits()

@@ -44,6 +44,10 @@ public static class AdminEndpoints
         admin.MapGet("/organizations", (string query, IAdminService service, CancellationToken ct) => service.SearchOrganizationsAsync(query, ct));
         admin.MapGet("/providers", (IAdminService service, CancellationToken ct) => service.ListProvidersAsync(ct));
         admin.MapGet("/mappings/{id:guid}/prices", (Guid id, IAdminService service, CancellationToken ct) => service.ListPricesAsync(id, ct));
+        admin.MapGet("/fee-policies/{code}", (string code, IAdminService service, CancellationToken ct) =>
+            service.ListFeePoliciesAsync(code, ct));
+        admin.MapGet("/fx-rates", (int? limit, IAdminService service, CancellationToken ct) =>
+            service.ListFxRatesAsync(limit ?? 50, ct));
         admin.MapGet("/organizations/{id:guid}/ledger", (Guid id, int? limit, IAdminService service, CancellationToken ct) =>
             service.ListLedgerAsync(id, limit ?? 50, ct));
         admin.MapGet("/payments", (Guid? organizationId, int? limit, IAdminService service, CancellationToken ct) =>
@@ -113,6 +117,16 @@ public static class AdminEndpoints
             Results.Created($"/management/v1/admin/providers", new { id = await service.CreateCredentialAsync(Actor(http), request, ct) })).RequireManagementCsrf();
         admin.MapPost("/prices", async (CreateAdminPriceRequest request, HttpContext http, IAdminService service, CancellationToken ct) =>
             Results.Created($"/management/v1/admin/mappings/{request.ProviderModelId}/prices", new { id = await service.SchedulePriceAsync(Actor(http), request, ct) })).RequireManagementCsrf();
+        admin.MapPost("/fee-policies", async (PublishAdminFeePolicyRequest request,
+            HttpContext http, IAdminService service, CancellationToken ct) =>
+            Results.Created($"/management/v1/admin/fee-policies/{Uri.EscapeDataString(request.PolicyCode)}",
+                new { id = await service.PublishFeePolicyAsync(Actor(http), request, ct) }))
+            .RequireManagementCsrf();
+        admin.MapPost("/fx-rates", async (PublishAdminFxRateRequest request,
+            HttpContext http, IAdminService service, CancellationToken ct) =>
+            Results.Created("/management/v1/admin/fx-rates",
+                new { id = await service.PublishFxRateAsync(Actor(http), request, ct) }))
+            .RequireManagementCsrf();
 
         admin.MapPatch("/providers/{id:guid}", (Guid id, SetAdminStatusRequest request, HttpContext http, IAdminService service, CancellationToken ct) =>
             ResultFor(service.SetProviderEnabledAsync(Actor(http), id, request, ct))).RequireManagementCsrf();

@@ -12,6 +12,58 @@ namespace UZLLM.Persistence.IntegrationTests;
 public sealed class BillingPersistenceIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     [Fact]
+    public async Task Concurrent_fee_publication_creates_one_window_and_database_rejects_overlap_or_value_mutation()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var firstAt = DateTimeOffset.UtcNow.AddHours(1);
+        firstAt = firstAt.AddTicks(-(firstAt.Ticks % TimeSpan.TicksPerSecond));
+        var secondAt = firstAt.AddHours(1);
+
+        async Task<bool> PublishAsync(DateTimeOffset at, int markup)
+        {
+            await using var provider = fixture.CreateServiceProvider();
+            await using var scope = provider.CreateAsyncScope();
+            var services = scope.ServiceProvider;
+            var service = new PricingHistoryService(new PostgreSqlPricingHistoryStore(
+                services.GetRequiredService<FoundationDbContext>()), TimeProvider.System);
+            await using var transaction = await services.GetRequiredService<ITransactionCoordinator>().BeginAsync();
+            try
+            {
+                await service.ScheduleFeePolicyVersionAsync("default", markup,
+                    new UsdMicroAmount(10), at, null);
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (InvalidOperationException) { return false; }
+        }
+
+        Assert.True(await PublishAsync(firstAt, 100));
+        var concurrent = await Task.WhenAll(PublishAsync(secondAt, 200), PublishAsync(secondAt, 300));
+        Assert.Single(concurrent, value => value);
+        await using var reader = fixture.CreateServiceProvider();
+        await using var readerScope = reader.CreateAsyncScope();
+        var db = readerScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var versions = await db.Set<BillingFeePolicyVersionEntity>().AsNoTracking()
+            .OrderBy(value => value.EffectiveFrom).ToArrayAsync();
+        Assert.Equal(2, versions.Length);
+        Assert.Equal(secondAt, versions[0].EffectiveTo);
+        Assert.Equal(100, versions[0].MarkupBasisPoints);
+        var valueMutation = await Assert.ThrowsAsync<PostgresException>(() =>
+            db.Database.ExecuteSqlInterpolatedAsync($"UPDATE billing.fee_policy_version SET markup_basis_points = {999} WHERE id = {versions[0].Id}"));
+        Assert.Equal(PostgresErrorCodes.RaiseException, valueMutation.SqlState);
+        var overlap = await Assert.ThrowsAsync<PostgresException>(() =>
+            db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO billing.fee_policy_version
+                    (id, policy_code, markup_basis_points, fixed_fee_micro_usd,
+                     effective_from, effective_to, created_at)
+                VALUES ({Guid.CreateVersion7()}, {"default"}, {400}, {0L},
+                    {firstAt.AddMinutes(30)}, {secondAt.AddMinutes(30)}, {DateTimeOffset.UtcNow})
+                """));
+        Assert.Equal(PostgresErrorCodes.ExclusionViolation, overlap.SqlState);
+    }
+
+    [Fact]
     public async Task Billing_migration_backfills_existing_organizations_and_trigger_creates_one_wallet_for_new_organizations()
     {
         await fixture.ResetMigrationsAsync();

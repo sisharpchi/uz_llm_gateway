@@ -375,6 +375,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(snapshot => snapshot.UzsTiyinPerUsd).HasColumnName("uzs_tiyin_per_usd").HasPrecision(20, 8);
             entity.Property(snapshot => snapshot.ObservedAt).HasColumnName("observed_at");
             entity.HasIndex(snapshot => new { snapshot.Source, snapshot.ObservedAt });
+            entity.HasIndex(snapshot => snapshot.ObservedAt).IsUnique();
         });
 
         modelBuilder.Entity<CatalogProviderEntity>(entity =>

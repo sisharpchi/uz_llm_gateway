@@ -246,6 +246,16 @@ Store:
 
 Never retroactively change prior credit.
 
+`ADMIN-002` publishes FX snapshots through recent-MFA operator access with a
+mandatory audit reason. `observed_at` is the effective start; the next snapshot
+closes that implicit half-open window. Publication must advance the global
+effective time, while `payment.fx_quote` and `payment_intent` retain their
+original snapshot, rate and USD credit. The source and commercial rate need
+finance approval outside the repository. Managed/BYOK inference fee policies
+are separately versioned by policy code. PostgreSQL excludes overlapping
+half-open windows; scheduling a later version may shorten only the future
+end of its predecessor, never its fee values or elapsed effective period.
+
 ---
 
 ## 13. Revenue reporting

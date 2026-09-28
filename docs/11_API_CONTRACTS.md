@@ -511,6 +511,10 @@ GET   /payment-reconciliation/cases?limit=50
 GET   /payment-reconciliation/observations/{id}
 POST  /payment-reconciliation/observations
 PATCH /payment-reconciliation/cases/{id}/resolve
+GET   /fee-policies/{code}
+POST  /fee-policies
+GET   /fx-rates?limit=50
+POST  /fx-rates
 POST  /providers | /models | /mappings | /credentials | /prices
 PATCH /providers/{id} | /models/{id} | /mappings/{id}
 PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
@@ -560,6 +564,18 @@ external mismatch cases. `PATCH /cases/{id}/resolve` takes an 8–500 character
 `reason` and 8–200 character `resolutionReference`, returns `204` on first
 closure or `409` if not open, and never posts money. The closure audit entry
 contains actor, reason and evidence reference.
+
+Fee and FX publication uses the same operator/recent-MFA, CSRF and `no-store`
+guard. `POST /fee-policies` accepts `policyCode`, `markupBasisPoints`,
+decimal-string `fixedFeeMicroUsd`, future UTC `effectiveFrom`, optional UTC
+`effectiveTo`, and an 8–500 character `reason`. A new window may close only
+the future portion of its predecessor; overlapping or out-of-order windows
+return `409`. `GET /fee-policies/{code}` returns newest-first versions.
+`POST /fx-rates` accepts `source`, decimal-string `uzsTiyinPerUsd` (up to eight
+fractional digits), UTC `observedAt` within 24 hours of publication, and
+`reason`; global effective time must advance. `GET /fx-rates` returns at most
+100 newest-first snapshots. Publications return `201` with the new ID; no
+payment or prior quote is revalued.
 
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the

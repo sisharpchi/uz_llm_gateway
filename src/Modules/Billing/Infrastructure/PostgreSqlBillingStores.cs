@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Persistence;
 
@@ -98,6 +99,57 @@ public sealed class PostgreSqlWalletLedgerStore(FoundationDbContext dbContext) :
 
 public sealed class PostgreSqlPricingHistoryStore(FoundationDbContext dbContext) : IPricingHistoryStore
 {
+    public async Task ScheduleFeePolicyVersionAsync(FeePolicyVersion version,
+        CancellationToken cancellationToken = default)
+    {
+        RequireTransaction();
+        await LockAsync("fee-policy:" + version.PolicyCode, cancellationToken);
+        var latest = await dbContext.Set<BillingFeePolicyVersionEntity>()
+            .Where(value => value.PolicyCode == version.PolicyCode)
+            .OrderByDescending(value => value.EffectiveFrom)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (latest is not null && latest.EffectiveFrom >= version.EffectiveFrom)
+            throw new InvalidOperationException("Fee versions must be published in effective-time order.");
+        if (latest is not null && (latest.EffectiveTo is null || latest.EffectiveTo > version.EffectiveFrom))
+        {
+            latest.EffectiveTo = version.EffectiveFrom;
+            await SavePublicationAsync(cancellationToken);
+        }
+        await AppendFeePolicyVersionAsync(version, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FeePolicyVersion>> ListFeePolicyVersionsAsync(string policyCode,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Set<BillingFeePolicyVersionEntity>().AsNoTracking()
+            .Where(value => value.PolicyCode == policyCode)
+            .OrderByDescending(value => value.EffectiveFrom)
+            .Select(value => new FeePolicyVersion(value.Id, value.PolicyCode,
+                value.MarkupBasisPoints, new UsdMicroAmount(value.FixedFeeMicroUsd),
+                value.EffectiveFrom, value.EffectiveTo, value.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+    public async Task PublishFxRateSnapshotAsync(FxRateSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        RequireTransaction();
+        await LockAsync("fx-rate-global", cancellationToken);
+        var latest = await dbContext.Set<BillingFxRateSnapshotEntity>().AsNoTracking()
+            .OrderByDescending(value => value.ObservedAt).Select(value => (DateTimeOffset?)value.ObservedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (latest is not null && latest >= snapshot.ObservedAt)
+            throw new InvalidOperationException("FX snapshots must advance the global effective time.");
+        await AppendFxRateSnapshotAsync(snapshot, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FxRateSnapshot>> ListFxRateSnapshotsAsync(int limit,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Set<BillingFxRateSnapshotEntity>().AsNoTracking()
+            .OrderByDescending(value => value.ObservedAt).ThenByDescending(value => value.Id)
+            .Take(limit)
+            .Select(value => new FxRateSnapshot(value.Id, value.Source,
+                value.UzsTiyinPerUsd, value.ObservedAt))
+            .ToListAsync(cancellationToken);
+
     public async Task AppendFeePolicyVersionAsync(FeePolicyVersion version, CancellationToken cancellationToken = default)
     {
         dbContext.Set<BillingFeePolicyVersionEntity>().Add(new BillingFeePolicyVersionEntity
@@ -110,7 +162,7 @@ public sealed class PostgreSqlPricingHistoryStore(FoundationDbContext dbContext)
             EffectiveTo = version.EffectiveTo,
             CreatedAt = version.CreatedAt
         });
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SavePublicationAsync(cancellationToken);
     }
 
     public async Task AppendFxRateSnapshotAsync(FxRateSnapshot snapshot, CancellationToken cancellationToken = default)
@@ -122,6 +174,25 @@ public sealed class PostgreSqlPricingHistoryStore(FoundationDbContext dbContext)
             UzsTiyinPerUsd = snapshot.UzsTiyinPerUsd,
             ObservedAt = snapshot.ObservedAt
         });
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SavePublicationAsync(cancellationToken);
+    }
+
+    private void RequireTransaction()
+    {
+        if (dbContext.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Price publication requires a PostgreSQL transaction.");
+    }
+
+    private async Task LockAsync(string key, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>(
+            $"SELECT 1 AS \"Value\" FROM pg_advisory_xact_lock(hashtextextended({key}, 0))")
+            .SingleAsync(cancellationToken);
+
+    private async Task SavePublicationAsync(CancellationToken cancellationToken)
+    {
+        try { await dbContext.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException postgres
+            && postgres.SqlState is PostgresErrorCodes.ExclusionViolation or PostgresErrorCodes.UniqueViolation)
+        { throw new InvalidOperationException("An overlapping or duplicate price publication exists.", exception); }
     }
 }
