@@ -298,6 +298,16 @@ for 24 hours after its deadline; charge verified usage, release the balance, and
 record unresolved exposure for the platform. Known evidence remains pending
 until settled.
 
+`BILLING-003` adds a bounded Worker sweep over expired, still-reserved holds,
+including holds whose original leased reconciliation job dead-lettered. It
+reuses the row-locked settlement path; an attempt that reached a provider but
+has no usage evidence is recorded as `Unknown` even if its execution is already
+terminal. Unknown evidence stays held until the later of its evidence deadline
+and 24 hours after reservation expiry. A failed calculation/settlement or an
+overdue pending result schedules one deduplicated operator alert. The alert
+resolves after a committed finalization event; the operator financial-risk read
+shows pending holds, exposure and recovery debt without request payloads.
+
 On a confirmed payment reversal, recover `min(reversal, AvailableBalance)`,
 preserve active reservations, record the balance as recovery debt, and block new
 managed admission. Future top-ups or releases repay debt through explicit ledger

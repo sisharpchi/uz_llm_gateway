@@ -506,6 +506,7 @@ GET   /audit?limit=50
 GET   /controls
 GET   /work/dead-letters?limit=50
 GET   /work/alerts?limit=50
+GET   /financial/risk?limit=50
 POST  /providers | /models | /mappings | /credentials | /prices
 PATCH /providers/{id} | /models/{id} | /mappings/{id}
 PATCH /credentials/{id} | /controls/{ManagedTraffic|TopUps}
@@ -527,6 +528,18 @@ most 100 newest alert metadata records (`id`, `kind`, `severity`, `occurredAt`,
 `notificationEventId`, `notifiedAt`, `resolvedAt`, `deliveryStatus`), without
 the JSON details, deduplication key or message body. Delivery status is
 `Pending`, `Delivered`, `DeadLettered`, or `Unlinked` for legacy records.
+
+`financial/risk` is read-only, requires the same recent-MFA operator gate, and
+returns `Cache-Control: no-store`. Its `dataAsOf` is the read time. Bounded
+`pending` entries include reservation/request/organization IDs, held micro-USD
+as a decimal string, expiry, state (`MissingEvidence`, `UnknownEvidence`,
+`PendingSettlement`, or `Undispatched`) and optional `nextReviewAt`. `exposure`
+includes original plus late platform exposure, uncollected charge and the
+unresolved-usage flag. `debt` includes outstanding micro-USD and spending-hold
+state. No prompt, provider secret, upstream request ID or payment credential
+is returned. These are investigation lists, not a consistent accounting
+snapshot across the three queries; use ledger/reconciliation evidence for
+financial closure.
 
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the

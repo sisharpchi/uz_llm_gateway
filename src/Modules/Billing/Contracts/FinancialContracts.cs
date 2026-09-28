@@ -40,6 +40,10 @@ public sealed record Settlement(
 
 public sealed record FinalizationResult(FinalizationStatus Status, Settlement? Settlement);
 
+public sealed record RecoveryCursor(DateTimeOffset ExpiresAt, Guid ReservationId);
+public sealed record RecoveryCandidate(Guid ReservationId, DateTimeOffset ExpiresAt);
+public sealed record RecoverySweepPage(int Examined, RecoveryCursor? NextCursor);
+
 public sealed record BudgetPolicy(
     Guid Id, Guid OrganizationId, Guid ProjectId, Guid? ApiKeyId,
     BudgetPeriod Period, BudgetWindow Window, UsdMicroAmount Limit,
@@ -80,6 +84,8 @@ public interface IFinancialStore
     Task<FinalizationContext?> LockAndLoadAsync(Guid reservationId, CancellationToken cancellationToken = default);
     Task<Guid?> FindReservationIdAsync(Guid requestId, CancellationToken cancellationToken = default);
     Task<Guid?> FindReservationIdByEvidenceAsync(Guid evidenceId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RecoveryCandidate>> ListDueRecoveryAsync(DateTimeOffset now,
+        RecoveryCursor? after, int limit, CancellationToken cancellationToken = default);
     Task<Settlement> ApplyFinalizationAsync(FinalizationContext context, ChargeBreakdown charge,
         bool unresolvedUsage, DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<BudgetPolicy?> SetBudgetAsync(Guid organizationId, Guid projectId, Guid? apiKeyId,
@@ -120,4 +126,10 @@ public interface IFinancialService
     Task<FinancialWalletState?> GetWalletStateAsync(Guid organizationId, CancellationToken cancellationToken = default);
     Task<Guid?> FindReservationIdAsync(Guid requestId, CancellationToken cancellationToken = default);
     Task<bool> RecordLateExposureAsync(Guid evidenceId, CancellationToken cancellationToken = default);
+}
+
+public interface IFinancialRecoverySweep
+{
+    Task<RecoverySweepPage> SweepPageAsync(RecoveryCursor? after, int limit,
+        CancellationToken cancellationToken = default);
 }

@@ -12,6 +12,7 @@ using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Modules.Usage.Infrastructure;
 using UZLLM.Observability;
 using UZLLM.Persistence;
+using UZLLM.Management.Api.Administration;
 
 namespace UZLLM.Persistence.IntegrationTests;
 
@@ -745,6 +746,9 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
         var exposure = Assert.Single(await db.Set<BillingPlatformExposureEntity>().ToListAsync());
         Assert.Equal(10_000, exposure.ProviderCostMicroUsd);
+        var risk = await new PostgreSqlAdminReadStore(db).GetFinancialRiskAsync(clock.GetUtcNow(), 20,
+            CancellationToken.None);
+        Assert.Equal("10000", Assert.Single(risk.Exposure).PlatformExposureMicroUsd);
         Assert.Equal(100_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.PostedBalance.Value);
         Assert.Equal(FinancialState.Released,
             (await usage.FindRequestAsync(admitted.RequestId.Value))!.Financial);
@@ -776,6 +780,34 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         Assert.Equal(30_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
         Assert.Equal(FinancialState.PendingSettlement,
             (await usage.FindRequestAsync(admitted.RequestId.Value))!.Financial);
+
+        clock.UtcNow = Start.AddHours(2);
+        var sweep = new FinancialRecoverySweep(new PostgreSqlFinancialStore(db), financial,
+            scope.ServiceProvider.GetRequiredService<ILeasedJobStore>(), clock);
+        Assert.Equal(1, (await sweep.SweepPageAsync(null, 20)).Examined);
+        Assert.Equal(1, (await sweep.SweepPageAsync(null, 20)).Examined);
+        var alertJobs = await db.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS \"Value\" FROM ops.job WHERE job_type = 'billing.recovery.alert'")
+            .SingleAsync();
+        Assert.Equal(1, alertJobs);
+        var risks = await new PostgreSqlAdminReadStore(db).GetFinancialRiskAsync(clock.GetUtcNow(), 20,
+            CancellationToken.None);
+        var pending = Assert.Single(risks.Pending);
+        Assert.Equal("PendingSettlement", pending.State);
+        Assert.Equal("30000", pending.HeldMicroUsd);
+        Assert.DoesNotContain("provider-id", System.Text.Json.JsonSerializer.Serialize(risks));
+
+        var jobs = await scope.ServiceProvider.GetRequiredService<ILeasedJobStore>()
+            .ClaimAvailableAsync("billing-recovery-test", 20, TimeSpan.FromMinutes(1));
+        var alertJob = Assert.Single(jobs, value => value.JobType == "billing.recovery.alert");
+        var handler = new BillingRecoveryAlertJobHandler(db,
+            scope.ServiceProvider.GetRequiredService<IOperationalAlertPublisher>(),
+            scope.ServiceProvider.GetRequiredService<ITransactionCoordinator>(),
+            scope.ServiceProvider.GetRequiredService<IConsumerInboxStore>());
+        await handler.HandleAsync(alertJob, CancellationToken.None);
+        await handler.HandleAsync(alertJob, CancellationToken.None);
+        Assert.Single(await scope.ServiceProvider.GetRequiredService<IOperationalAlertDeliveryStore>()
+            .ListAsync(), value => value.Kind == "SettlementFailure");
     }
 
     [Fact]
@@ -844,6 +876,152 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
             Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>()
                 .CountAsync(value => value.Type == "UsageCharge"));
         }
+    }
+
+    [Fact]
+    public async Task Concurrent_recovery_sweeps_settle_known_evidence_once_after_gateway_crash()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        var clock = new MutableFinancialClock(Start);
+        Guid reservationId;
+        Guid alertId;
+        await using (var setup = fixture.CreateServiceProvider())
+        await using (var scope = setup.CreateAsyncScope())
+        {
+            var financial = Financial(scope.ServiceProvider, clock);
+            var admission = await financial.ReserveAsync(Admission(seed, 30_000));
+            reservationId = admission.Reservation!.Id;
+            alertId = (await scope.ServiceProvider.GetRequiredService<IOperationalAlertPublisher>()
+                .RaiseAsync(OperationalAlertKind.SettlementFailure, reservationId.ToString("N"), "{}")).Id;
+            var usage = Usage(scope.ServiceProvider, clock);
+            var attempt = await usage.StartAttemptAsync(admission.RequestId!.Value, seed.ProviderModelId);
+            Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+            Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(admission.RequestId.Value,
+                attempt.Id, EvidenceSource.Provider, 10_000, 0, 0, null, seed.PriceId, "provider-id")));
+        }
+        clock.UtcNow = Start.AddHours(2);
+        await using var first = fixture.CreateServiceProvider();
+        await using var firstScope = first.CreateAsyncScope();
+        await using var second = fixture.CreateServiceProvider();
+        await using var secondScope = second.CreateAsyncScope();
+        var sweeps = new[] { firstScope.ServiceProvider, secondScope.ServiceProvider }
+            .Select(provider => new FinancialRecoverySweep(new PostgreSqlFinancialStore(
+                provider.GetRequiredService<FoundationDbContext>()), Financial(provider, clock),
+                provider.GetRequiredService<ILeasedJobStore>(), clock)).ToArray();
+        await Task.WhenAll(sweeps.Select(sweep => sweep.SweepPageAsync(null, 20)));
+
+        var db = firstScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(1, await db.Set<BillingSettlementEntity>().AsNoTracking()
+            .CountAsync(value => value.ReservationId == reservationId));
+        Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>().AsNoTracking()
+            .CountAsync(value => value.ReferenceId == reservationId && value.Type == "UsageCharge"));
+        var wallet = (await Financial(firstScope.ServiceProvider, clock)
+            .GetWalletStateAsync(seed.OrganizationId))!.Wallet;
+        Assert.Equal(90_000, wallet.PostedBalance.Value);
+        Assert.Equal(0, wallet.ReservedBalance.Value);
+        Assert.Equal(0, (await sweeps[0].SweepPageAsync(null, 20)).Examined);
+        var outbox = firstScope.ServiceProvider.GetRequiredService<IOutboxStore>();
+        var messages = await outbox.ClaimAvailableAsync("billing-resolve-test", 50, TimeSpan.FromMinutes(1));
+        var finalized = Assert.Single(messages, value => value.EventType == "billing.reservation.finalized");
+        var handler = new BillingFinancialAlertHandler(
+            firstScope.ServiceProvider.GetRequiredService<IOperationalAlertPublisher>(),
+            firstScope.ServiceProvider.GetRequiredService<IOperationalAlertDeliveryStore>(),
+            firstScope.ServiceProvider.GetRequiredService<ITransactionCoordinator>(),
+            firstScope.ServiceProvider.GetRequiredService<IConsumerInboxStore>(), clock,
+            "billing.reservation.finalized");
+        await handler.HandleAsync(finalized, CancellationToken.None);
+        Assert.NotNull((await firstScope.ServiceProvider.GetRequiredService<IOperationalAlertDeliveryStore>()
+            .FindAsync(alertId))!.ResolvedAt);
+
+        var jobs = firstScope.ServiceProvider.GetRequiredService<ILeasedJobStore>();
+        await jobs.ScheduleAsync("billing.recovery.alert",
+            System.Text.Json.JsonSerializer.Serialize(new { reservationId }),
+            reservationId.ToString("N"), clock.GetUtcNow());
+        var lateAlert = Assert.Single(await jobs.ClaimAvailableAsync("billing-late-alert-test",
+            20, TimeSpan.FromMinutes(1)), value => value.JobType == "billing.recovery.alert");
+        await new BillingRecoveryAlertJobHandler(db,
+            firstScope.ServiceProvider.GetRequiredService<IOperationalAlertPublisher>(),
+            firstScope.ServiceProvider.GetRequiredService<ITransactionCoordinator>(),
+            firstScope.ServiceProvider.GetRequiredService<IConsumerInboxStore>())
+            .HandleAsync(lateAlert, CancellationToken.None);
+        Assert.NotNull((await firstScope.ServiceProvider.GetRequiredService<IOperationalAlertDeliveryStore>()
+            .FindAsync(alertId))!.ResolvedAt);
+    }
+
+    [Fact]
+    public async Task Recovery_records_missing_terminal_usage_as_unknown_then_releases_after_review()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(services, clock);
+        var admission = await financial.ReserveAsync(Admission(seed, 30_000));
+        var usage = Usage(services, clock);
+        var attempt = await usage.StartAttemptAsync(admission.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.True(await usage.FinishAttemptAsync(attempt.Id, ExecutionState.Succeeded,
+            "provider-id", null));
+        var sweep = new FinancialRecoverySweep(new PostgreSqlFinancialStore(
+            services.GetRequiredService<FoundationDbContext>()), financial,
+            services.GetRequiredService<ILeasedJobStore>(), clock);
+
+        clock.UtcNow = Start.AddHours(2);
+        Assert.Equal(1, (await sweep.SweepPageAsync(null, 20)).Examined);
+        Assert.Equal(30_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.ReservedBalance.Value);
+        Assert.Equal(EvidenceState.Unknown, Assert.Single(await usage.ListEvidenceAsync(
+            admission.RequestId.Value)).State);
+        Assert.Equal(0, (await sweep.SweepPageAsync(null, 20)).Examined);
+
+        clock.UtcNow = Start.AddHours(27);
+        Assert.Equal(1, (await sweep.SweepPageAsync(null, 20)).Examined);
+        var settlement = Assert.Single(await services.GetRequiredService<FoundationDbContext>()
+            .Set<BillingSettlementEntity>().AsNoTracking().ToListAsync());
+        Assert.True(settlement.UnresolvedUsage);
+        Assert.Equal(0, settlement.ChargedMicroUsd);
+        Assert.Equal(0, (await financial.GetWalletStateAsync(seed.OrganizationId))!
+            .Wallet.ReservedBalance.Value);
+    }
+
+    [Fact]
+    public async Task Operator_financial_risk_read_reconciles_exposure_and_recovery_debt()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(services, clock);
+        var admission = await financial.ReserveAsync(Admission(seed, 30_000));
+        var usage = Usage(services, clock);
+        var attempt = await usage.StartAttemptAsync(admission.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new VerifiedUsageInput(admission.RequestId.Value,
+            attempt.Id, EvidenceSource.Provider, 50_000, 0, 0, null, seed.PriceId, null)));
+        var result = await financial.FinalizeAsync(admission.Reservation!.Id);
+        Assert.Equal(20_000, result.Settlement!.PlatformExposure.Value);
+        var reversal = await financial.ApplyConfirmedReversalAsync(seed.OrganizationId,
+            Guid.CreateVersion7(), new UsdMicroAmount(100_000));
+        Assert.Equal(30_000, reversal.DebtCreated.Value);
+
+        var risk = await new PostgreSqlAdminReadStore(services.GetRequiredService<FoundationDbContext>())
+            .GetFinancialRiskAsync(clock.GetUtcNow().AddHours(2), 20, CancellationToken.None);
+        Assert.Empty(risk.Pending);
+        var exposure = Assert.Single(risk.Exposure);
+        Assert.Equal("20000", exposure.PlatformExposureMicroUsd);
+        Assert.Equal("20000", exposure.UncollectedChargeMicroUsd);
+        var debt = Assert.Single(risk.Debt);
+        Assert.Equal(seed.OrganizationId, debt.OrganizationId);
+        Assert.Equal("30000", debt.OutstandingMicroUsd);
+        Assert.True(debt.SpendingHeld);
     }
 
     [Fact]
@@ -1049,8 +1227,10 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         var services = scope.ServiceProvider;
         var handler = new BillingFinancialAlertHandler(
             services.GetRequiredService<IOperationalAlertPublisher>(),
+            services.GetRequiredService<IOperationalAlertDeliveryStore>(),
             services.GetRequiredService<ITransactionCoordinator>(),
-            services.GetRequiredService<IConsumerInboxStore>(), "billing.late_exposure.recorded");
+            services.GetRequiredService<IConsumerInboxStore>(),
+            services.GetRequiredService<TimeProvider>(), "billing.late_exposure.recorded");
         var message = new OutboxMessage(Guid.CreateVersion7(), "billing.late_exposure.recorded",
             System.Text.Json.JsonSerializer.Serialize(new { evidenceId = Guid.CreateVersion7(),
                 exposureMicroUsd = 10_000 }), Start, 0, 10);

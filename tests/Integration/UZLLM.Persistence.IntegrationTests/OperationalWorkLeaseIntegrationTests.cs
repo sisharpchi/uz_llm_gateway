@@ -185,8 +185,10 @@ public sealed class OperationalWorkLeaseIntegrationTests(PersistenceIntegrationF
 
     private static BillingFinancialAlertHandler CreateAlertHandler(IServiceProvider services) => new(
         services.GetRequiredService<IOperationalAlertPublisher>(),
+        services.GetRequiredService<IOperationalAlertDeliveryStore>(),
         services.GetRequiredService<ITransactionCoordinator>(),
-        services.GetRequiredService<IConsumerInboxStore>(), "billing.late_exposure.recorded");
+        services.GetRequiredService<IConsumerInboxStore>(),
+        services.GetRequiredService<TimeProvider>(), "billing.late_exposure.recorded");
 
     private ServiceProvider CreateServices(TimeProvider clock)
     {

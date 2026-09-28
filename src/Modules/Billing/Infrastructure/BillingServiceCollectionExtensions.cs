@@ -14,6 +14,7 @@ public static class BillingServiceCollectionExtensions
         services.AddScoped<IWalletLedgerService, WalletLedgerService>();
         services.AddScoped<IPricingHistoryService, PricingHistoryService>();
         services.AddScoped<IFinancialService, FinancialService>();
+        services.AddScoped<IFinancialRecoverySweep, FinancialRecoverySweep>();
         return services;
     }
 }

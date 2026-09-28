@@ -157,6 +157,10 @@ target, restores, checks schema and wallet/reservation invariants, and reports
 After failover, keep new managed admission closed until PostgreSQL and Redis
 readiness pass (and Redis's max-lease recovery horizon ends). Restart workers;
 their leased jobs reconcile known verified evidence into one settlement.
+The independent bounded recovery sweep also revisits expired reservations if
+their original job dead-lettered. Review `/management/v1/admin/financial/risk`
+with recent operator MFA and correlate `SettlementFailure` alerts/dead letters;
+do not manually clear holds or fabricate usage evidence.
 Unknown evidence remains held until its reconciliation deadline, then is
 released **without claiming zero upstream usage**. Late verified usage becomes
 platform exposure, not a surprise customer debit. Reconcile payment provider

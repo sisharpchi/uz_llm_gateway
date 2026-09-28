@@ -36,26 +36,35 @@ builder.Services.AddScoped<ILeasedJobHandler>(services => new BillingReconciliat
     services.GetRequiredService<IFinancialService>(), "billing.reconcile"));
 builder.Services.AddScoped<ILeasedJobHandler>(services => new BillingReconciliationJobHandler(
     services.GetRequiredService<IFinancialService>(), "billing.reconcile.final"));
+builder.Services.AddScoped<ILeasedJobHandler, BillingRecoveryAlertJobHandler>();
 builder.Services.AddScoped<IOutboxHandler>(services => new BillingUsageEvidenceHandler(
     services.GetRequiredService<IFinancialService>(), "usage.evidence.verified"));
 builder.Services.AddScoped<IOutboxHandler>(services => new BillingUsageEvidenceHandler(
     services.GetRequiredService<IFinancialService>(), "usage.evidence.unknown"));
 builder.Services.AddScoped<IOutboxHandler>(services => new BillingFinancialAlertHandler(
     services.GetRequiredService<IOperationalAlertPublisher>(),
+    services.GetRequiredService<IOperationalAlertDeliveryStore>(),
     services.GetRequiredService<ITransactionCoordinator>(),
-    services.GetRequiredService<IConsumerInboxStore>(), "billing.reservation.finalized"));
+    services.GetRequiredService<IConsumerInboxStore>(),
+    services.GetRequiredService<TimeProvider>(), "billing.reservation.finalized"));
 builder.Services.AddScoped<IOutboxHandler>(services => new BillingFinancialAlertHandler(
     services.GetRequiredService<IOperationalAlertPublisher>(),
+    services.GetRequiredService<IOperationalAlertDeliveryStore>(),
     services.GetRequiredService<ITransactionCoordinator>(),
-    services.GetRequiredService<IConsumerInboxStore>(), "billing.reversal.applied"));
+    services.GetRequiredService<IConsumerInboxStore>(),
+    services.GetRequiredService<TimeProvider>(), "billing.reversal.applied"));
 builder.Services.AddScoped<IOutboxHandler>(services => new BillingFinancialAlertHandler(
     services.GetRequiredService<IOperationalAlertPublisher>(),
+    services.GetRequiredService<IOperationalAlertDeliveryStore>(),
     services.GetRequiredService<ITransactionCoordinator>(),
-    services.GetRequiredService<IConsumerInboxStore>(), "billing.late_exposure.recorded"));
+    services.GetRequiredService<IConsumerInboxStore>(),
+    services.GetRequiredService<TimeProvider>(), "billing.late_exposure.recorded"));
 builder.Services.AddScoped<IOutboxHandler>(services => new BillingFinancialAlertHandler(
     services.GetRequiredService<IOperationalAlertPublisher>(),
+    services.GetRequiredService<IOperationalAlertDeliveryStore>(),
     services.GetRequiredService<ITransactionCoordinator>(),
-    services.GetRequiredService<IConsumerInboxStore>(), "billing.late_external_spend.recorded"));
+    services.GetRequiredService<IConsumerInboxStore>(),
+    services.GetRequiredService<TimeProvider>(), "billing.late_external_spend.recorded"));
 builder.Services.AddUzllmObservability(builder.Configuration, "UZLLM.Worker");
 builder.Services.AddScoped<OutboxDispatchCycle>();
 builder.Services.AddScoped<LeasedJobDispatchCycle>();
@@ -64,5 +73,6 @@ builder.Services.AddHostedService<OutboxDispatchWorker>();
 builder.Services.AddHostedService<LeasedJobDispatchWorker>();
 builder.Services.AddHostedService<ExpiredPayloadDeletionWorker>();
 builder.Services.AddHostedService<CustomerAlertEvaluationWorker>();
+builder.Services.AddHostedService<BillingRecoverySweepWorker>();
 var host = builder.Build();
 await host.RunAsync();

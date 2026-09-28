@@ -27,6 +27,8 @@ public sealed class AdminService(
     public async Task<IReadOnlyList<AdminPlatformControlResponse>> ListControlsAsync(CancellationToken ct) =>
         (await controls.ListAsync(ct)).Select(value => new AdminPlatformControlResponse(
             value.Feature.ToString(), value.Enabled, value.UpdatedAt)).ToArray();
+    public Task<AdminFinancialRiskResponse> GetFinancialRiskAsync(int limit, CancellationToken ct) =>
+        reads.GetFinancialRiskAsync(clock.GetUtcNow(), ValidateLimit(limit), ct);
 
     public Task<Guid> CreateProviderAsync(Guid actorId, CreateAdminProviderRequest request, CancellationToken ct) =>
         CreateAsync(actorId, request.Reason, "provider.created", "provider", async () =>

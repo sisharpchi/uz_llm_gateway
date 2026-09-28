@@ -31,8 +31,10 @@ public sealed class OperationalAlertDeliveryIntegrationTests(PersistenceIntegrat
         Assert.Equal(originalId, original.Id);
         var financialHandler = new BillingFinancialAlertHandler(
             provider.GetRequiredService<IOperationalAlertPublisher>(),
+            provider.GetRequiredService<IOperationalAlertDeliveryStore>(),
             provider.GetRequiredService<ITransactionCoordinator>(),
-            provider.GetRequiredService<IConsumerInboxStore>(), "billing.late_external_spend.recorded");
+            provider.GetRequiredService<IConsumerInboxStore>(),
+            provider.GetRequiredService<TimeProvider>(), "billing.late_external_spend.recorded");
 
         await financialHandler.HandleAsync(original, default);
         await financialHandler.HandleAsync(original, default);
@@ -111,8 +113,10 @@ public sealed class OperationalAlertDeliveryIntegrationTests(PersistenceIntegrat
         var eventId = await outbox.EnqueueAsync("billing.late_external_spend.recorded", "{}", 1);
         var handler = new BillingFinancialAlertHandler(
             provider.GetRequiredService<IOperationalAlertPublisher>(),
+            provider.GetRequiredService<IOperationalAlertDeliveryStore>(),
             provider.GetRequiredService<ITransactionCoordinator>(),
-            provider.GetRequiredService<IConsumerInboxStore>(), "billing.late_external_spend.recorded");
+            provider.GetRequiredService<IConsumerInboxStore>(),
+            provider.GetRequiredService<TimeProvider>(), "billing.late_external_spend.recorded");
         var cycle = new OutboxDispatchCycle(outbox, [handler],
             new ScopedOperationalLeaseRenewer(services.GetRequiredService<IServiceScopeFactory>()),
             NullLogger<OutboxDispatchCycle>.Instance);

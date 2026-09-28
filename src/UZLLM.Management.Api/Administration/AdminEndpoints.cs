@@ -51,6 +51,8 @@ public static class AdminEndpoints
             monitor.ListDeadLettersAsync(limit ?? 50, ct));
         admin.MapGet("/work/alerts", (int? limit, IOperationalAlertDeliveryStore alerts, CancellationToken ct) =>
             alerts.ListAsync(limit ?? 50, ct));
+        admin.MapGet("/financial/risk", (int? limit, IAdminService service, CancellationToken ct) =>
+            service.GetFinancialRiskAsync(limit ?? 50, ct));
 
         admin.MapPost("/operators/{accountId:guid}/mfa/reset", async (Guid accountId,
             ResetOperatorMfaRequest request, HttpContext http, IIdentityService identity, CancellationToken ct) =>

@@ -89,6 +89,30 @@ public sealed class UsagePersistenceIntegrationTests(PersistenceIntegrationFixtu
     }
 
     [Fact]
+    public async Task Terminal_dispatched_attempt_without_evidence_can_be_marked_unknown_after_restart()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var usage = CreateService(scope.ServiceProvider, new MutableUsageTimeProvider(StartedAt));
+        var request = await usage.PrepareAsync(Input(seed, null, [5]));
+        var attempt = await usage.StartAttemptAsync(request.RequestId, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.True(await usage.FinishAttemptAsync(attempt.Id, ExecutionState.Succeeded,
+            "provider-request", null));
+
+        var unknown = await usage.RecordUnknownAsync(request.RequestId, attempt.Id);
+
+        Assert.NotNull(unknown);
+        Assert.Equal("provider-request", unknown.ProviderRequestId);
+        Assert.Null(await usage.RecordUnknownAsync(request.RequestId, attempt.Id));
+        Assert.Equal(FinancialState.PendingEvidence,
+            (await usage.FindRequestAsync(request.RequestId))!.Financial);
+    }
+
+    [Fact]
     public async Task Evidence_and_outbox_survive_a_later_settlement_rollback_and_cannot_be_mutated()
     {
         await fixture.ResetMigrationsAsync();

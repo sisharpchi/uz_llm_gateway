@@ -243,6 +243,31 @@ public sealed class PostgreSqlFinancialStore(FoundationDbContext db) : IFinancia
                 reservation => reservation.RequestId, (_, reservation) => (Guid?)reservation.Id)
             .SingleOrDefaultAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<RecoveryCandidate>> ListDueRecoveryAsync(DateTimeOffset now,
+        RecoveryCursor? after, int limit, CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(limit));
+        // Future unknown-evidence windows are not recovery failures. Once due,
+        // the existing reservation lock decides settlement exactly once.
+        var query = db.Set<BillingReservationEntity>().FromSqlInterpolated($"""
+            SELECT reservation.* FROM billing.reservation AS reservation
+            WHERE reservation.status = 'Reserved' AND reservation.expires_at <= {now}
+              AND NOT EXISTS (
+                  SELECT 1 FROM usage.evidence AS unknown
+                  WHERE unknown.request_id = reservation.request_id AND unknown.state = 'Unknown'
+                    AND NOT EXISTS (SELECT 1 FROM usage.evidence AS verified
+                        WHERE verified.attempt_id = unknown.attempt_id AND verified.state = 'Verified')
+                    AND (reservation.expires_at + interval '24 hours' > {now}
+                        OR unknown.reconcile_after > {now}))
+            """).AsNoTracking();
+        if (after is { } cursor)
+            query = query.Where(value => value.ExpiresAt > cursor.ExpiresAt
+                || value.ExpiresAt == cursor.ExpiresAt && value.Id.CompareTo(cursor.ReservationId) > 0);
+        return await query.OrderBy(value => value.ExpiresAt).ThenBy(value => value.Id)
+            .Take(limit).Select(value => new RecoveryCandidate(value.Id, value.ExpiresAt))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<bool> TryRecordLateExposureAsync(Guid settlementId, Guid evidenceId,
         UsdMicroAmount providerCost, DateTimeOffset now, CancellationToken cancellationToken = default)
     {

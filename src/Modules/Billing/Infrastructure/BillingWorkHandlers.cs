@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Persistence;
 
@@ -13,6 +14,33 @@ public sealed class BillingReconciliationJobHandler(IFinancialService financial,
         using var document = JsonDocument.Parse(job.Payload);
         var reservationId = document.RootElement.GetProperty("reservationId").GetGuid();
         await financial.ReconcileAsync(reservationId, cancellationToken);
+    }
+}
+
+public sealed class BillingRecoveryAlertJobHandler(FoundationDbContext db,
+    IOperationalAlertPublisher alerts, ITransactionCoordinator transactions,
+    IConsumerInboxStore inbox) : ILeasedJobHandler
+{
+    public string JobType => "billing.recovery.alert";
+
+    public async Task HandleAsync(LeasedJob job, CancellationToken cancellationToken)
+    {
+        using var document = JsonDocument.Parse(job.Payload);
+        var reservationId = document.RootElement.GetProperty("reservationId").GetGuid();
+        await using var transaction = await transactions.BeginAsync(cancellationToken);
+        if (!await inbox.TryRecordProcessedAsync("billing-recovery-alert", job.Id, cancellationToken)) return;
+        // Serialize the stale-alert check with the financial finalization lock.
+        // Otherwise an alert can be raised after its finalization event resolved it.
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE billing.reservation SET status = status WHERE id = {reservationId};",
+            cancellationToken);
+        var reserved = await db.Set<BillingReservationEntity>().AsNoTracking()
+            .AnyAsync(value => value.Id == reservationId && value.Status == "Reserved", cancellationToken);
+        if (reserved)
+            await alerts.RaiseAsync(OperationalAlertKind.SettlementFailure,
+                reservationId.ToString("N"), JsonSerializer.Serialize(new { reservationId }),
+                cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 }
 
@@ -36,7 +64,8 @@ public sealed class BillingUsageEvidenceHandler(IFinancialService financial, str
 }
 
 public sealed class BillingFinancialAlertHandler(IOperationalAlertPublisher alerts,
-    ITransactionCoordinator transactions, IConsumerInboxStore inbox, string eventType) : IOutboxHandler
+    IOperationalAlertDeliveryStore delivery, ITransactionCoordinator transactions,
+    IConsumerInboxStore inbox, TimeProvider clock, string eventType) : IOutboxHandler
 {
     public string EventType { get; } = eventType;
 
@@ -47,11 +76,14 @@ public sealed class BillingFinancialAlertHandler(IOperationalAlertPublisher aler
         using var document = JsonDocument.Parse(message.Payload);
         if (EventType == "billing.reservation.finalized")
         {
+            var reservationId = document.RootElement.GetProperty("reservationId").GetGuid();
+            await delivery.ResolveAsync(OperationalAlertKind.SettlementFailure,
+                reservationId.ToString("N"), clock.GetUtcNow(), cancellationToken);
             var unresolved = document.RootElement.GetProperty("UnresolvedUsage").GetBoolean();
             var exposure = document.RootElement.GetProperty("exposureMicroUsd").GetInt64();
             if (unresolved || exposure > 0)
                 await alerts.RaiseAsync(OperationalAlertKind.FinancialExposure,
-                    document.RootElement.GetProperty("reservationId").GetGuid().ToString("N"),
+                    reservationId.ToString("N"),
                     JsonSerializer.Serialize(new { unresolved, exposureMicroUsd = exposure }), cancellationToken);
         }
         else if (EventType == "billing.reversal.applied")

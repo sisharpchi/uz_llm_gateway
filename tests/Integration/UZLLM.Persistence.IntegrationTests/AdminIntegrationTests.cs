@@ -76,6 +76,8 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", customerSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/financial/risk", customerSession)))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
@@ -100,6 +102,14 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             {
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+            }
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/financial/risk", operatorSession)))
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+                var body = await response.Content.ReadAsStringAsync();
+                Assert.Contains("dataAsOf", body);
+                Assert.DoesNotContain("do-not-return", body);
             }
 
             var providerRequest = new { code = "auth-test", name = "Auth Test", reason = "operator test" };

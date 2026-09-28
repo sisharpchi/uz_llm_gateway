@@ -159,6 +159,8 @@ public interface IOperationalAlertDeliveryStore
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OperationalAlertDelivery>> ListAsync(int limit = 50,
         CancellationToken cancellationToken = default);
+    Task<int> ResolveAsync(OperationalAlertKind kind, string deduplicationKey,
+        DateTimeOffset resolvedAt, CancellationToken cancellationToken = default);
 }
 
 internal sealed class PostgreSqlOperationalAlertPublisher(FoundationDbContext dbContext, TimeProvider timeProvider) : IOperationalAlertPublisher
@@ -218,6 +220,13 @@ internal sealed class PostgreSqlOperationalAlertPublisher(FoundationDbContext db
 
 internal sealed class PostgreSqlOperationalAlertDeliveryStore(FoundationDbContext dbContext) : IOperationalAlertDeliveryStore
 {
+    public Task<int> ResolveAsync(OperationalAlertKind kind, string deduplicationKey,
+        DateTimeOffset resolvedAt, CancellationToken cancellationToken = default) =>
+        dbContext.OperationalAlerts.Where(value => value.Kind == kind.ToString()
+                && value.DeduplicationKey == deduplicationKey && value.ResolvedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.ResolvedAt,
+                (DateTimeOffset?)resolvedAt), cancellationToken);
+
     public async Task<OperationalAlertDelivery?> FindAsync(Guid alertId,
         CancellationToken cancellationToken = default)
     {

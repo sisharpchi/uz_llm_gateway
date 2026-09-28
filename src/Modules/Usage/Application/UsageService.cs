@@ -156,8 +156,8 @@ public sealed class UsageService(
     {
         ValidateId(requestId, nameof(requestId));
         var attempt = await RequireAttemptAsync(requestId, attemptId, cancellationToken);
-        if (attempt.Execution is not ExecutionState.Dispatched and not ExecutionState.OutcomeUnknown)
-            throw new InvalidOperationException("Only a dispatched attempt can have unknown provider usage.");
+        if (attempt.Execution is ExecutionState.Prepared or ExecutionState.RejectedBeforeExecution)
+            throw new InvalidOperationException("Only an attempt that may have reached a provider can have unknown usage.");
         if ((await store.ListEvidenceAsync(requestId, cancellationToken)).Any(value =>
             value.AttemptId == attemptId && value.State == EvidenceState.Verified))
             throw new InvalidOperationException("Verified usage already exists for this attempt.");

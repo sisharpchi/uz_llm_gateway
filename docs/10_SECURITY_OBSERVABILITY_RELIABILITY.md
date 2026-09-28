@@ -210,6 +210,13 @@ Recommended:
 - payment callback errors;
 - reconciliation mismatches.
 
+The financial recovery sweep checks expired reserved holds independently of
+the original leased job. `SettlementFailure` alerts are deduplicated by
+reservation and resolve on finalization. Operators can inspect current
+pending holds, platform exposure and recovery debt through the recently
+MFA-verified financial-risk read; it is not a customer endpoint. Investigate
+alerts and dead letters together before changing admission or payment state.
+
 ### Product
 - active orgs;
 - active keys;
