@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ApiError, management, tiyinFromWholeUzs, usdFromMicro, uzsFromTiyin,
-  type Organization, type Project, type PaymentQuote, type CreatedTopUp } from '@uzllm/api-client';
+  type Organization, type Project, type PaymentQuote, type CreatedTopUp, type PaymentIntent } from '@uzllm/api-client';
 import { ActivityPage, AnalyticsPage } from './UsagePages';
 
 type Page = 'overview' | 'projects' | 'keys' | 'billing' | 'activity' | 'analytics';
@@ -194,6 +194,7 @@ function KeysPanel({ organizationId, project }: { organizationId: string; projec
 function BillingPanel({ organizationId }: { organizationId: string }) {
   const wallet = useQuery({ queryKey: ['wallet', organizationId], queryFn: () => management.wallet(organizationId), refetchInterval: 15_000 });
   const payments = useQuery({ queryKey: ['topups', organizationId], queryFn: () => management.topUps(organizationId), refetchInterval: 15_000 });
+  const refunds = useQuery({ queryKey: ['customer-refunds', organizationId], queryFn: () => management.customerRefunds(organizationId), refetchInterval: 15_000 });
   const [amount, setAmount] = useState('100000'); const [provider, setProvider] = useState<'Payme' | 'Click'>('Payme');
   const [quote, setQuote] = useState<PaymentQuote | null>(null); const [topup, setTopup] = useState<CreatedTopUp | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
@@ -219,18 +220,34 @@ function BillingPanel({ organizationId }: { organizationId: string }) {
       setTopup(intent); await payments.refetch(); }
     catch (cause) { if (version === selectionVersion.current) setError(message(cause)); } finally { setBusy(false); } }
   return <><div className="page-heading"><span className="eyebrow">MANAGED CREDITS</span><h1>Billing</h1><p>Top up in UZS. Your locked quote determines the credited USD amount.</p></div>
+    {wallet.data?.spendingHeld && <div className="financial-warning" role="alert"><strong>Managed spending is on hold.</strong><span>A financial recovery balance is outstanding. New managed requests are paused until it is resolved. Contact support with your organization ID.</span></div>}
     <div className="summary-grid"><div className="panel metric"><span>Available balance</span><strong>{wallet.data ? usdFromMicro(wallet.data.availableBalanceMicroUsd) : '—'}</strong><small>USD credits</small></div>
-      <div className="panel metric"><span>Reserved balance</span><strong>{wallet.data ? usdFromMicro(wallet.data.reservedBalanceMicroUsd) : '—'}</strong><small>Active request holds</small></div></div>
+      <div className="panel metric"><span>Reserved balance</span><strong>{wallet.data ? usdFromMicro(wallet.data.reservedBalanceMicroUsd) : '—'}</strong><small>Active request holds</small></div>
+      <div className="panel metric"><span>Recovery debt</span><strong>{wallet.data?.recoveryDebtMicroUsd !== undefined ? usdFromMicro(wallet.data.recoveryDebtMicroUsd) : '—'}</strong><small>Outstanding recovery amount; not spendable credit</small></div></div>
     <div className="two-column"><form onSubmit={getQuote} className="panel stack"><h2>New top-up</h2><label>Amount (UZS)<input inputMode="numeric" value={amount} onChange={event => { setAmount(event.target.value); clearSelection(); }} required /></label>
       <label>Payment provider<select value={provider} onChange={event => { setProvider(event.target.value as 'Payme' | 'Click'); clearSelection(); }}><option value="Payme">Payme</option><option value="Click">CLICK</option></select></label>
       <button disabled={busy} className="button secondary">Get quote</button>
       {quote && <div className="quote" role="status"><p>You pay <strong>{uzsFromTiyin(quote.amountTiyin)}</strong></p><p>Fee <strong>{uzsFromTiyin(quote.feeTiyin)}</strong></p><p>Credit <strong>{usdFromMicro(quote.creditMicroUsd)}</strong></p><small>Valid until {new Date(quote.expiresAt).toLocaleString()}</small>
         <button type="button" disabled={busy} onClick={startPayment} className="button primary">Continue to {provider}</button></div>}
-      {topup && <div className="notice" role="status">Payment {topup.intent.status}. You pay {uzsFromTiyin(topup.intent.amountTiyin)}. {topup.checkoutUrl ? <a href={topup.checkoutUrl} target="_blank" rel="noopener noreferrer">Open secure {provider} checkout ↗</a> : 'Checkout unavailable.'}</div>}
+      {topup && <div className="notice" role="status">Checkout created for {uzsFromTiyin(topup.intent.amountTiyin)}. Credit appears only after a verified provider payment. {topup.checkoutUrl ? <a href={topup.checkoutUrl} target="_blank" rel="noopener noreferrer">Open secure {provider} checkout ↗</a> : 'Checkout unavailable.'}</div>}
       {error && <p role="alert" className="error">{error}</p>}</form>
-      <section className="panel"><h2>Payment history</h2>{payments.isError && <ErrorState error={payments.error} />}
-        {payments.data?.length ? <ul className="row-list">{payments.data.map(item => <li key={item.id}><div><strong>{uzsFromTiyin(item.amountTiyin)}</strong><small>{item.provider} · {new Date(item.createdAt).toLocaleDateString()}</small></div><span className="tag">{item.status}</span></li>)}</ul>
-          : <p className="muted">No payments yet. Balances update only after provider confirmation.</p>}</section></div></>;
+      <section className="panel"><h2>Payment history</h2><p className="muted">The status below reflects your wallet, not a provider statement. Reconciliation details are reviewed by support.</p>{payments.isError && <ErrorState error={payments.error} />}
+        {payments.data?.length ? <ul className="row-list financial-list">{payments.data.map(item => { const state = customerPaymentState(item); return <li key={item.id}><div><strong>{uzsFromTiyin(item.amountTiyin)}</strong><small>{item.provider} · {new Date(item.createdAt).toLocaleDateString()} · {item.id.slice(0, 8)}</small><small>{item.hasCredit ? `Wallet credit ${usdFromMicro(item.creditMicroUsd)}${item.hasReversal ? ' · subsequently reversed' : ''}` : 'No wallet credit posted'}</small><small>{state.explanation}</small></div><span className={`tag finance-${state.tone}`}>{state.label}</span></li>; })}</ul>
+          : !payments.isPending && <p className="muted">No payments yet. Balances update only after provider confirmation.</p>}</section></div>
+    <section className="panel"><h2>Wallet-credit refunds</h2><p className="muted">A refund here credits an earlier inference charge back to your wallet. It is not a cash payout or payment reversal.</p>
+      {refunds.isError && <ErrorState error={refunds.error} />}
+      {refunds.data?.length ? <ul className="row-list financial-list">{refunds.data.map(item => <li key={item.id}><div><strong>{usdFromMicro(item.amountMicroUsd)} credited</strong><small>{new Date(item.createdAt).toLocaleString()} · Settlement {item.settlementId.slice(0, 8)}</small></div><span className="tag">Wallet refund</span></li>)}</ul>
+        : !refunds.isPending && <p className="muted">No wallet-credit refunds recorded.</p>}</section></>;
+}
+
+function customerPaymentState(item: PaymentIntent): { label: string; explanation: string; tone: string } {
+  if (item.hasOpenReconciliationCase && item.hasReversal) return { label: 'Reversed · under review', explanation: 'The credited funds were reversed and payment evidence still needs investigation. Contact support with the payment reference.', tone: 'danger' };
+  if (item.hasOpenReconciliationCase) return { label: 'Under review', explanation: 'Payment evidence needs investigation. Contact support with the payment reference; do not retry blindly.', tone: 'warning' };
+  if (item.hasReversal) return { label: 'Reversed', explanation: 'Previously credited funds were reversed. Your wallet and any recovery debt reflect the adjustment.', tone: 'danger' };
+  if (item.hasCredit) return { label: 'Credited', explanation: `${usdFromMicro(item.creditMicroUsd)} was credited to your wallet.`, tone: 'success' };
+  if (item.status === 'Paid') return { label: 'Credit pending', explanation: 'Payment was accepted locally but wallet credit is not visible yet. Contact support if this persists.', tone: 'warning' };
+  if (item.status === 'Canceled' || item.status === 'Expired') return { label: item.status, explanation: 'No wallet credit was posted for this payment.', tone: 'neutral' };
+  return { label: 'Pending', explanation: 'Complete checkout and wait for provider confirmation. No wallet credit has been posted.', tone: 'neutral' };
 }
 
 function EmptyProject() { return <div className="panel"><h2>Create a project first</h2><p>API keys always belong to a project.</p><Link to="../projects" className="button primary">Go to projects</Link></div>; }

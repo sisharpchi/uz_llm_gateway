@@ -14,6 +14,7 @@ async function mockBilling(page: Page) {
     if (path.endsWith('/projects')) return json([]);
     if (path.endsWith('/billing/wallet')) return json({ organizationId, postedBalanceMicroUsd: '0', reservedBalanceMicroUsd: '0', availableBalanceMicroUsd: '0', version: 0 });
     if (path.endsWith('/billing/topups')) return json([]);
+    if (path.endsWith('/billing/refunds')) return json([]);
     return route.fulfill({ status: 404 });
   });
 }

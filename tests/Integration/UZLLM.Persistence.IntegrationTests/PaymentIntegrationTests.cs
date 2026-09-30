@@ -27,6 +27,58 @@ public sealed class PaymentIntegrationTests(PersistenceIntegrationFixture fixtur
         "payme-test-key", "click-test-merchant", "click-test-service", "click-test-secret");
 
     [Fact]
+    public async Task Customer_billing_read_is_tenant_scoped_and_distinguishes_credit_case_and_reversal()
+    {
+        var seed = await SeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<FoundationDbContext>();
+        var payment = Service(services);
+        var quote = await payment.CreateQuoteAsync(seed.AccountId, seed.OrganizationId,
+            PaymentProvider.Payme, new UzsTiyinAmount(100_000));
+        var intent = (await payment.CreateIntentAsync(seed.AccountId, seed.OrganizationId,
+            quote.Id, "customer-read-fixture")).Intent;
+        var reads = new PostgreSqlCustomerBillingReadStore(db);
+        var pending = Assert.Single(await reads.ListTopUpsAsync(seed.OrganizationId));
+        Assert.Equal("Pending", pending.Status);
+        Assert.False(pending.HasCredit);
+
+        var api = new PaymeMerchantApi(payment, Config);
+        var auth = "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("Paycom:payme-test-key"));
+        Assert.Null((await api.HandleAsync(auth, JsonSerializer.Serialize(new
+        {
+            id = 1, method = "CreateTransaction",
+            @params = new { id = "customer-read-payment", time = 1000, amount = 100_000,
+                account = new { intent_id = intent.Id.ToString("D") } }
+        }))).Error);
+        Assert.Null((await api.HandleAsync(auth,
+            """{"id":2,"method":"PerformTransaction","params":{"id":"customer-read-payment"}}""")).Error);
+        var credited = Assert.Single(await reads.ListTopUpsAsync(seed.OrganizationId));
+        Assert.Equal("Paid", credited.Status);
+        Assert.True(credited.HasCredit);
+
+        db.Set<PaymentReconciliationCaseEntity>().Add(new PaymentReconciliationCaseEntity
+        {
+            Id = Guid.CreateVersion7(), IntentId = intent.Id, Provider = "Payme",
+            Reason = "statement_amount_mismatch", Status = "Open", CreatedAt = DateTimeOffset.UtcNow
+        });
+        db.Set<BillingReversalEntity>().Add(new BillingReversalEntity
+        {
+            Id = Guid.CreateVersion7(), OrganizationId = seed.OrganizationId,
+            ExternalReferenceId = intent.Id, AmountMicroUsd = long.Parse(credited.CreditMicroUsd),
+            RecoveredMicroUsd = long.Parse(credited.CreditMicroUsd), DebtCreatedMicroUsd = 0,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
+        var disputed = Assert.Single(await reads.ListTopUpsAsync(seed.OrganizationId));
+        Assert.True(disputed.HasOpenReconciliationCase);
+        Assert.True(disputed.HasReversal);
+        Assert.Empty(await reads.ListTopUpsAsync(Guid.CreateVersion7()));
+        Assert.Empty(await reads.ListRefundsAsync(Guid.CreateVersion7()));
+    }
+
+    [Fact]
     public async Task Published_FX_rate_never_revalues_existing_quote_or_payment_intent()
     {
         var seed = await SeedAsync();

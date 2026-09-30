@@ -7,6 +7,7 @@ using UZLLM.Modules.Billing.Application;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Billing.Domain;
 using UZLLM.Modules.Billing.Infrastructure;
+using UZLLM.Modules.Payments.Infrastructure;
 using UZLLM.Modules.Usage.Application;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Modules.Usage.Infrastructure;
@@ -100,6 +101,11 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
             value.Type == "Refund" && value.ReferenceType == "settlement_refund"));
         Assert.Equal(2, await verifyDb.Set<AuditEventEntity>().CountAsync(value =>
             value.Action == "settlement.refunded" && value.ActorAccountId == actorId));
+        var customerRefunds = new PostgreSqlCustomerBillingReadStore(verifyDb);
+        Assert.Equal(new[] { 4_000L, 6_000L },
+            (await customerRefunds.ListRefundsAsync(seed.OrganizationId))
+                .Select(value => long.Parse(value.AmountMicroUsd)).Order().ToArray());
+        Assert.Empty(await customerRefunds.ListRefundsAsync(Guid.CreateVersion7()));
         Assert.Equal(100_000, (await Financial(verifyScope.ServiceProvider,
             new MutableFinancialClock(Start)).GetWalletStateAsync(seed.OrganizationId))!
             .Wallet.PostedBalance.Value);

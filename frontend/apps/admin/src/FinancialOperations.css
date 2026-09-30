@@ -1,0 +1,11 @@
+.financial-status{display:inline-block;border-radius:99px;padding:.28rem .6rem;font-size:.73rem;font-weight:800}
+.financial-status.success{background:#194538;color:#a7e9c5}
+.financial-status.warning{background:#49381f;color:#ffdda2}
+.financial-status.danger{background:#4a292e;color:#ffc1c3}
+.financial-status.neutral{background:#2b3c45;color:#c5d5dc}
+.finance-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1rem}
+.finance-risk-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+.finance-risk-grid>div{border:1px solid #344b51;border-radius:10px;padding:1rem;background:#101d25}
+.finance-risk-grid strong{display:block;font-size:.84rem}
+.finance-risk-grid p{font-size:.78rem;margin:.5rem 0 0;overflow-wrap:anywhere}
+@media(max-width:800px){.finance-fields,.finance-risk-grid{grid-template-columns:1fr}}

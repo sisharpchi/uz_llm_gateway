@@ -44,7 +44,8 @@ with `{ "provider": "Payme", "amountTiyin": "100000" }`, then
 `{ "quoteId": "..." }` and an `Idempotency-Key` header. Both writes require the
 management session and CSRF header. The latter returns an intent and provider
 checkout URL; the key may be replayed only for the same quote. `GET` endpoints
-for `/billing/topups`, `/billing/topups/{intentId}`, and `/billing/wallet` require
+for `/billing/topups`, `/billing/topups/{intentId}`, `/billing/refunds`, and
+`/billing/wallet` require
 billing-read permission (including `BillingViewer`). Cross-tenant or
 insufficient-role access returns `403`, not a framework authentication challenge.
 Top-up amount input, quote/intent amounts, FX rate, and wallet
@@ -55,6 +56,15 @@ The customer form accepts whole UZS and converts exactly to tiyin before
 requesting a quote (for example, `100000` UZS sends `"amountTiyin": "10000000"`).
 It must display the returned tiyin amount, including fractional UZS where
 present, and never expose checkout when the quote or intent amount differs.
+`GET /billing/topups` returns the newest 50 tenant-scoped intents with
+`hasCredit`, `hasReversal`, and `hasOpenReconciliationCase` flags. These are
+wallet/ledger and open-case facts, not independent merchant confirmation;
+the create-intent response has no such flags. `GET /billing/refunds` returns
+the newest 50 wallet-credit refunds with settlement ID, amount and timestamp,
+but no operator reason or identity. Wallet reads include decimal-string
+`recoveryDebtMicroUsd` and boolean `spendingHeld` alongside posted, reserved,
+available and version. Customer reads do not expose provider statement rows or
+operator case-resolution details.
 
 Payme calls `/payments/payme/callback` with its Merchant API JSON-RPC body and
 `Authorization: Basic` credential (`Paycom:<merchant key>`). Implemented methods:

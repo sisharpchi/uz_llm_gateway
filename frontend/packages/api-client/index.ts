@@ -6,10 +6,11 @@ export interface Organization { id: Id; name: string; status: 0 | 1 }
 export interface Project { id: Id; organizationId: Id; name: string; status: 0 | 1 }
 export interface ApiKey { id: Id; projectId: Id; name: string; prefix: string; status: 0 | 1; expiresAt: string | null; createdAt: string }
 export interface IssuedApiKey { apiKey: ApiKey; secret: string }
-export interface Wallet { organizationId: Id; postedBalanceMicroUsd: DecimalString; reservedBalanceMicroUsd: DecimalString; availableBalanceMicroUsd: DecimalString; version: number }
+export interface Wallet { organizationId: Id; postedBalanceMicroUsd: DecimalString; reservedBalanceMicroUsd: DecimalString; availableBalanceMicroUsd: DecimalString; recoveryDebtMicroUsd: DecimalString; spendingHeld: boolean; version: number }
 export interface PaymentQuote { id: Id; organizationId: Id; provider: 'Payme' | 'Click'; amountTiyin: DecimalString; feeTiyin: DecimalString; creditMicroUsd: DecimalString; uzsTiyinPerUsd: DecimalString; expiresAt: string }
-export interface PaymentIntent { id: Id; organizationId: Id; provider: 'Payme' | 'Click'; status: 'Pending' | 'Created' | 'Paid' | 'Canceled' | 'Expired'; amountTiyin: DecimalString; feeTiyin: DecimalString; creditMicroUsd: DecimalString; createdAt: string }
-export interface CreatedTopUp { intent: PaymentIntent; duplicate: boolean; checkoutUrl: string | null }
+export interface PaymentIntent { id: Id; organizationId: Id; provider: 'Payme' | 'Click'; status: 'Pending' | 'Created' | 'Paid' | 'Canceled' | 'Expired'; amountTiyin: DecimalString; feeTiyin: DecimalString; creditMicroUsd: DecimalString; createdAt: string; hasCredit: boolean; hasReversal: boolean; hasOpenReconciliationCase: boolean }
+export interface CustomerRefund { id: Id; settlementId: Id; organizationId: Id; amountMicroUsd: DecimalString; createdAt: string }
+export interface CreatedTopUp { intent: Omit<PaymentIntent, 'hasCredit' | 'hasReversal' | 'hasOpenReconciliationCase'>; duplicate: boolean; checkoutUrl: string | null }
 export interface UsageFilters { from?: string; to?: string; projectId?: Id; apiKeyId?: Id; modelId?: Id; providerId?: Id; status?: string; isStream?: boolean; requestId?: Id }
 export interface UsageActivityItem { requestId: Id; projectId: Id; projectName: string; apiKeyId: Id; apiKeyName: string; modelId: Id; modelCode: string; providerId: Id | null; providerCode: string | null; startedAt: string; completedAt: string | null; executionState: string; deliveryState: string; financialState: string; httpStatus: number | null; isStream: boolean; attemptCount: number; durationMs: number | null; inputTokens: number | null; outputTokens: number | null; chargedMicroUsd: DecimalString | null }
 export interface UsageActivityPage { items: UsageActivityItem[]; nextCursor: string | null; dataAsOf: string }
@@ -29,6 +30,9 @@ export interface AdminProvider { id: Id; code: string; name: string; status: str
 export interface AdminPrice { id: Id; providerModelId: Id; effectiveFrom: string; effectiveTo: string | null; inputPriceMicroUsdPerMillion: DecimalString; outputPriceMicroUsdPerMillion: DecimalString; cachedInputPriceMicroUsdPerMillion: DecimalString | null }
 export interface AdminLedgerEntry { id: Id; organizationId: Id; type: string; amountMicroUsd: DecimalString; referenceType: string; referenceId: Id; occurredAt: string }
 export interface AdminPayment { id: Id; organizationId: Id; provider: string; localStatus: string; providerObservation: string; amountTiyin: DecimalString; creditMicroUsd: DecimalString; externalTransactionId: string | null; hasCredit: boolean; hasReversal: boolean; reconciliationReason: string | null; reconciliationStatus: string | null; callbackCount: number; createdAt: string }
+export interface AdminPaymentCase { id: Id; intentId: Id | null; provider: string | null; externalTransactionId: string | null; reason: string; status: string; createdAt: string; resolvedAt: string | null; resolutionReference: string | null }
+export interface AdminRefund { id: Id; settlementId: Id; organizationId: Id; actorAccountId: Id; refundKey: string; amountMicroUsd: DecimalString; reason: string; createdAt: string; duplicate: boolean }
+export interface AdminFinancialRisk { dataAsOf: string; pending: { reservationId: Id; requestId: Id; organizationId: Id; heldMicroUsd: DecimalString; expiresAt: string; state: string; nextReviewAt: string | null }[]; exposure: { settlementId: Id; reservationId: Id; organizationId: Id; platformExposureMicroUsd: DecimalString; uncollectedChargeMicroUsd: DecimalString; unresolvedUsage: boolean; createdAt: string }[]; debt: { organizationId: Id; outstandingMicroUsd: DecimalString; spendingHeld: boolean }[] }
 export interface AdminControl { feature: 'ManagedTraffic' | 'TopUps'; enabled: boolean; updatedAt: string }
 export interface AdminAudit { id: Id; organizationId: Id | null; actorAccountId: Id; action: string; resourceType: string; resourceId: Id | null; occurredAt: string }
 
@@ -76,6 +80,11 @@ export const management = {
   adminPrices: (mappingId: Id) => request<AdminPrice[]>(`/admin/mappings/${encodeURIComponent(mappingId)}/prices`),
   adminLedger: (organizationId: Id) => request<AdminLedgerEntry[]>(`/admin/organizations/${encodeURIComponent(organizationId)}/ledger`),
   adminPayments: (organizationId?: Id) => request<AdminPayment[]>(`/admin/payments${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ''}`),
+  adminPaymentCases: () => request<AdminPaymentCase[]>('/admin/payment-reconciliation/cases'),
+  adminResolvePaymentCase: (id: Id, reason: string, resolutionReference: string) => request<void>(`/admin/payment-reconciliation/cases/${encodeURIComponent(id)}/resolve`, { method: 'PATCH', body: json({ reason, resolutionReference }) }),
+  adminRefunds: (organizationId?: Id) => request<AdminRefund[]>(`/admin/refunds${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ''}`),
+  adminCreateRefund: (settlementId: Id, refundKey: string, amountMicroUsd: DecimalString, reason: string) => request<AdminRefund>('/admin/refunds', { method: 'POST', body: json({ settlementId, refundKey, amountMicroUsd, reason }) }),
+  adminFinancialRisk: () => request<AdminFinancialRisk>('/admin/financial/risk'),
   adminAudit: () => request<AdminAudit[]>('/admin/audit'),
   adminControls: () => request<AdminControl[]>('/admin/controls'),
   adminCreateProvider: (code: string, name: string, reason: string) => request<{ id: Id }>('/admin/providers', { method: 'POST', body: json({ code, name, reason }) }),
@@ -97,6 +106,7 @@ export const management = {
   createTopUp: (organizationId: Id, quoteId: Id, idempotencyKey: string) => request<CreatedTopUp>(
     `/organizations/${organizationId}/billing/topups`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: json({ quoteId }) }),
   topUps: (organizationId: Id) => request<PaymentIntent[]>(`/organizations/${organizationId}/billing/topups`),
+  customerRefunds: (organizationId: Id) => request<CustomerRefund[]>(`/organizations/${organizationId}/billing/refunds`),
   activity: (organizationId: Id, filters: UsageFilters = {}, limit = 25, cursor?: string) => request<UsageActivityPage>(
     `/organizations/${organizationId}/usage/activity${usageQuery(filters, { limit, cursor })}`),
   usageDetail: (organizationId: Id, requestId: Id) => request<UsageRequestDetail>(

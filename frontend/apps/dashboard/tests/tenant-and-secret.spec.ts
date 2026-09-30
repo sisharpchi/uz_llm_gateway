@@ -21,6 +21,7 @@ async function mockManagement(page: Page) {
     if (path.endsWith('/billing/wallet')) return json({ organizationId: path.includes(orgOne) ? orgOne : orgTwo,
       postedBalanceMicroUsd: '1000000', reservedBalanceMicroUsd: '0', availableBalanceMicroUsd: '1000000', version: 1 });
     if (path.endsWith('/billing/topups')) return json([]);
+    if (path.endsWith('/billing/refunds')) return json([]);
     if (path.endsWith(`/${projectOne}/api-keys`) && request.method() === 'POST') {
       created = true;
       return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
@@ -127,7 +128,7 @@ test('billing quotes and starts payment without fabricating wallet credit', asyn
   await expect(page.getByText('100,000 UZS')).toBeVisible();
   await page.getByRole('button', { name: 'Continue to Payme' }).click();
   await expect(page.getByRole('link', { name: /Open secure Payme checkout/ })).toHaveAttribute('href', 'https://checkout.paycom.uz/test');
-  await expect(page.getByText('Payment Pending. You pay 100,000 UZS.')).toBeVisible();
+  await expect(page.getByText(/Checkout created for 100,000 UZS/)).toBeVisible();
   await expect(page.getByText('$1.00').first()).toBeVisible();
   expect(calls).toContain(`GET /management/v1/organizations/${orgOne}/billing/wallet`);
 });

@@ -275,6 +275,11 @@ Payment history:
 - state;
 - reference.
 
+The implemented dashboard derives pending, credited, reversed and under-review
+labels from tenant-scoped wallet/case flags, not from a payment-status string
+alone. It shows recovery debt/spending hold and immutable wallet-credit refunds;
+operator-only merchant statement evidence and case details stay in the admin app.
+
 Ledger:
 - top-up;
 - usage;
@@ -438,9 +443,10 @@ Sensitive action trail.
 The P0 console lives in `frontend/apps/admin` and uses the Management API,
 not the root `frontend/` design mockup's sample data. Account/organization
 search, provider/mapping/credential controls, future-effective price history,
-payment evidence, read-only ledger, incident switches, and audit are live.
-Manual ledger adjustment/refund and independent merchant-state lookup remain
-later work; the Payments page must label callback evidence honestly.
+payment evidence, reconciliation cases, wallet-credit refund actions, recovery
+debt/exposure, read-only ledger, incident switches, and audit are live.
+Discretionary ledger adjustment, cash payout and independent live merchant-state
+lookup remain later work; the Payments page labels callback evidence honestly.
 
 ---
 

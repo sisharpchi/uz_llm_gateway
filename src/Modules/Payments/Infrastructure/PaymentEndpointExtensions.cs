@@ -54,10 +54,30 @@ public static class PaymentEndpointExtensions
         }).RequireManagementCsrf();
 
         billing.MapGet("/topups", async (Guid organizationId, HttpContext context,
-            IPaymentService payments, CancellationToken token) =>
+            IOrganizationAuthorizationService authorization, ICustomerBillingReadStore reads,
+            CancellationToken token) =>
         {
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
-            try { return Results.Ok((await payments.ListIntentsAsync(accountId, organizationId, token)).Select(Intent)); }
+            try
+            {
+                await authorization.EnsurePermissionAsync(accountId, organizationId,
+                    OrganizationPermission.ReadBilling, cancellationToken: token);
+                return Results.Ok(await reads.ListTopUpsAsync(organizationId, token));
+            }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        });
+
+        billing.MapGet("/refunds", async (Guid organizationId, HttpContext context,
+            IOrganizationAuthorizationService authorization, ICustomerBillingReadStore reads,
+            CancellationToken token) =>
+        {
+            if (!AccountId(context, out var accountId)) return Results.Unauthorized();
+            try
+            {
+                await authorization.EnsurePermissionAsync(accountId, organizationId,
+                    OrganizationPermission.ReadBilling, cancellationToken: token);
+                return Results.Ok(await reads.ListRefundsAsync(organizationId, token));
+            }
             catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
 
@@ -71,19 +91,21 @@ public static class PaymentEndpointExtensions
         });
 
         billing.MapGet("/wallet", async (Guid organizationId, HttpContext context,
-            IOrganizationAuthorizationService authorization, IWalletLedgerService wallet, CancellationToken token) =>
+            IOrganizationAuthorizationService authorization, IFinancialStore financial,
+            CancellationToken token) =>
         {
             if (!AccountId(context, out var accountId)) return Results.Unauthorized();
             try
             {
                 await authorization.EnsurePermissionAsync(accountId, organizationId,
                     OrganizationPermission.ReadBilling, cancellationToken: token);
-                return await wallet.GetWalletAsync(organizationId, token) is { } value
-                    ? Results.Ok(new { value.OrganizationId,
-                        postedBalanceMicroUsd = value.PostedBalance.Value.ToString(CultureInfo.InvariantCulture),
-                        reservedBalanceMicroUsd = value.ReservedBalance.Value.ToString(CultureInfo.InvariantCulture),
-                        availableBalanceMicroUsd = value.AvailableBalance.Value.ToString(CultureInfo.InvariantCulture),
-                        value.Version }) : Results.NotFound();
+                return await financial.FindWalletStateAsync(organizationId, token) is { } state
+                    ? Results.Ok(new { state.Wallet.OrganizationId,
+                        postedBalanceMicroUsd = state.Wallet.PostedBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        reservedBalanceMicroUsd = state.Wallet.ReservedBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        availableBalanceMicroUsd = state.Wallet.AvailableBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        recoveryDebtMicroUsd = state.RecoveryDebt.Value.ToString(CultureInfo.InvariantCulture),
+                        state.SpendingHeld, state.Wallet.Version }) : Results.NotFound();
             }
             catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });

@@ -93,6 +93,7 @@ public sealed class ManagementSecurityEndpointIntegrationTests(PersistenceIntegr
                 Request(HttpMethod.Post, $"{path}/quotes", outsider, new { provider = "Payme", amountTiyin = "100000" }),
                 Request(HttpMethod.Post, $"{path}/topups", outsider, new { quoteId }, "outsider-topup"),
                 Request(HttpMethod.Get, $"{path}/topups", outsider),
+                Request(HttpMethod.Get, $"{path}/refunds", outsider),
                 Request(HttpMethod.Get, $"{path}/topups/{intentId}", outsider),
                 Request(HttpMethod.Get, $"{path}/wallet", outsider),
                 Request(HttpMethod.Post, $"{path}/quotes", viewer, new { provider = "Payme", amountTiyin = "100000" }),
@@ -109,7 +110,25 @@ public sealed class ManagementSecurityEndpointIntegrationTests(PersistenceIntegr
                 }
             }
             using (var response = await client.SendAsync(Request(HttpMethod.Get, $"{path}/wallet", viewer)))
+            {
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var wallet = await response.Content.ReadFromJsonAsync<JsonElement>();
+                Assert.Equal("0", wallet.GetProperty("recoveryDebtMicroUsd").GetString());
+                Assert.False(wallet.GetProperty("spendingHeld").GetBoolean());
+            }
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, $"{path}/topups", viewer)))
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var item = Assert.Single((await response.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray());
+                Assert.False(item.GetProperty("hasCredit").GetBoolean());
+                Assert.False(item.GetProperty("hasReversal").GetBoolean());
+                Assert.False(item.GetProperty("hasOpenReconciliationCase").GetBoolean());
+            }
+            using (var response = await client.SendAsync(Request(HttpMethod.Get, $"{path}/refunds", viewer)))
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Empty((await response.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray());
+            }
             using (var response = await client.SendAsync(Request(HttpMethod.Get, $"{path}/topups/{intentId}", viewer)))
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal(1, await db.Set<PaymentIntentEntity>().CountAsync());
