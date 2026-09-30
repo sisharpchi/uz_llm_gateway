@@ -1,20 +1,21 @@
 import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { management, usageUsdFromMicro, type UsageFilters, type UsageRequestDetail } from '@uzllm/api-client';
+import { management, usageUsdFromMicro, type Project, type UsageFilters, type UsageRequestDetail } from '@uzllm/api-client';
 
 const startOfDay = (value: Date) => new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 const today = () => startOfDay(new Date()).toISOString().slice(0, 10);
 const daysAgo = (days: number) => startOfDay(new Date(Date.now() - days * 86_400_000)).toISOString().slice(0, 10);
 const timestamp = (value: string) => new Date(value).toLocaleString();
-const money = (value: string | null) => value === null ? 'Pending' : usageUsdFromMicro(value);
+const money = (value: string | null | undefined) => value == null ? 'Unknown / unsettled' : usageUsdFromMicro(value);
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function useWindow(projectId?: string) {
   const [from, setFrom] = useState(daysAgo(6));
   const [to, setTo] = useState(today());
   const filters: UsageFilters = {
-    from: from ? new Date(`${from}T00:00:00Z`).toISOString() : undefined,
-    to: to ? new Date(new Date(`${to}T00:00:00Z`).getTime() + 86_400_000).toISOString() : undefined,
+    from: from && !Number.isNaN(Date.parse(`${from}T00:00:00Z`)) ? new Date(`${from}T00:00:00Z`).toISOString() : undefined,
+    to: to && !Number.isNaN(Date.parse(`${to}T00:00:00Z`)) ? new Date(new Date(`${to}T00:00:00Z`).getTime() + 86_400_000).toISOString() : undefined,
     projectId
   };
   return { from, to, setFrom, setTo, filters };
@@ -27,14 +28,25 @@ function WindowControls({ from, to, setFrom, setTo }: {
     <label>To (UTC)<input type="date" value={to} min={from} onChange={event => setTo(event.target.value)} /></label></div>;
 }
 
-export function ActivityPage({ organizationId, projectId }: { organizationId: string; projectId?: string }) {
+export function ActivityPage({ organizationId, projectId, projects }: { organizationId: string; projectId?: string; projects: Project[] }) {
   const window = useWindow(projectId);
   const [search, setSearch] = useSearchParams();
   const [status, setStatus] = useState('');
+  const [apiKeyId, setApiKeyId] = useState('');
+  const [modelId, setModelId] = useState('');
+  const [providerId, setProviderId] = useState('');
+  const [stream, setStream] = useState('');
   const [requestId, setRequestId] = useState('');
   const [lookup, setLookup] = useState('');
-  const filters = { ...window.filters, status: status || undefined, requestId: lookup || undefined };
-  const invalidWindow = window.from > window.to || !window.from || !window.to;
+  const windowDays = (new Date(`${window.to}T00:00:00Z`).getTime() - new Date(`${window.from}T00:00:00Z`).getTime()) / 86_400_000 + 1;
+  const invalidWindow = window.from > window.to || !window.from || !window.to || !Number.isFinite(windowDays) || windowDays > 90;
+  const keys = useQuery({ queryKey: ['activity-keys', projectId], queryFn: () => management.keys(projectId!), enabled: !!projectId });
+  const models = useQuery({ queryKey: ['activity-models', organizationId, window.filters], queryFn: () => management.usageBreakdown(organizationId, 'model', window.filters), enabled: !invalidWindow });
+  const providers = useQuery({ queryKey: ['activity-providers', organizationId, window.filters], queryFn: () => management.usageBreakdown(organizationId, 'provider', window.filters), enabled: !invalidWindow });
+  const effectiveKey = projectId && keys.data?.some(key => key.id === apiKeyId) ? apiKeyId : undefined;
+  const filters: UsageFilters = { ...window.filters, apiKeyId: effectiveKey, modelId: modelId || undefined,
+    providerId: providerId || undefined, status: status || undefined, isStream: stream ? stream === 'true' : undefined,
+    requestId: lookup || undefined };
   const activity = useInfiniteQuery({ queryKey: ['activity', organizationId, filters],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => management.activity(organizationId, filters, 25, pageParam),
@@ -42,32 +54,63 @@ export function ActivityPage({ organizationId, projectId }: { organizationId: st
   const selected = search.get('request');
   const detail = useQuery({ queryKey: ['usage-detail', organizationId, selected],
     queryFn: () => management.usageDetail(organizationId, selected!), enabled: !!selected });
+  const keySummary = useQuery({ queryKey: ['activity-key-summary', organizationId, filters],
+    queryFn: () => management.usageSummary(organizationId, filters), enabled: !invalidWindow && !!effectiveKey });
   const rows = activity.data?.pages.flatMap(page => page.items) ?? [];
   function choose(id: string | null) {
     const next = new URLSearchParams(search);
     if (id) next.set('request', id); else next.delete('request');
     setSearch(next);
   }
+  function changeProject(nextId: string) {
+    const next = new URLSearchParams(search);
+    if (nextId) next.set('project', nextId); else next.delete('project');
+    next.delete('request'); setSearch(next);
+    setApiKeyId(''); setModelId(''); setProviderId(''); setLookup(''); setRequestId('');
+  }
+  function findRequest() {
+    const id = requestId.trim();
+    if (id && !uuid.test(id)) return;
+    setLookup(id); choose(id || null);
+  }
   return <><div className="page-heading"><span className="eyebrow">INFERENCE AUDIT</span><h1>Activity</h1>
     <p>Every logical gateway request, its attempts, usage evidence, and final charge.</p></div>
-    <div className="usage-toolbar panel"><WindowControls {...window} />
+    <div className="usage-toolbar panel"><WindowControls {...window}
+      setFrom={value => { window.setFrom(value); setModelId(''); setProviderId(''); choose(null); }}
+      setTo={value => { window.setTo(value); setModelId(''); setProviderId(''); choose(null); }} />
+      <label>Filter project<select value={projectId ?? ''} onChange={event => changeProject(event.target.value)}><option value="">All projects</option>
+        {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+      <label>API key<select value={effectiveKey ?? ''} disabled={!projectId || keys.isPending || keys.isError} onChange={event => setApiKeyId(event.target.value)}>
+        <option value="">All keys{!projectId ? ' · select a project' : ''}</option>{keys.data?.map(key => <option key={key.id} value={key.id}>{key.name} · {key.prefix}</option>)}</select></label>
+      <label>Model<select value={modelId} onChange={event => setModelId(event.target.value)}><option value="">All models</option>
+        {models.data?.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>Provider<select value={providerId} onChange={event => setProviderId(event.target.value)}><option value="">All providers</option>
+        {providers.data?.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="">All states</option>
         {['Prepared', 'Dispatched', 'Succeeded', 'Failed', 'Canceled', 'OutcomeUnknown', 'RejectedBeforeExecution'].map(value => <option key={value}>{value}</option>)}</select></label>
-      <form onSubmit={event => { event.preventDefault(); setLookup(requestId.trim()); }} className="usage-lookup"><label>Exact request ID<input value={requestId} onChange={event => setRequestId(event.target.value)} placeholder="UUID" /></label>
+      <label>Delivery<select value={stream} onChange={event => setStream(event.target.value)}><option value="">All types</option><option value="true">Streaming</option><option value="false">Non-streaming</option></select></label>
+      <form onSubmit={event => { event.preventDefault(); findRequest(); }} className="usage-lookup"><label>Exact request ID<input value={requestId} onChange={event => setRequestId(event.target.value)} placeholder="UUID" aria-invalid={!!requestId.trim() && !uuid.test(requestId.trim())} /></label>
         <button className="button secondary">Find</button></form></div>
-    {invalidWindow && <p role="alert" className="error">Choose a valid date range.</p>}
-    {activity.isError && <p role="alert" className="error">Activity could not be loaded. Check the filters and try again.</p>}
+    {invalidWindow && <p role="alert" className="error">Choose a valid UTC date range of at most 90 days.</p>}
+    {!!requestId.trim() && !uuid.test(requestId.trim()) && <p role="alert" className="error">Request ID must be a UUID.</p>}
+    {keys.isError && projectId && <p role="alert" className="error">API keys could not be loaded for this project.</p>}
+    {activity.isError && <p role="alert" className="error">Activity could not be loaded. Check the filters and try again. <button className="text-button" onClick={() => activity.refetch()}>Retry</button></p>}
+    {effectiveKey && keySummary.data && <div className="panel usage-key-summary" role="status"><strong>{keys.data?.find(key => key.id === effectiveKey)?.name} usage</strong>
+      <span>{keySummary.data.requestCount.toLocaleString()} requests</span><span>{(keySummary.data.inputTokens + keySummary.data.outputTokens).toLocaleString()} verified tokens</span>
+      <span>{usageUsdFromMicro(keySummary.data.chargedMicroUsd)} settled charge</span></div>}
     <div className="usage-layout"><section className="panel usage-table-panel" aria-label="Request activity">
       <div className="usage-section-head"><h2>Requests</h2><span className="muted">{activity.isFetching ? 'Updating…' : `${rows.length} loaded`}</span></div>
       {activity.isPending && !invalidWindow ? <p role="status" className="muted">Loading activity…</p>
-        : rows.length === 0 ? <p className="muted">No requests match this window and filters.</p>
-          : <div className="usage-table-scroll"><table className="usage-table"><thead><tr><th>When</th><th>Model / key</th><th>State</th><th>Tokens</th><th>Latency</th><th>Charge</th></tr></thead>
+        : activity.isError || invalidWindow ? null : rows.length === 0 ? <p className="muted">No requests match this window and filters.</p>
+          : <div className="usage-table-scroll"><table className="usage-table"><thead><tr><th>When</th><th>Project / model</th><th>Key / provider</th><th>Execution / delivery</th><th>Input / output</th><th>Latency</th><th>Charge</th></tr></thead>
             <tbody>{rows.map(row => <tr key={row.requestId} className={selected === row.requestId ? 'selected' : ''}>
               <td><button className="usage-row-link" onClick={() => choose(row.requestId)} aria-label={`Inspect request ${row.requestId}`}>{timestamp(row.startedAt)}</button></td>
-              <td><strong>{row.modelCode}</strong><small>{row.apiKeyName} · {row.providerCode ?? 'Unrouted'}</small></td>
-              <td><span className={`usage-state ${row.httpStatus && row.httpStatus >= 400 ? 'bad' : ''}`}>{row.httpStatus ?? row.executionState}</span></td>
-              <td>{row.inputTokens === null ? 'Unknown' : (row.inputTokens + (row.outputTokens ?? 0)).toLocaleString()}</td>
+              <td><strong>{row.projectName}</strong><small>{row.modelCode}</small></td>
+              <td><strong>{row.apiKeyName}</strong><small>{row.providerCode ?? 'Unrouted'}</small></td>
+              <td><span className={`usage-state ${row.httpStatus && row.httpStatus >= 400 ? 'bad' : ''}`}>{row.executionState}</span><small>{row.deliveryState}{row.isStream ? ' · Stream' : ''}</small></td>
+              <td>{row.inputTokens ?? 'Unknown'} / {row.outputTokens ?? 'Unknown'}</td>
               <td>{row.durationMs === null ? '—' : `${row.durationMs} ms`}</td><td>{money(row.chargedMicroUsd)}</td></tr>)}</tbody></table></div>}
+      {activity.isFetchNextPageError && <p role="alert" className="error">More activity could not be loaded. Retry below.</p>}
       {activity.hasNextPage && <button className="button secondary usage-more" disabled={activity.isFetchingNextPage} onClick={() => activity.fetchNextPage()}>
         {activity.isFetchingNextPage ? 'Loading…' : 'Load more'}</button>}
     </section><aside className="panel usage-inspector" aria-label="Request details">
@@ -82,18 +125,30 @@ export function ActivityPage({ organizationId, projectId }: { organizationId: st
 function RequestInspector({ detail }: { detail: UsageRequestDetail }) {
   const request = detail.request;
   return <div className="usage-detail"><code className="usage-id">{request.requestId}</code>
-    <dl><dt>Model</dt><dd>{request.modelCode}</dd><dt>Project</dt><dd>{request.projectName}</dd>
+    {(request.executionState === 'OutcomeUnknown' || detail.unresolvedUsage) && <p role="status" className="usage-warning">Outcome or provider usage is unknown. Reconciliation may change the final charge; this does not mean the provider billed zero.</p>}
+    {(request.deliveryState !== 'Completed' && request.isStream) && <p role="status" className="usage-warning">Streaming delivery was partial or interrupted. Provider usage may differ from tokens delivered to the client.</p>}
+    <dl><dt>Requested model</dt><dd>{request.modelCode}</dd><dt>Selected model</dt><dd>{request.selectedModelCode ?? (request.attemptCount ? 'Unknown' : 'Not selected')}</dd><dt>Project</dt><dd>{request.projectName}</dd>
       <dt>Key</dt><dd>{request.apiKeyName}</dd><dt>Execution</dt><dd>{request.executionState}</dd>
-      <dt>Delivery</dt><dd>{request.deliveryState}</dd><dt>Financial</dt><dd>{request.financialState}</dd>
+      <dt>Delivery</dt><dd>{request.deliveryState}{request.isStream ? ' · Streaming' : ''}</dd><dt>HTTP status</dt><dd>{request.httpStatus ?? 'Unknown'}</dd><dt>Financial</dt><dd>{request.financialState}</dd>
+      <dt>Started / finished</dt><dd>{timestamp(request.startedAt)} / {request.completedAt ? timestamp(request.completedAt) : 'Unknown'}</dd>
+      <dt>Duration</dt><dd>{request.durationMs == null ? 'Unknown' : `${request.durationMs} ms`}</dd>
       <dt>Input / output</dt><dd>{request.inputTokens ?? 'Unknown'} / {request.outputTokens ?? 'Unknown'}</dd>
       <dt>Customer charge</dt><dd>{money(detail.chargedMicroUsd)}</dd>
       <dt>Provider cost</dt><dd>{money(detail.providerCostMicroUsd)}</dd>
-      <dt>Trace</dt><dd><code>{detail.traceId ?? '—'}</code></dd></dl>
+      <dt>External provider spend</dt><dd>{money(detail.externalProviderSpendMicroUsd)}</dd>
+      <dt>Late provider spend</dt><dd>{money(detail.lateExternalSpendMicroUsd)}</dd>
+      <dt>Platform exposure</dt><dd>{money(detail.platformExposureMicroUsd)}</dd>
+      <dt>Routing strategy</dt><dd>{detail.routeStrategy ?? 'Unknown'}</dd>
+      <dt>Trace</dt><dd><code>{detail.traceId ?? 'Unknown'}</code></dd></dl>
     <h3>Provider attempts</h3>{detail.attempts.length === 0 ? <p className="muted">No provider call was made.</p>
       : <ol className="usage-attempts">{detail.attempts.map(attempt => <li key={attempt.attemptId}>
-        <strong>#{attempt.number} {attempt.providerCode}</strong><span>{attempt.executionState}</span>
-        {attempt.errorCategory && <small>{attempt.errorCategory}</small>}</li>)}</ol>}
-    <h3>Usage evidence</h3><p className="muted">{detail.evidence.length} record(s) · {detail.unresolvedUsage ? 'Reconciliation pending' : 'No unresolved usage flag'}</p>
+        <strong>#{attempt.number} {attempt.providerCode}{attempt.modelCode ? ` · ${attempt.modelCode}` : ''}</strong><span>{attempt.executionState} · {timestamp(attempt.startedAt)}{attempt.completedAt ? ` → ${timestamp(attempt.completedAt)}` : ''}</span>
+        <small>Upstream ID: {attempt.providerRequestId ?? 'Unavailable'}{attempt.errorCategory ? ` · ${attempt.errorCategory}` : ''}</small></li>)}</ol>}
+    <h3>Usage evidence</h3>{detail.evidence.length === 0 ? <p className="muted">No provider usage evidence recorded yet.</p>
+      : <ol className="usage-attempts">{detail.evidence.map(item => <li key={item.evidenceId}><strong>{item.state} · {item.source}</strong>
+        <span>Input {item.inputTokens ?? 'Unknown'} · Output {item.outputTokens ?? 'Unknown'} · Cached {item.cachedInputTokens ?? 'Unknown'} · Reasoning {item.reasoningTokens ?? 'Unknown'}</span>
+        <small>Captured {timestamp(item.capturedAt)}{item.reconcileAfter ? ` · Recheck after ${timestamp(item.reconcileAfter)}` : ''}</small></li>)}</ol>}
+    <p className="muted">{detail.unresolvedUsage ? 'Reconciliation pending' : 'No unresolved usage flag'}</p>
     <p className="muted">Prompt and response bodies are not retained in this view.</p></div>;
 }
 

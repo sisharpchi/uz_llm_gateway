@@ -56,6 +56,29 @@ public sealed class UsageReadIntegrationTests(PersistenceIntegrationFixture fixt
     }
 
     [Fact]
+    public async Task Activity_combined_date_project_key_status_filter_keeps_page_and_tenant_scope()
+    {
+        var seed = await ResetAndSeedAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var read = Read(scope.ServiceProvider);
+        var query = Query() with
+        {
+            From = new DateTimeOffset(2026, 9, 20, 0, 0, 0, TimeSpan.Zero),
+            To = new DateTimeOffset(2026, 9, 21, 0, 0, 0, TimeSpan.Zero),
+            ProjectId = seed.ProjectId,
+            ApiKeyId = seed.ApiKeyId,
+            Status = "succeeded"
+        };
+
+        var first = await read.GetActivityAsync(seed.OrganizationId, query, limit: 1);
+        Assert.Equal(FirstRequestId, Assert.Single(first.Items).RequestId);
+        Assert.Null(first.NextCursor);
+        Assert.Empty((await read.GetActivityAsync(seed.ForeignOrganizationId, query)).Items);
+        Assert.Equal(1, (await read.GetSummaryAsync(seed.OrganizationId, query)).RequestCount);
+    }
+
+    [Fact]
     public async Task Summary_daily_and_breakdowns_count_requests_once_and_charge_only_settlements()
     {
         var seed = await ResetAndSeedAsync();

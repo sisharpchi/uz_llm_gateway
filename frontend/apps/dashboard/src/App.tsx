@@ -144,9 +144,13 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
   const projects = useQuery({ queryKey: ['projects', organization.id],
     queryFn: () => management.projects(organization.id) });
   const selectedProject = projects.data?.find(item => item.id === projectId) ?? projects.data?.[0];
+  const activityProject = projects.data?.find(item => item.id === projectId);
   const wallet = useQuery({ queryKey: ['wallet', organization.id],
     queryFn: () => management.wallet(organization.id), refetchInterval: 15_000 });
-  const pageUrl = (next: Page) => `/organizations/${organization.id}/${next}${selectedProject ? `?project=${selectedProject.id}` : ''}`;
+  const pageUrl = (next: Page) => {
+    const chosen = page === 'activity' && next === 'activity' ? activityProject : selectedProject;
+    return `/organizations/${organization.id}/${next}${chosen ? `?project=${chosen.id}` : ''}`;
+  };
   async function signOut() {
     await management.logout(); client.clear(); navigate('/login');
   }
@@ -156,8 +160,9 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
       <div className="sidebar-label">WORKSPACE</div>
       <label className="select-label">Organization<select aria-label="Organization" value={organization.id} onChange={event => navigate(`/organizations/${event.target.value}/overview`)}>
         {organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}</select></label>
-      <label className="select-label">Project<select aria-label="Project" value={selectedProject?.id ?? ''} disabled={!projects.data?.length}
-        onChange={event => setSearch({ project: event.target.value })}>
+      <label className="select-label">Project<select aria-label="Project" value={page === 'activity' ? activityProject?.id ?? '' : selectedProject?.id ?? ''} disabled={!projects.data?.length}
+        onChange={event => { const next = new URLSearchParams(search); if (event.target.value) next.set('project', event.target.value); else next.delete('project'); next.delete('request'); setSearch(next); }}>
+        {page === 'activity' && <option value="">All projects</option>}
         {!projects.data?.length && <option value="">No projects</option>}
         {projects.data?.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       <nav aria-label="Main navigation" className="nav-list">{validPages.map(item => <Link key={item} to={pageUrl(item)} aria-current={page === item ? 'page' : undefined}>
@@ -165,7 +170,7 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
       <div className="sidebar-bottom"><p>Managed credits</p><strong>{wallet.data ? usdFromMicro(wallet.data.availableBalanceMicroUsd) : '—'}</strong>
         <button onClick={signOut} className="text-button">Sign out</button></div>
     </aside>
-    <div className="workspace"><header className="topbar"><div><span className="eyebrow">{organization.name}</span><span className="topbar-project">{selectedProject?.name ?? 'No project selected'}</span></div>
+    <div className="workspace"><header className="topbar"><div><span className="eyebrow">{organization.name}</span><span className="topbar-project">{page === 'activity' && !activityProject ? 'All projects' : selectedProject?.name ?? 'No project selected'}</span></div>
       <span className="environment">Production</span></header>
       <main id="main-content" className="content">
         {projects.isError && <ErrorState error={projects.error} />}
@@ -174,7 +179,7 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
         {page === 'keys' && <KeysPanel organizationId={organization.id} project={selectedProject} />}
         {page === 'models' && <CatalogPage organizationId={organization.id} projectId={selectedProject?.id} />}
         {page === 'billing' && <BillingPanel organizationId={organization.id} />}
-        {page === 'activity' && <ActivityPage organizationId={organization.id} projectId={selectedProject?.id} />}
+        {page === 'activity' && <ActivityPage key={`${organization.id}:${activityProject?.id ?? 'all'}`} organizationId={organization.id} projectId={activityProject?.id} projects={projects.data ?? []} />}
         {page === 'analytics' && <AnalyticsPage organizationId={organization.id} projectId={selectedProject?.id} />}
       </main>
     </div>
