@@ -72,7 +72,10 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   proxied requests share the edge source IP. Monitor sustained 429/503 counts,
   especially after edge failover; never disable limits to restore login.
 - Set `UZLLM_SMTP_HOST`, `UZLLM_SMTP_PORT` (default 587), and
-  `UZLLM_SMTP_FROM`. Put SMTP username/password in
+  `UZLLM_SMTP_FROM`. Set `UZLLM_DASHBOARD_BASE_URL` to the public HTTPS
+  dashboard origin; Worker places one-time verification/reset tokens in URL
+  fragments, and the browser removes them from history before submission.
+  Put SMTP username/password in
   `UZLLM_SECRET_DIR/Email__Username` and `Email__Password`. Worker requires
   STARTTLS and refuses startup without sender configuration. Verify real SMTP
   delivery, SPF/DKIM/DMARC and mailbox placement before customer launch.

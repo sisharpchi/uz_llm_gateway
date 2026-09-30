@@ -18,6 +18,87 @@ namespace UZLLM.Persistence.IntegrationTests;
 public sealed class AuthAbuseEndpointIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     [Fact]
+    public async Task Verification_and_password_reset_http_contract_consumes_one_time_tokens_without_enumeration()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:Postgres"] = fixture.RuntimeConnectionString,
+            ["ConnectionStrings:Redis"] = fixture.RedisConnectionString
+        });
+        builder.Services.AddUzllmPersistence(builder.Configuration);
+        builder.Services.AddUzllmRedis(builder.Configuration);
+        builder.Services.AddUzllmIdentity();
+        builder.Services.AddSingleton(new AuthAbusePolicy(100, 100, TimeSpan.FromMinutes(5), 8192,
+            $"test:auth:{Guid.NewGuid():N}"));
+        await using var app = builder.Build();
+        app.UseUzllmManagementNoStore();
+        app.UseUzllmAuthAbuseProtection();
+        app.MapUzllmIdentityEndpoints();
+        await app.StartAsync();
+        try
+        {
+            var address = app.Services.GetRequiredService<IServer>().Features
+                .Get<IServerAddressesFeature>()!.Addresses.Single();
+            using var client = new HttpClient { BaseAddress = new Uri(address) };
+            using var registered = await client.PostAsJsonAsync("/management/v1/auth/register",
+                new { email = "flow@example.uz", password = "correct horse battery staple" });
+            Assert.Equal(HttpStatusCode.Accepted, registered.StatusCode);
+            Assert.Equal("no-store", registered.Headers.CacheControl?.ToString());
+
+            string verificationToken;
+            await using (var scope = app.Services.CreateAsyncScope())
+            {
+                var messages = await scope.ServiceProvider.GetRequiredService<IOutboxStore>()
+                    .ClaimAvailableAsync("auth-contract", 10, TimeSpan.FromMinutes(1));
+                var notification = scope.ServiceProvider.GetRequiredService<IdentityEmailPayloadCodec>()
+                    .Unprotect(Assert.Single(messages, item => item.EventType == IdentityEmailEventTypes.Verification).Payload);
+                verificationToken = notification.Token;
+            }
+            using var verified = await client.PostAsJsonAsync("/management/v1/auth/verify-email",
+                new { token = verificationToken });
+            using var replayedVerification = await client.PostAsJsonAsync("/management/v1/auth/verify-email",
+                new { token = verificationToken });
+            Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, replayedVerification.StatusCode);
+            Assert.Equal("no-store", verified.Headers.CacheControl?.ToString());
+
+            using var known = await client.PostAsJsonAsync("/management/v1/auth/recover",
+                new { email = "flow@example.uz" });
+            using var unknown = await client.PostAsJsonAsync("/management/v1/auth/recover",
+                new { email = "missing@example.uz" });
+            Assert.Equal(HttpStatusCode.Accepted, known.StatusCode);
+            Assert.Equal(known.StatusCode, unknown.StatusCode);
+            Assert.Equal(await known.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
+            Assert.Equal("no-store", known.Headers.CacheControl?.ToString());
+
+            string recoveryToken;
+            await using (var scope = app.Services.CreateAsyncScope())
+            {
+                var messages = await scope.ServiceProvider.GetRequiredService<IOutboxStore>()
+                    .ClaimAvailableAsync("auth-contract", 10, TimeSpan.FromMinutes(1));
+                var notification = scope.ServiceProvider.GetRequiredService<IdentityEmailPayloadCodec>()
+                    .Unprotect(Assert.Single(messages, item => item.EventType == IdentityEmailEventTypes.PasswordRecovery).Payload);
+                recoveryToken = notification.Token;
+            }
+            using var reset = await client.PostAsJsonAsync("/management/v1/auth/reset-password",
+                new { token = recoveryToken, newPassword = "new correct battery staple" });
+            using var replayedReset = await client.PostAsJsonAsync("/management/v1/auth/reset-password",
+                new { token = recoveryToken, newPassword = "another correct battery staple" });
+            Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, replayedReset.StatusCode);
+            Assert.Equal("no-store", reset.Headers.CacheControl?.ToString());
+            using var login = await client.PostAsJsonAsync("/management/v1/auth/login",
+                new { email = "flow@example.uz", password = "new correct battery staple" });
+            Assert.Equal(HttpStatusCode.NoContent, login.StatusCode);
+        }
+        finally { await app.StopAsync(); }
+    }
+
+    [Fact]
     public async Task Recovery_and_registration_hide_account_existence_while_attempts_and_bodies_are_bounded()
     {
         await fixture.ResetMigrationsAsync();

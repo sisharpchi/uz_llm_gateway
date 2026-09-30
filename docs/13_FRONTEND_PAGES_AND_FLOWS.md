@@ -1,5 +1,18 @@
 # Frontend Pages and User Flows
 
+## Account verification and recovery
+
+The customer dashboard has `/register`, `/verify-email`, `/recover`, and
+`/reset-password` routes. Verification/reset emails include a one-time token
+and, when the public dashboard URL is configured, a link with that token in a
+fragment. Opening a link pre-fills the token but never consumes it until the
+user confirms; the fragment is removed from browser history immediately.
+Registration and recovery show the same accepted state regardless of whether
+an account exists. Invalid, expired and replayed tokens share one safe retry
+message; 429 shows a neutral wait message. Successful reset clears the token
+and password from the form, then links to sign-in. These flows use the real
+Identity API, not the root `frontend/` mockup's sample state.
+
 ## 1. Onboarding
 
 ### Page: Welcome / Create organization

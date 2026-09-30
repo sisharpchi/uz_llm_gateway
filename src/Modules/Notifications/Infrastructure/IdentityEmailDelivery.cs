@@ -15,7 +15,7 @@ public interface IIdentityEmailSender
 }
 
 public sealed record IdentitySmtpOptions(string Host, int Port, string FromAddress,
-    string? Username, string? Password)
+    string? Username, string? Password, Uri? DashboardBaseUrl = null)
 {
     public static IdentitySmtpOptions FromConfiguration(IConfiguration configuration)
     {
@@ -24,11 +24,23 @@ public sealed record IdentitySmtpOptions(string Host, int Port, string FromAddre
         var port = configuration.GetValue<int?>("Email:SmtpPort") ?? 587;
         var username = configuration["Email:Username"];
         var password = configuration["Email:Password"];
+        var dashboardUrl = configuration["Email:DashboardBaseUrl"]?.Trim();
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(from)
             || port is < 1 or > 65535 || string.IsNullOrWhiteSpace(username) != string.IsNullOrWhiteSpace(password))
             throw new InvalidOperationException("Email SMTP host, sender, port, and paired credentials are required.");
         _ = new MailAddress(from);
-        return new IdentitySmtpOptions(host, port, from, username, password);
+        Uri? dashboardBaseUrl = null;
+        if (!string.IsNullOrWhiteSpace(dashboardUrl))
+        {
+            if (!Uri.TryCreate(dashboardUrl, UriKind.Absolute, out dashboardBaseUrl)
+                || (dashboardBaseUrl.Scheme != Uri.UriSchemeHttps
+                    && !(dashboardBaseUrl.Scheme == Uri.UriSchemeHttp && dashboardBaseUrl.IsLoopback))
+                || !string.IsNullOrEmpty(dashboardBaseUrl.UserInfo)
+                || !string.IsNullOrEmpty(dashboardBaseUrl.Query)
+                || !string.IsNullOrEmpty(dashboardBaseUrl.Fragment))
+                throw new InvalidOperationException("Email dashboard base URL must be HTTPS (or local HTTP) without credentials, query or fragment.");
+        }
+        return new IdentitySmtpOptions(host, port, from, username, password, dashboardBaseUrl);
     }
 }
 
@@ -45,19 +57,12 @@ public sealed class SmtpIdentityEmailSender(IdentitySmtpOptions options) : IIden
             IdentityEmailKind.TeamInvitation => "Your UZLLM team invitation",
             _ => throw new ArgumentOutOfRangeException(nameof(notification))
         };
-        var instruction = notification.Kind switch
-        {
-            IdentityEmailKind.Verification => "Enter this token on the UZLLM email verification page:",
-            IdentityEmailKind.PasswordRecovery => "Use this token in the UZLLM password recovery flow:",
-            IdentityEmailKind.TeamInvitation => "Sign in with this email and accept your team invitation using this token:",
-            _ => throw new ArgumentOutOfRangeException(nameof(notification))
-        };
         var from = new MailAddress(options.FromAddress);
         using var message = new MailMessage(from,
             new MailAddress(notification.Email))
         {
             Subject = subject,
-            Body = $"{instruction}\n\n{notification.Token}\n\nExpires at {notification.ExpiresAt:O} UTC. If you did not request this, ignore this email.",
+            Body = BuildBody(options, notification),
             IsBodyHtml = false
         };
         message.Headers.Add("Message-ID", $"<{messageId:N}@{from.Host}>");
@@ -73,6 +78,27 @@ public sealed class SmtpIdentityEmailSender(IdentitySmtpOptions options) : IIden
         try { await client.SendMailAsync(message, timeout.Token); }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         { throw new TimeoutException("Identity email SMTP send timed out."); }
+    }
+
+    public static string BuildBody(IdentitySmtpOptions options, IdentityEmailNotification notification)
+    {
+        var instruction = notification.Kind switch
+        {
+            IdentityEmailKind.Verification => "Enter this token on the UZLLM email verification page:",
+            IdentityEmailKind.PasswordRecovery => "Use this token in the UZLLM password recovery flow:",
+            IdentityEmailKind.TeamInvitation => "Sign in with this email and accept your team invitation using this token:",
+            _ => throw new ArgumentOutOfRangeException(nameof(notification))
+        };
+        var route = notification.Kind switch
+        {
+            IdentityEmailKind.Verification => "verify-email",
+            IdentityEmailKind.PasswordRecovery => "reset-password",
+            _ => null
+        };
+        // The token is a fragment, not a query: it is not sent in HTTP requests or Referer headers.
+        var link = route is null || options.DashboardBaseUrl is null ? string.Empty
+            : $"\n\nOr open this link and confirm the action:\n{options.DashboardBaseUrl.ToString().TrimEnd('/')}/{route}#token={Uri.EscapeDataString(notification.Token)}";
+        return $"{instruction}\n\n{notification.Token}{link}\n\nExpires at {notification.ExpiresAt:O} UTC. If you did not request this, ignore this email.";
     }
 }
 

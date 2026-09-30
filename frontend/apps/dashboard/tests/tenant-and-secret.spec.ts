@@ -173,11 +173,11 @@ test('registration and email verification use the public identity flow', async (
   await page.getByRole('textbox', { name: 'Email' }).fill('new@example.uz');
   await page.getByLabel('Password').fill('a-secure-password-123');
   await page.getByRole('button', { name: 'Create your account' }).click();
-  await expect(page.getByText(/Check your email for the verification token/)).toBeVisible();
+  await expect(page.getByText(/sent a verification token/)).toBeVisible();
   await page.getByRole('link', { name: 'Verify email' }).click();
   await page.getByRole('textbox', { name: 'Verification token' }).fill('mail-delivered-token');
   await page.getByRole('button', { name: 'Verify your email' }).click();
-  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Email verified.');
   expect(calls).toContain('POST /management/v1/auth/register');
   expect(calls).toContain('POST /management/v1/auth/verify-email');
 });

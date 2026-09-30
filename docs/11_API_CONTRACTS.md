@@ -545,6 +545,14 @@ Successful login issues an opaque server-backed `__Host-uzllm-session` cookie
 cookie. State-changing authenticated browser endpoints require the matching
 `X-CSRF-Token` header. Verification and recovery tokens are one-time opaque
 secrets and must never be returned in HTTP responses or logs.
+`register` and `recover` return the same empty `202` for eligible and unknown/
+duplicate addresses. `verify-email` accepts `{ "token": "..." }`; `reset-password`
+accepts `{ "token": "...", "newPassword": "..." }`. Both return `204` on
+success and `400` for an invalid, expired or consumed token. Attempt limits
+return `429` with `Retry-After`; unavailable limiting returns `503`. All these
+responses are `no-store`. The Worker may email a dashboard link with the token
+in a URL fragment; the dashboard strips it from browser history before use and
+never submits it automatically on link open.
 
 Operator MFA enrollment takes `{ "password": "..." }` and returns a show-once
 `sharedSecret` and `expiresAt`. It remains pending for at most 10 minutes and

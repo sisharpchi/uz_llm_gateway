@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Notifications.Infrastructure;
 using UZLLM.Persistence;
@@ -24,6 +25,33 @@ public sealed class IdentityEmailConfigurationTests
             ("Email:Username", "mailer"), ("Email:Password", "secret")));
         Assert.Equal(587, valid.Port);
         Assert.Equal("smtp.example.uz", valid.Host);
+    }
+
+    [Fact]
+    public void Verification_and_recovery_email_links_keep_tokens_in_fragments()
+    {
+        var options = IdentitySmtpOptions.FromConfiguration(Config(
+            ("Email:SmtpHost", "smtp.example.uz"), ("Email:FromAddress", "noreply@example.uz"),
+            ("Email:DashboardBaseUrl", "https://app.example.uz")));
+        var expiry = DateTimeOffset.Parse("2030-01-01T00:00:00Z");
+        var verification = SmtpIdentityEmailSender.BuildBody(options,
+            new IdentityEmailNotification("person@example.uz", "a+/=", IdentityEmailKind.Verification, expiry));
+        var recovery = SmtpIdentityEmailSender.BuildBody(options,
+            new IdentityEmailNotification("person@example.uz", "reset-token", IdentityEmailKind.PasswordRecovery, expiry));
+        Assert.Contains("https://app.example.uz/verify-email#token=a%2B%2F%3D", verification);
+        Assert.Contains("https://app.example.uz/reset-password#token=reset-token", recovery);
+        Assert.DoesNotContain("?token=", verification);
+        Assert.DoesNotContain("?token=", recovery);
+    }
+
+    [Fact]
+    public void Dashboard_link_configuration_rejects_insecure_remote_or_embedded_credentials()
+    {
+        foreach (var url in new[] { "http://app.example.uz", "https://user:pass@app.example.uz",
+            "https://app.example.uz?token=bad", "https://app.example.uz#fragment" })
+            Assert.Throws<InvalidOperationException>(() => IdentitySmtpOptions.FromConfiguration(Config(
+                ("Email:SmtpHost", "smtp.example.uz"), ("Email:FromAddress", "noreply@example.uz"),
+                ("Email:DashboardBaseUrl", url))));
     }
 
     [Fact]

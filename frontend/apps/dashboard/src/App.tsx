@@ -14,6 +14,8 @@ export function App() {
     <Route path="/login" element={<AuthPage key="login" kind="login" />} />
     <Route path="/register" element={<AuthPage key="register" kind="register" />} />
     <Route path="/verify-email" element={<AuthPage key="verify" kind="verify" />} />
+    <Route path="/recover" element={<AuthPage key="recover" kind="recover" />} />
+    <Route path="/reset-password" element={<AuthPage key="reset" kind="reset" />} />
     <Route path="/organizations/:orgId/:page" element={<WorkspaceGate />} />
     <Route path="*" element={<WorkspaceGate />} />
   </Routes>;
@@ -38,37 +40,78 @@ function WorkspaceGate() {
     page={validPages.includes(page as Page) ? page as Page : 'overview'} />;
 }
 
-function AuthPage({ kind }: { kind: 'login' | 'register' | 'verify' }) {
+type AuthKind = 'login' | 'register' | 'verify' | 'recover' | 'reset';
+
+function authError(kind: AuthKind, cause: unknown): string {
+  if (cause instanceof ApiError) {
+    if (cause.status === 429) return 'Too many attempts. Wait a few minutes before trying again.';
+    if (cause.status === 503) return 'This service is temporarily unavailable. Please try again later.';
+    if ((kind === 'verify' || kind === 'reset') && cause.status === 400)
+      return 'This token is invalid, expired, or already used. Request a new one and try again.';
+    if (kind === 'login' && cause.status === 401) return 'Email or password is incorrect, or this account is not yet verified.';
+    if ((kind === 'register' || kind === 'reset') && cause.status === 400)
+      return 'Check your details. Passwords must be between 12 and 128 characters.';
+  }
+  return message(cause);
+}
+
+function AuthPage({ kind }: { kind: AuthKind }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(() => kind === 'verify' || kind === 'reset'
+    ? new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '' : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (kind !== 'verify' && kind !== 'reset') return;
+    // Fragments never reach the server or Referer. Remove the one-time secret from history before use.
+    if (new URLSearchParams(window.location.hash.slice(1)).has('token'))
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    // A second email link opened in the same tab may only change the fragment.
+    function acceptLink() {
+      const next = new URLSearchParams(window.location.hash.slice(1)).get('token');
+      if (!next) return;
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+      setToken(next); setDone(false); setError('');
+    }
+    window.addEventListener('hashchange', acceptLink);
+    return () => window.removeEventListener('hashchange', acceptLink);
+  }, [kind]);
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(''); setBusy(true);
     try {
+      if ((kind === 'register' || kind === 'reset') && (!password.trim() || password.length > 128)) {
+        setError('Password must be between 12 and 128 characters.'); return;
+      }
       if (kind === 'register') { await management.register(email, password); setDone(true); }
-      else if (kind === 'verify') { await management.verifyEmail(token); navigate('/login'); }
+      else if (kind === 'verify') { await management.verifyEmail(token); setToken(''); setDone(true); }
+      else if (kind === 'recover') { await management.recover(email); setDone(true); }
+      else if (kind === 'reset') { await management.resetPassword(token, password); setToken(''); setPassword(''); setDone(true); }
       else { await management.login(email, password); queryClient.removeQueries({ queryKey: ['session'] }); navigate('/'); }
-    } catch (cause) { setError(message(cause)); } finally { setBusy(false); }
+    } catch (cause) { setError(authError(kind, cause)); } finally { setBusy(false); }
   }
-  const title = kind === 'login' ? 'Sign in' : kind === 'register' ? 'Create your account' : 'Verify your email';
+  const title = { login: 'Sign in', register: 'Create your account', verify: 'Verify your email',
+    recover: 'Recover your account', reset: 'Set a new password' }[kind];
+  const complete = { login: '', register: 'If this address can be registered, we sent a verification token. Check your email, then verify before signing in.',
+    verify: 'Email verified. You can now sign in.', recover: 'If an account exists for this email, we sent password reset instructions. Check your inbox.',
+    reset: 'Password updated. Sign in with your new password.' }[kind];
   return <div className="auth-layout">
     <div className="auth-intro"><span className="brand-mark">U</span><p className="eyebrow">UZLLM GATEWAY</p>
       <h1>One API.<br /><em>Every model.</em></h1><p>Build with confidence. Route requests, watch usage, and pay locally.</p></div>
-    <main className="auth-card"><h2>{title}</h2>
-      {done ? <div role="status" className="notice">Registration accepted. Check your email for the verification token, then verify before signing in.</div>
+    <main className="auth-card"><span className="eyebrow">ACCOUNT ACCESS</span><h2>{title}</h2>
+      {done ? <div role="status" className="notice">{complete} <Link to={kind === 'register' ? '/verify-email' : '/login'}>{kind === 'register' ? 'Enter verification token' : 'Go to sign in'}</Link></div>
         : <form onSubmit={submit} className="stack">
-          {kind === 'verify' ? <label>Verification token<input value={token} onChange={event => setToken(event.target.value)} required autoComplete="one-time-code" /></label>
-            : <><label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} required autoComplete="email" /></label>
-              <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} required minLength={12} autoComplete={kind === 'login' ? 'current-password' : 'new-password'} /></label></>}
+          {(kind === 'login' || kind === 'register' || kind === 'recover') && <label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} required autoComplete="email" /></label>}
+          {(kind === 'verify' || kind === 'reset') && <label>{kind === 'verify' ? 'Verification token' : 'Recovery token'}<input value={token} onChange={event => setToken(event.target.value)} required autoComplete="one-time-code" /></label>}
+          {(kind === 'login' || kind === 'register' || kind === 'reset') && <label>{kind === 'reset' ? 'New password' : 'Password'}<input type="password" value={password} onChange={event => setPassword(event.target.value)} required minLength={12} maxLength={128} autoComplete={kind === 'login' ? 'current-password' : 'new-password'} /></label>}
+          {(kind === 'verify' || kind === 'reset') && <p className="auth-help">Use the one-time token from your email. A used or expired token cannot be reused.</p>}
           {error && <p role="alert" className="error">{error}</p>}
           <button className="button primary" disabled={busy}>{busy ? 'Please wait…' : title}</button>
         </form>}
-      <div className="auth-links"><Link to="/login">Sign in</Link><Link to="/register">Register</Link><Link to="/verify-email">Verify email</Link></div>
+      <nav aria-label="Account links" className="auth-links"><Link to="/login">Sign in</Link><Link to="/register">Register</Link><Link to="/verify-email">Verify email</Link><Link to="/recover">Forgot password?</Link></nav>
     </main>
   </div>;
 }
