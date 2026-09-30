@@ -37,6 +37,20 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   maps each to its .NET configuration name under `/run/secrets`. Secret files
   and backups must be restricted to operators. All DB/Redis DSNs must enable
   TLS and validate the server certificate; never set trust-server-certificate.
+- Before deploying the fingerprint-version migration, provision
+  `ApiKeys__ActiveKeyVersion` containing `1` and `ApiKeys__Keys__2` containing a
+  **different**, random Base64-encoded key of at least 32 bytes on both nodes.
+  The existing `ApiKeys__FingerprintKey` is version 1 and must remain unchanged.
+  Deploy the schema and both Gateway/Management replicas with active version 1,
+  then confirm existing keys authenticate. Only then switch the active-version
+  secret to `2` on both nodes and restart them; Management can issue version 2
+  keys only after every Gateway replica has version 2 installed. Test an old
+  key and a newly issued key through each Gateway node. A rollback sets the
+  active version back to `1` while retaining version 2 in the ring. Never
+  remove version 1 while any active database row references it; inventory with
+  `SELECT fingerprint_key_version, count(*) FROM gateway.api_key WHERE status =
+  'Active' GROUP BY fingerprint_key_version`. Revoke or rotate remaining old
+  keys before retiring that secret. Do not log, commit or paste key bytes.
 - Set `UZLLM_PUBLIC_BASE_URL`, payment fee values, the three directories above,
   and the four `UZLLM_GATEWAY_*` / `UZLLM_MANAGEMENT_*` address and bind values.
   Remote upstream addresses include port, e.g. `node-b.internal:8445`. The

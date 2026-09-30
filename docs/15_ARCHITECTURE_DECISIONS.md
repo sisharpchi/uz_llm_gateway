@@ -119,7 +119,7 @@ Use cost reservation then settlement/release.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Implemented by `APIKEYS-001`
+**Implementation status:** Implemented by `APIKEYS-001`; fingerprint HMAC key-ring rotation added by `SECURITY-005`
 
 Gateway key full secret is shown once. The gateway stores a unique public
 prefix and keyed HMAC fingerprint of the complete secret; authentication uses

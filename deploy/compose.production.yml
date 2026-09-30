@@ -17,6 +17,8 @@ x-gateway: &gateway
     - { source: runtime-postgres, target: ConnectionStrings__Postgres }
     - { source: redis, target: ConnectionStrings__Redis }
     - { source: api-fingerprint, target: ApiKeys__FingerprintKey }
+    - { source: api-fingerprint-active-version, target: ApiKeys__ActiveKeyVersion }
+    - { source: api-fingerprint-v2, target: ApiKeys__Keys__2 }
     - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
     - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
     - { source: payload-active-version, target: PayloadSecrets__ActiveKeyVersion }
@@ -45,6 +47,8 @@ x-management: &management
     - { source: runtime-postgres, target: ConnectionStrings__Postgres }
     - { source: redis, target: ConnectionStrings__Redis }
     - { source: api-fingerprint, target: ApiKeys__FingerprintKey }
+    - { source: api-fingerprint-active-version, target: ApiKeys__ActiveKeyVersion }
+    - { source: api-fingerprint-v2, target: ApiKeys__Keys__2 }
     - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
     - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
     - { source: payload-active-version, target: PayloadSecrets__ActiveKeyVersion }
@@ -149,6 +153,8 @@ secrets:
   migrator-postgres: { file: '${UZLLM_SECRET_DIR}/ConnectionStrings__Postgres.migrator' }
   redis: { file: '${UZLLM_SECRET_DIR}/ConnectionStrings__Redis' }
   api-fingerprint: { file: '${UZLLM_SECRET_DIR}/ApiKeys__FingerprintKey' }
+  api-fingerprint-active-version: { file: '${UZLLM_SECRET_DIR}/ApiKeys__ActiveKeyVersion' }
+  api-fingerprint-v2: { file: '${UZLLM_SECRET_DIR}/ApiKeys__Keys__2' }
   provider-active-version: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__ActiveKeyVersion' }
   provider-key-v1: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__Keys__v1' }
   payload-active-version: { file: '${UZLLM_SECRET_DIR}/PayloadSecrets__ActiveKeyVersion' }

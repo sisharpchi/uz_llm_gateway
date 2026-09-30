@@ -14,7 +14,8 @@ public sealed record GatewayApiKeyAuthentication(Guid ApiKeyId, Guid ProjectId);
 
 public sealed record ApiKeySecret(string Value, string Prefix);
 
-public sealed record StoredGatewayApiKey(GatewayApiKey ApiKey, byte[] SecretFingerprint, bool IsProjectActive);
+public sealed record StoredGatewayApiKey(GatewayApiKey ApiKey, byte[] SecretFingerprint, bool IsProjectActive,
+    int FingerprintKeyVersion = 1);
 
 public enum ApiKeyRotationStoreResult { Rotated, Conflict, PrefixCollision }
 
@@ -31,7 +32,8 @@ public interface IApiKeyStore
     Task<bool> TrySetStatusAsync(Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default);
 
     Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration,
-        string newPrefix, byte[] newFingerprint, DateTimeOffset now, CancellationToken cancellationToken = default);
+        string newPrefix, byte[] newFingerprint, int fingerprintKeyVersion, DateTimeOffset now,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IApiKeySecretGenerator
@@ -43,9 +45,11 @@ public interface IApiKeySecretGenerator
 
 public interface IApiKeySecretFingerprint
 {
+    int ActiveKeyVersion { get; }
+
     byte[] Create(string secret);
 
-    bool Matches(string secret, byte[] expectedFingerprint);
+    bool Matches(string secret, byte[] expectedFingerprint, int keyVersion);
 }
 
 public interface IApiKeyService

@@ -33,7 +33,8 @@ var modelId = Guid.CreateVersion7();
 var mappingId = Guid.CreateVersion7();
 var credentialId = Guid.CreateVersion7();
 var secret = new GatewayApiKeySecretGenerator().Create();
-var fingerprint = HmacApiKeySecretFingerprint.FromConfiguration(configuration).Create(secret.Value);
+var fingerprinter = HmacApiKeySecretFingerprint.FromConfiguration(configuration);
+var fingerprint = fingerprinter.Create(secret.Value);
 var encrypted = new ProviderEnvelopeSecretProtector(configuration)
     .Protect(credentialId, providerId, "fixture-only-key");
 
@@ -54,7 +55,8 @@ db.Set<ProjectEntity>().Add(new ProjectEntity
 db.Set<GatewayApiKeyEntity>().Add(new GatewayApiKeyEntity
 {
     Id = apiKeyId, ProjectId = projectId, Name = "Load key", Prefix = secret.Prefix,
-    SecretFingerprint = fingerprint, Status = "Active", CreatedByAccountId = accountId, CreatedAt = now
+    SecretFingerprint = fingerprint, FingerprintKeyVersion = fingerprinter.ActiveKeyVersion,
+    Status = "Active", CreatedByAccountId = accountId, CreatedAt = now
 });
 db.Set<CatalogProviderEntity>().Add(new CatalogProviderEntity
 {

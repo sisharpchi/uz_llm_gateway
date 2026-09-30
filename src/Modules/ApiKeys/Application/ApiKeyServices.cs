@@ -32,7 +32,8 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
             var secret = secretGenerator.Create();
             var apiKey = new GatewayApiKey(Guid.CreateVersion7(), projectId, normalizedName, secret.Prefix, GatewayApiKeyStatus.Active, expiresAt, accountId, now);
             await using var transaction = await transactionCoordinator.BeginAsync(cancellationToken);
-            if (!await store.TryCreateAsync(new StoredGatewayApiKey(apiKey, secretFingerprint.Create(secret.Value), true), cancellationToken))
+            if (!await store.TryCreateAsync(new StoredGatewayApiKey(apiKey, secretFingerprint.Create(secret.Value), true,
+                secretFingerprint.ActiveKeyVersion), cancellationToken))
             {
                 continue;
             }
@@ -102,7 +103,7 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
             var secret = secretGenerator.Create();
             await using var transaction = await transactionCoordinator.BeginAsync(cancellationToken);
             var result = await store.TryRotateAsync(apiKeyId, apiKey.Generation, secret.Prefix,
-                secretFingerprint.Create(secret.Value), now, cancellationToken);
+                secretFingerprint.Create(secret.Value), secretFingerprint.ActiveKeyVersion, now, cancellationToken);
             if (result is ApiKeyRotationStoreResult.PrefixCollision) continue;
             if (result is ApiKeyRotationStoreResult.Conflict) return null;
 
@@ -147,7 +148,7 @@ public sealed class ApiKeyAuthenticator(IApiKeyStore store, IApiKeySecretGenerat
         }
 
         var candidate = await store.FindAuthenticationCandidateAsync(secret.Prefix, cancellationToken);
-        if (candidate is null || !candidate.IsProjectActive || candidate.ApiKey.Status is not GatewayApiKeyStatus.Active || candidate.ApiKey.ExpiresAt <= timeProvider.GetUtcNow() || !secretFingerprint.Matches(secret.Value, candidate.SecretFingerprint))
+        if (candidate is null || !candidate.IsProjectActive || candidate.ApiKey.Status is not GatewayApiKeyStatus.Active || candidate.ApiKey.ExpiresAt <= timeProvider.GetUtcNow() || !secretFingerprint.Matches(secret.Value, candidate.SecretFingerprint, candidate.FingerprintKeyVersion))
         {
             return null;
         }

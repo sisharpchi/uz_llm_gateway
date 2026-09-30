@@ -145,9 +145,14 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
         await using var two = fixture.CreateServiceProvider();
         await using var scopeOne = one.CreateAsyncScope();
         await using var scopeTwo = two.CreateAsyncScope();
+        var readGate = new ConcurrentApiKeyReadGate();
         var results = await Task.WhenAll(
-            CreateService(scopeOne.ServiceProvider, fingerprint).RotateAsync(ownerId, original.ApiKey.Id),
-            CreateService(scopeTwo.ServiceProvider, fingerprint).RotateAsync(ownerId, original.ApiKey.Id));
+            CreateService(scopeOne.ServiceProvider, fingerprint, new GatedApiKeyStore(
+                new PostgreSqlApiKeyStore(scopeOne.ServiceProvider.GetRequiredService<FoundationDbContext>()), readGate))
+                .RotateAsync(ownerId, original.ApiKey.Id),
+            CreateService(scopeTwo.ServiceProvider, fingerprint, new GatedApiKeyStore(
+                new PostgreSqlApiKeyStore(scopeTwo.ServiceProvider.GetRequiredService<FoundationDbContext>()), readGate))
+                .RotateAsync(ownerId, original.ApiKey.Id));
 
         var winner = Assert.Single(results.OfType<IssuedGatewayApiKey>());
         Assert.Equal(original.ApiKey.Id, winner.ApiKey.Id);
@@ -234,13 +239,71 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
         Assert.Null(history.RevokedAt);
     }
 
-    private static ApiKeyService CreateService(IServiceProvider services, IApiKeySecretFingerprint fingerprint)
+    [Fact]
+    public async Task Fingerprint_version_migration_backfills_v1_and_staged_v2_authenticates_old_and_new_keys()
+    {
+        await fixture.ResetMigrationsAsync();
+        var first = RandomNumberGenerator.GetBytes(32);
+        var second = RandomNumberGenerator.GetBytes(32);
+        var ring = new Dictionary<int, byte[]> { [1] = first, [2] = second };
+        var legacyFingerprint = new HmacApiKeySecretFingerprint(1, ring);
+        var legacySecret = new GatewayApiKeySecretGenerator().Create();
+        Guid ownerId;
+        Guid projectId;
+        Guid legacyKeyId;
+        await using (var before = fixture.CreateServiceProvider())
+        await using (var scope = before.CreateAsyncScope())
+        {
+            var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
+            await migrator.MigrateAsync("20260928211017_AddSettlementWalletRefunds");
+            var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            (ownerId, projectId) = await SeedProjectAsync(db);
+            legacyKeyId = Guid.CreateVersion7();
+            var fingerprint = legacyFingerprint.Create(legacySecret.Value);
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO gateway.api_key
+                    (id, project_id, name, key_prefix, secret_fingerprint, status, created_by, created_at)
+                VALUES ({legacyKeyId}, {projectId}, {"Legacy"}, {legacySecret.Prefix}, {fingerprint},
+                    {"Active"}, {ownerId}, {DateTimeOffset.UtcNow});
+                """);
+        }
+
+        await fixture.ApplyMigrationsAsync();
+        await using var after = fixture.CreateServiceProvider();
+        await using var verifyScope = after.CreateAsyncScope();
+        var verified = verifyScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(1, (await verified.Set<GatewayApiKeyEntity>().SingleAsync(value => value.Id == legacyKeyId)).FingerprintKeyVersion);
+        var activeFingerprint = new HmacApiKeySecretFingerprint(2, ring);
+        var store = new PostgreSqlApiKeyStore(verified);
+        var authenticator = new ApiKeyAuthenticator(store, new GatewayApiKeySecretGenerator(),
+            activeFingerprint, TimeProvider.System);
+        Assert.NotNull(await authenticator.AuthenticateAsync(legacySecret.Value));
+        var issued = await CreateService(verifyScope.ServiceProvider, activeFingerprint)
+            .CreateAsync(ownerId, projectId, "Current", null);
+        var persisted = await verified.Set<GatewayApiKeyEntity>().SingleAsync(value => value.Id == issued.ApiKey.Id);
+        Assert.Equal(2, persisted.FingerprintKeyVersion);
+        Assert.NotEqual(issued.Secret, Convert.ToBase64String(persisted.SecretFingerprint));
+        Assert.DoesNotContain(issued.Secret, string.Join(' ', await verified.Set<AuditEventEntity>()
+            .Select(value => value.MetadataJson).ToListAsync()), StringComparison.Ordinal);
+        Assert.NotNull(await authenticator.AuthenticateAsync(issued.Secret));
+        Assert.True(await CreateService(verifyScope.ServiceProvider, activeFingerprint)
+            .SetStatusAsync(ownerId, legacyKeyId, GatewayApiKeyStatus.Disabled));
+        Assert.Null(await authenticator.AuthenticateAsync(legacySecret.Value));
+        Assert.NotNull(await authenticator.AuthenticateAsync(issued.Secret));
+        var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => verifyScope.ServiceProvider.GetRequiredService<IDatabaseMigrator>()
+            .MigrateAsync("20260928211017_AddSettlementWalletRefunds"));
+        Assert.Contains("rotated fingerprint keys cannot be downgraded", downgrade.ToString(), StringComparison.Ordinal);
+        Assert.Equal(2, (await verified.Set<GatewayApiKeyEntity>().SingleAsync(value => value.Id == issued.ApiKey.Id)).FingerprintKeyVersion);
+    }
+
+    private static ApiKeyService CreateService(IServiceProvider services, IApiKeySecretFingerprint fingerprint,
+        IApiKeyStore? store = null)
     {
         var dbContext = services.GetRequiredService<FoundationDbContext>();
         var organizationStore = new PostgreSqlOrganizationStore(dbContext);
         var projectAccess = new ProjectAccessService(new PostgreSqlProjectStore(dbContext), new OrganizationAuthorizationService(organizationStore));
         return new ApiKeyService(
-            new PostgreSqlApiKeyStore(dbContext),
+            store ?? new PostgreSqlApiKeyStore(dbContext),
             projectAccess,
             new GatewayApiKeySecretGenerator(),
             fingerprint,
@@ -274,4 +337,38 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
         CreatedByAccountId = accountId,
         CreatedAt = DateTimeOffset.UtcNow
     };
+}
+
+internal sealed class ConcurrentApiKeyReadGate
+{
+    private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int arrivals;
+
+    public async Task WaitAsync(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Increment(ref arrivals) == 2) ready.TrySetResult();
+        await ready.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+    }
+}
+
+internal sealed class GatedApiKeyStore(IApiKeyStore inner, ConcurrentApiKeyReadGate gate) : IApiKeyStore
+{
+    public Task<bool> TryCreateAsync(StoredGatewayApiKey key, CancellationToken cancellationToken = default) =>
+        inner.TryCreateAsync(key, cancellationToken);
+    public Task<IReadOnlyList<GatewayApiKey>> ListForProjectAsync(Guid projectId, CancellationToken cancellationToken = default) =>
+        inner.ListForProjectAsync(projectId, cancellationToken);
+    public async Task<GatewayApiKey?> FindByIdAsync(Guid apiKeyId, CancellationToken cancellationToken = default)
+    {
+        var key = await inner.FindByIdAsync(apiKeyId, cancellationToken);
+        await gate.WaitAsync(cancellationToken);
+        return key;
+    }
+    public Task<StoredGatewayApiKey?> FindAuthenticationCandidateAsync(string prefix, CancellationToken cancellationToken = default) =>
+        inner.FindAuthenticationCandidateAsync(prefix, cancellationToken);
+    public Task<bool> TrySetStatusAsync(Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default) =>
+        inner.TrySetStatusAsync(apiKeyId, status, cancellationToken);
+    public Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration, string newPrefix,
+        byte[] newFingerprint, int fingerprintKeyVersion, DateTimeOffset now, CancellationToken cancellationToken = default) =>
+        inner.TryRotateAsync(apiKeyId, expectedGeneration, newPrefix, newFingerprint, fingerprintKeyVersion, now,
+            cancellationToken);
 }

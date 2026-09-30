@@ -262,12 +262,14 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(apiKey => apiKey.Name).HasColumnName("name").HasMaxLength(120);
             entity.Property(apiKey => apiKey.Prefix).HasColumnName("key_prefix").HasMaxLength(12);
             entity.Property(apiKey => apiKey.SecretFingerprint).HasColumnName("secret_fingerprint");
+            entity.Property(apiKey => apiKey.FingerprintKeyVersion).HasColumnName("fingerprint_key_version").HasDefaultValue(1);
             entity.Property(apiKey => apiKey.Status).HasColumnName("status").HasMaxLength(30);
             entity.Property(apiKey => apiKey.ExpiresAt).HasColumnName("expires_at");
             entity.Property(apiKey => apiKey.CreatedByAccountId).HasColumnName("created_by");
             entity.Property(apiKey => apiKey.CreatedAt).HasColumnName("created_at");
             entity.Property(apiKey => apiKey.Generation).HasColumnName("generation").HasDefaultValue(1);
             entity.ToTable(table => table.HasCheckConstraint("CK_api_key_generation", "generation >= 1"));
+            entity.ToTable(table => table.HasCheckConstraint("CK_api_key_fingerprint_key_version", "fingerprint_key_version >= 1"));
             entity.HasIndex(apiKey => apiKey.Prefix).IsUnique();
             entity.HasIndex(apiKey => new { apiKey.ProjectId, apiKey.CreatedAt }).IsDescending(false, true);
             entity.HasOne(apiKey => apiKey.Project).WithMany().HasForeignKey(apiKey => apiKey.ProjectId).OnDelete(DeleteBehavior.Restrict);

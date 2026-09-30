@@ -69,6 +69,7 @@ organization use the project scope as a tenant guard.
 - name
 - key_prefix
 - secret_fingerprint
+- fingerprint_key_version (positive integer; legacy rows backfill to 1)
 - status
 - expires_at
 - all_time_limit
@@ -78,6 +79,10 @@ organization use the project scope as a tenant guard.
 - created_at
 
 Never store plaintext gateway secret.
+
+The fingerprint version selects the HMAC key used to verify that row. The
+active version is used for new keys and secret rotation; retaining older HMAC
+keys permits staged verification without recovering customer secrets.
 
 `gateway.api_key.generation` identifies the active secret generation. The
 append-only identity/history table `gateway.api_key_generation` records each

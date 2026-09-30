@@ -34,48 +34,87 @@ public sealed class GatewayApiKeySecretGenerator : IApiKeySecretGenerator
 
 public sealed class HmacApiKeySecretFingerprint : IApiKeySecretFingerprint
 {
-    private readonly byte[] key;
+    private readonly IReadOnlyDictionary<int, byte[]> keys;
 
-    public HmacApiKeySecretFingerprint(byte[] key)
+    public HmacApiKeySecretFingerprint(byte[] key) : this(1, new Dictionary<int, byte[]> { [1] = key })
     {
-        ArgumentNullException.ThrowIfNull(key);
-        if (key.Length < 32)
+    }
+
+    public HmacApiKeySecretFingerprint(int activeKeyVersion, IReadOnlyDictionary<int, byte[]> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        if (activeKeyVersion < 1 || !keys.ContainsKey(activeKeyVersion))
         {
-            throw new ArgumentException("The API-key HMAC key must be at least 32 bytes.", nameof(key));
+            throw new ArgumentException("An active API-key HMAC version must be present in the key ring.", nameof(activeKeyVersion));
         }
 
-        this.key = [.. key];
+        var copied = new Dictionary<int, byte[]>(keys.Count);
+        foreach (var (version, key) in keys)
+        {
+            if (version < 1 || key is null || key.Length < 32)
+                throw new ArgumentException("Every API-key HMAC version must be positive and at least 32 bytes.", nameof(keys));
+            copied.Add(version, [.. key]);
+        }
+        this.keys = copied;
+        ActiveKeyVersion = activeKeyVersion;
     }
+
+    public int ActiveKeyVersion { get; }
 
     public byte[] Create(string secret)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(secret);
-        return HMACSHA256.HashData(key, System.Text.Encoding.UTF8.GetBytes(secret));
+        return HMACSHA256.HashData(keys[ActiveKeyVersion], System.Text.Encoding.UTF8.GetBytes(secret));
     }
 
-    public bool Matches(string secret, byte[] expectedFingerprint)
+    public bool Matches(string secret, byte[] expectedFingerprint, int keyVersion)
     {
         ArgumentNullException.ThrowIfNull(expectedFingerprint);
-        var actualFingerprint = Create(secret);
+        if (!keys.TryGetValue(keyVersion, out var key)) return false;
+        ArgumentException.ThrowIfNullOrWhiteSpace(secret);
+        var actualFingerprint = HMACSHA256.HashData(key, System.Text.Encoding.UTF8.GetBytes(secret));
         return actualFingerprint.Length == expectedFingerprint.Length && CryptographicOperations.FixedTimeEquals(actualFingerprint, expectedFingerprint);
     }
 
     public static HmacApiKeySecretFingerprint FromConfiguration(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        var configuredKey = configuration["ApiKeys:FingerprintKey"];
-        if (string.IsNullOrWhiteSpace(configuredKey))
+        var configuredVersion = configuration["ApiKeys:ActiveKeyVersion"];
+        if (!int.TryParse(configuredVersion ?? "1", out var activeVersion) || activeVersion < 1)
         {
-            throw new InvalidOperationException("ApiKeys:FingerprintKey must be configured with a Base64-encoded key.");
+            throw new InvalidOperationException("ApiKeys:ActiveKeyVersion must be a positive integer.");
         }
+        var keys = new Dictionary<int, byte[]>();
+        var legacy = configuration["ApiKeys:FingerprintKey"];
+        if (!string.IsNullOrWhiteSpace(legacy)) keys.Add(1, DecodeKey(legacy, "ApiKeys:FingerprintKey"));
+        foreach (var child in configuration.GetSection("ApiKeys:Keys").GetChildren())
+        {
+            if (!int.TryParse(child.Key, out var version) || version < 1)
+                throw new InvalidOperationException("ApiKeys:Keys contains an invalid version.");
+            var configuredKey = DecodeKey(child.Value, $"ApiKeys:Keys:{child.Key}");
+            if (keys.TryGetValue(version, out var existing))
+            {
+                if (!CryptographicOperations.FixedTimeEquals(existing, configuredKey))
+                    throw new InvalidOperationException("Legacy and versioned API-key HMAC configuration disagree for version 1.");
+            }
+            else keys.Add(version, configuredKey);
+        }
+        if (!keys.ContainsKey(activeVersion))
+            throw new InvalidOperationException("The active API-key HMAC version is not configured.");
+        return new HmacApiKeySecretFingerprint(activeVersion, keys);
+    }
 
+    private static byte[] DecodeKey(string? configuredKey, string path)
+    {
+        if (string.IsNullOrWhiteSpace(configuredKey))
+            throw new InvalidOperationException($"{path} must be a Base64-encoded key of at least 32 bytes.");
         try
         {
-            return new HmacApiKeySecretFingerprint(Convert.FromBase64String(configuredKey));
+            var decoded = Convert.FromBase64String(configuredKey);
+            if (decoded.Length < 32)
+                throw new InvalidOperationException($"{path} must contain at least 32 bytes.");
+            return decoded;
         }
-        catch (FormatException exception)
-        {
-            throw new InvalidOperationException("ApiKeys:FingerprintKey must be Base64 encoded.", exception);
-        }
+        catch (FormatException exception) { throw new InvalidOperationException($"{path} must be Base64 encoded.", exception); }
     }
 }

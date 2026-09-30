@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.Extensions.Configuration;
 using UZLLM.Modules.ApiKeys.Application;
 using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.ApiKeys.Infrastructure;
@@ -32,9 +33,85 @@ public sealed class ApiKeyServicesTests
 
         var storedFingerprint = fingerprint.Create("uzllm_live_123456abcdef_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
-        Assert.True(fingerprint.Matches("uzllm_live_123456abcdef_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", storedFingerprint));
-        Assert.False(fingerprint.Matches("uzllm_live_123456abcdef_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", storedFingerprint));
+        Assert.True(fingerprint.Matches("uzllm_live_123456abcdef_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", storedFingerprint, 1));
+        Assert.False(fingerprint.Matches("uzllm_live_123456abcdef_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", storedFingerprint, 1));
         Assert.NotEqual("uzllm_live_123456abcdef_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Convert.ToBase64String(storedFingerprint));
+    }
+
+    [Fact]
+    public void Fingerprint_configuration_accepts_legacy_v1_and_versioned_keys_but_rejects_missing_active_key()
+    {
+        var oldKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var nextKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ApiKeys:FingerprintKey"] = oldKey,
+            ["ApiKeys:Keys:2"] = nextKey,
+            ["ApiKeys:ActiveKeyVersion"] = "2"
+        }).Build();
+        var ring = HmacApiKeySecretFingerprint.FromConfiguration(configuration);
+        Assert.Equal(2, ring.ActiveKeyVersion);
+        Assert.False(ring.Matches("secret", ring.Create("secret"), 1));
+        Assert.True(ring.Matches("secret", ring.Create("secret"), 2));
+        Assert.False(ring.Matches("secret", ring.Create("secret"), 3));
+
+        configuration["ApiKeys:Keys:2"] = null;
+        Assert.Throws<InvalidOperationException>(() => HmacApiKeySecretFingerprint.FromConfiguration(configuration));
+    }
+
+    [Fact]
+    public async Task Staged_fingerprint_rotation_keeps_old_keys_valid_and_new_keys_use_active_version()
+    {
+        var fixture = new ApiKeyFixture();
+        var oldKey = RandomNumberGenerator.GetBytes(32);
+        var newKey = RandomNumberGenerator.GetBytes(32);
+        var oldRing = new HmacApiKeySecretFingerprint(1, new Dictionary<int, byte[]> { [1] = oldKey, [2] = newKey });
+        var newRing = new HmacApiKeySecretFingerprint(2, new Dictionary<int, byte[]> { [1] = oldKey, [2] = newKey });
+        // Recreate the old key with the staged ring, matching a production cutover.
+        var store = new InMemoryApiKeyStore();
+        var generator = new GatewayApiKeySecretGenerator();
+        var oldService = new ApiKeyService(store, fixture.ProjectAccess, generator, oldRing,
+            fixture.Audit, new NoopTransactionCoordinator(), fixture.Clock);
+        var oldIssued = await oldService.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id, "Legacy", null);
+        Assert.Equal(1, store.Stored[oldIssued.ApiKey.Id].FingerprintKeyVersion);
+        var activeService = new ApiKeyService(store, fixture.ProjectAccess, generator, newRing,
+            fixture.Audit, new NoopTransactionCoordinator(), fixture.Clock);
+        var authenticator = new ApiKeyAuthenticator(store, generator, newRing, fixture.Clock);
+        Assert.NotNull(await authenticator.AuthenticateAsync(oldIssued.Secret));
+        var newIssued = await activeService.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id, "Current", null);
+        Assert.Equal(2, store.Stored[newIssued.ApiKey.Id].FingerprintKeyVersion);
+        Assert.NotNull(await authenticator.AuthenticateAsync(newIssued.Secret));
+        var missingOldVersion = new ApiKeyAuthenticator(store, generator,
+            new HmacApiKeySecretFingerprint(2, new Dictionary<int, byte[]> { [2] = newKey }), fixture.Clock);
+        Assert.Null(await missingOldVersion.AuthenticateAsync(oldIssued.Secret));
+        Assert.True(await activeService.SetStatusAsync(fixture.OwnerAccountId, oldIssued.ApiKey.Id, GatewayApiKeyStatus.Disabled));
+        Assert.Null(await authenticator.AuthenticateAsync(oldIssued.Secret));
+        var rollback = new ApiKeyAuthenticator(store, generator, oldRing, fixture.Clock);
+        Assert.NotNull(await rollback.AuthenticateAsync(newIssued.Secret));
+    }
+
+    [Fact]
+    public async Task Secret_rotation_during_fingerprint_cutover_replaces_v1_with_v2_and_revokes_old_secret()
+    {
+        var fixture = new ApiKeyFixture();
+        var first = RandomNumberGenerator.GetBytes(32);
+        var second = RandomNumberGenerator.GetBytes(32);
+        var keys = new Dictionary<int, byte[]> { [1] = first, [2] = second };
+        var generator = new GatewayApiKeySecretGenerator();
+        var oldService = new ApiKeyService(fixture.Store, fixture.ProjectAccess, generator,
+            new HmacApiKeySecretFingerprint(1, keys), fixture.Audit, new NoopTransactionCoordinator(), fixture.Clock);
+        var issued = await oldService.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id, "Production", null);
+        var newRing = new HmacApiKeySecretFingerprint(2, keys);
+        var service = new ApiKeyService(fixture.Store, fixture.ProjectAccess, generator,
+            newRing, fixture.Audit, new NoopTransactionCoordinator(), fixture.Clock);
+        var authenticator = new ApiKeyAuthenticator(fixture.Store, generator, newRing, fixture.Clock);
+
+        var replacement = await service.RotateAsync(fixture.OwnerAccountId, issued.ApiKey.Id);
+
+        Assert.NotNull(replacement);
+        Assert.Equal(2, fixture.Store.Stored[issued.ApiKey.Id].FingerprintKeyVersion);
+        Assert.Null(await authenticator.AuthenticateAsync(issued.Secret));
+        Assert.NotNull(await authenticator.AuthenticateAsync(replacement.Secret));
     }
 
     [Fact]
@@ -212,7 +289,8 @@ internal sealed class InMemoryApiKeyStore : IApiKeyStore
     public Task<bool> TryCreateAsync(StoredGatewayApiKey apiKey, CancellationToken cancellationToken = default)
     {
         if (Stored.Values.Any(existing => existing.ApiKey.Prefix == apiKey.ApiKey.Prefix)) return Task.FromResult(false);
-        Stored.Add(apiKey.ApiKey.Id, new MutableStoredApiKey(apiKey.ApiKey, apiKey.SecretFingerprint));
+        Stored.Add(apiKey.ApiKey.Id, new MutableStoredApiKey(apiKey.ApiKey, apiKey.SecretFingerprint,
+            apiKey.FingerprintKeyVersion));
         HistoricalPrefixes.Add(apiKey.ApiKey.Prefix);
         return Task.FromResult(true);
     }
@@ -225,7 +303,8 @@ internal sealed class InMemoryApiKeyStore : IApiKeyStore
 
     public Task<StoredGatewayApiKey?> FindAuthenticationCandidateAsync(string prefix, CancellationToken cancellationToken = default) =>
         Task.FromResult(Stored.Values.SingleOrDefault(value => value.ApiKey.Prefix == prefix) is { } candidate
-            ? new StoredGatewayApiKey(candidate.ApiKey, candidate.SecretFingerprint, ProjectActive)
+            ? new StoredGatewayApiKey(candidate.ApiKey, candidate.SecretFingerprint, ProjectActive,
+                candidate.FingerprintKeyVersion)
             : null);
 
     public Task<bool> TrySetStatusAsync(Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default)
@@ -236,7 +315,8 @@ internal sealed class InMemoryApiKeyStore : IApiKeyStore
     }
 
     public Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration,
-        string newPrefix, byte[] newFingerprint, DateTimeOffset now, CancellationToken cancellationToken = default)
+        string newPrefix, byte[] newFingerprint, int fingerprintKeyVersion, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
     {
         if (HistoricalPrefixes.Contains(newPrefix)) return Task.FromResult(ApiKeyRotationStoreResult.PrefixCollision);
         if (Stored.GetValueOrDefault(apiKeyId) is not { } stored || stored.ApiKey.Generation != expectedGeneration
@@ -244,15 +324,17 @@ internal sealed class InMemoryApiKeyStore : IApiKeyStore
             return Task.FromResult(ApiKeyRotationStoreResult.Conflict);
         stored.ApiKey = stored.ApiKey with { Prefix = newPrefix, Generation = expectedGeneration + 1 };
         stored.SecretFingerprint = newFingerprint;
+        stored.FingerprintKeyVersion = fingerprintKeyVersion;
         HistoricalPrefixes.Add(newPrefix);
         return Task.FromResult(ApiKeyRotationStoreResult.Rotated);
     }
 }
 
-internal sealed class MutableStoredApiKey(GatewayApiKey apiKey, byte[] secretFingerprint)
+internal sealed class MutableStoredApiKey(GatewayApiKey apiKey, byte[] secretFingerprint, int fingerprintKeyVersion)
 {
     public GatewayApiKey ApiKey { get; set; } = apiKey;
     public byte[] SecretFingerprint { get; set; } = secretFingerprint;
+    public int FingerprintKeyVersion { get; set; } = fingerprintKeyVersion;
 }
 
 internal sealed class InMemoryProjectAccessService(Project project, Guid ownerAccountId) : IProjectAccessService

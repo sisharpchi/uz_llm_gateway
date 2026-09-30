@@ -1169,6 +1169,12 @@ namespace UZLLM.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
+                    b.Property<int>("FingerprintKeyVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("fingerprint_key_version");
+
                     b.Property<int>("Generation")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -1214,6 +1220,8 @@ namespace UZLLM.Persistence.Migrations
 
                     b.ToTable("api_key", "gateway", t =>
                         {
+                            t.HasCheckConstraint("CK_api_key_fingerprint_key_version", "fingerprint_key_version >= 1");
+
                             t.HasCheckConstraint("CK_api_key_generation", "generation >= 1");
 
                             t.HasCheckConstraint("CK_api_key_status", "status IN ('Active', 'Disabled')");

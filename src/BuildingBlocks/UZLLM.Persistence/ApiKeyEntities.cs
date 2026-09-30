@@ -7,6 +7,7 @@ public sealed class GatewayApiKeyEntity
     public string Name { get; set; } = null!;
     public string Prefix { get; set; } = null!;
     public byte[] SecretFingerprint { get; set; } = null!;
+    public int FingerprintKeyVersion { get; set; } = 1;
     public string Status { get; set; } = null!;
     public DateTimeOffset? ExpiresAt { get; set; }
     public Guid CreatedByAccountId { get; set; }

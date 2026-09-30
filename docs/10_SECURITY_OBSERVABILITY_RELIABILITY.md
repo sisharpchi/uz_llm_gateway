@@ -44,6 +44,17 @@ Authenticate by:
 
 Avoid storing reversible gateway key plaintext.
 
+`SECURITY-005` records `fingerprint_key_version` per API key. Existing rows
+backfill to version 1; creation and secret rotation use the configured active
+version. Gateway and Management must have the same versioned HMAC key ring.
+Distribute a new key to both hosts before activating it for Management writes;
+keep every version still referenced by active keys. Missing versions fail
+authentication closed, and an unconfigured active version prevents startup.
+Changing the active version back does not invalidate keys issued with a newer
+version while that key remains in the ring. Removing an old version requires
+rotating or disabling every key that references it first. The migration refuses
+downgrade while version 2+ rows exist.
+
 Gateway-key rotation has immediate, non-overlapping cutover at the committed
 database transaction. Authentication queries begun after commit reject the old
 secret; already-authenticated/in-flight requests may finish. Rotating an

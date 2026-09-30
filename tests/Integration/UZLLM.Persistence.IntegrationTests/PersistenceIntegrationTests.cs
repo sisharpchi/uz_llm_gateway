@@ -440,6 +440,19 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
                   END IF;
                 END $$;
                 """);
+        // Disposable fixture only: production downgrade must not discard the
+        // fingerprint version of any key issued after a HMAC-key cutover.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema = 'gateway' AND table_name = 'api_key'
+                        AND column_name = 'fingerprint_key_version') THEN
+                    UPDATE gateway.api_key SET fingerprint_key_version = 1
+                      WHERE fingerprint_key_version > 1;
+                  END IF;
+                END $$;
+                """);
         // Disposable fixture: the payment reconciliation downgrade cannot map
         // source-only cases back to the legacy non-null intent FK.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()

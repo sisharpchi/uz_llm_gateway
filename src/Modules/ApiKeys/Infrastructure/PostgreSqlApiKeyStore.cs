@@ -42,7 +42,8 @@ public sealed class PostgreSqlApiKeyStore(FoundationDbContext dbContext) : IApiK
     public async Task<StoredGatewayApiKey?> FindAuthenticationCandidateAsync(string prefix, CancellationToken cancellationToken = default) =>
         await dbContext.Set<GatewayApiKeyEntity>().AsNoTracking()
             .Where(apiKey => apiKey.Prefix == prefix)
-            .Select(apiKey => new StoredGatewayApiKey(ToContract(apiKey), apiKey.SecretFingerprint, apiKey.Project.Status == "Active"))
+            .Select(apiKey => new StoredGatewayApiKey(ToContract(apiKey), apiKey.SecretFingerprint,
+                apiKey.Project.Status == "Active", apiKey.FingerprintKeyVersion))
             .SingleOrDefaultAsync(cancellationToken);
 
     public async Task<bool> TrySetStatusAsync(Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default) =>
@@ -51,7 +52,8 @@ public sealed class PostgreSqlApiKeyStore(FoundationDbContext dbContext) : IApiK
             .ExecuteUpdateAsync(setters => setters.SetProperty(apiKey => apiKey.Status, status.ToString()), cancellationToken) == 1;
 
     public async Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration,
-        string newPrefix, byte[] newFingerprint, DateTimeOffset now, CancellationToken cancellationToken = default)
+        string newPrefix, byte[] newFingerprint, int fingerprintKeyVersion, DateTimeOffset now,
+        CancellationToken cancellationToken = default)
     {
         if (await dbContext.Set<GatewayApiKeyGenerationEntity>().AsNoTracking()
             .AnyAsync(value => value.Prefix == newPrefix, cancellationToken))
@@ -66,7 +68,8 @@ public sealed class PostgreSqlApiKeyStore(FoundationDbContext dbContext) : IApiK
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(value => value.Generation, expectedGeneration + 1)
                     .SetProperty(value => value.Prefix, newPrefix)
-                    .SetProperty(value => value.SecretFingerprint, newFingerprint), cancellationToken);
+                    .SetProperty(value => value.SecretFingerprint, newFingerprint)
+                    .SetProperty(value => value.FingerprintKeyVersion, fingerprintKeyVersion), cancellationToken);
             if (updated != 1) return ApiKeyRotationStoreResult.Conflict;
             var revoked = await dbContext.Set<GatewayApiKeyGenerationEntity>()
                 .Where(value => value.ApiKeyId == apiKeyId && value.Generation == expectedGeneration
@@ -101,6 +104,7 @@ public sealed class PostgreSqlApiKeyStore(FoundationDbContext dbContext) : IApiK
         Name = apiKey.ApiKey.Name,
         Prefix = apiKey.ApiKey.Prefix,
         SecretFingerprint = apiKey.SecretFingerprint,
+        FingerprintKeyVersion = apiKey.FingerprintKeyVersion,
         Status = apiKey.ApiKey.Status.ToString(),
         ExpiresAt = apiKey.ApiKey.ExpiresAt,
         CreatedByAccountId = apiKey.ApiKey.CreatedByAccountId,
