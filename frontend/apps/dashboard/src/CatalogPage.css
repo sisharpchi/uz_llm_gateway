@@ -1,0 +1,23 @@
+.catalog-filters{display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(150px,1fr));gap:1rem;margin-bottom:1rem}
+.catalog-filters label{display:grid;gap:.45rem;font-size:.75rem;color:#a8bfca;font-weight:700}
+.catalog-meta{color:#9eb2bd;font-size:.75rem;line-height:1.5}
+.catalog-layout{display:grid;grid-template-columns:minmax(230px,.8fr) minmax(0,1.5fr);gap:1rem;align-items:start}
+.catalog-results{display:grid;gap:.65rem}
+.catalog-card{width:100%;padding:1rem;text-align:left;border:1px solid #2a3c48;border-radius:.85rem;background:#101e29;color:#eaf5f1;display:grid;gap:.55rem}
+.catalog-card:hover,.catalog-card.selected{border-color:#75cdb5;background:#19312f}
+.catalog-card-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.catalog-card code,.catalog-model-id{color:#8adfc5;font-size:.75rem;overflow-wrap:anywhere}
+.catalog-card-foot{color:#96abb6;font-size:.72rem}
+.catalog-detail{min-width:0}
+.catalog-detail h2{font-size:1.55rem;margin:.35rem 0}
+.catalog-detail h3{font-size:.9rem;margin:1.6rem 0 .8rem}
+.catalog-statline{display:flex;gap:1.3rem;margin:1.2rem 0;color:#9cb2bc;font-size:.78rem}
+.catalog-statline strong{color:#f1faf6}
+.catalog-tags{display:flex;flex-wrap:wrap;gap:.35rem}
+.catalog-price-list{display:grid;gap:.6rem}
+.catalog-price-row{display:grid;grid-template-columns:minmax(90px,1fr) repeat(2,minmax(130px,1fr));gap:.4rem .8rem;padding:.8rem;border:1px solid #2b424a;border-radius:.6rem;font-size:.76rem;color:#c6dadc}
+.catalog-price-row small{grid-column:1/-1;color:#8fa6b1}
+.catalog-detail .code-example{white-space:pre-wrap;overflow-wrap:anywhere}
+.catalog-copied{margin-left:.8rem;color:#a2e9d1;font-size:.75rem}
+@media(max-width:900px){.catalog-layout{grid-template-columns:1fr}.catalog-filters{grid-template-columns:1fr 1fr}.catalog-filters label:first-child{grid-column:1/-1}}
+@media(max-width:600px){.catalog-filters{grid-template-columns:1fr}.catalog-filters label:first-child{grid-column:auto}.catalog-price-row{grid-template-columns:1fr 1fr}.catalog-price-row strong,.catalog-price-row small{grid-column:1/-1}}

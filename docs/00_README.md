@@ -171,6 +171,7 @@ This creates clear boundaries without paying the operational cost of many micros
 17. `17_POST_IMPLEMENTATION_AUDIT.md`
 18. `18_PRODUCTION_READINESS.md`
 19. `19_NEXT_PHASE_ROADMAP.md`
+20. `20_CUSTOMER_QUICKSTART.md`
 
 ---
 

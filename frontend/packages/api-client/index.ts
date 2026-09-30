@@ -10,6 +10,9 @@ export interface Wallet { organizationId: Id; postedBalanceMicroUsd: DecimalStri
 export interface PaymentQuote { id: Id; organizationId: Id; provider: 'Payme' | 'Click'; amountTiyin: DecimalString; feeTiyin: DecimalString; creditMicroUsd: DecimalString; uzsTiyinPerUsd: DecimalString; expiresAt: string }
 export interface PaymentIntent { id: Id; organizationId: Id; provider: 'Payme' | 'Click'; status: 'Pending' | 'Created' | 'Paid' | 'Canceled' | 'Expired'; amountTiyin: DecimalString; feeTiyin: DecimalString; creditMicroUsd: DecimalString; createdAt: string; hasCredit: boolean; hasReversal: boolean; hasOpenReconciliationCase: boolean }
 export interface CustomerRefund { id: Id; settlementId: Id; organizationId: Id; amountMicroUsd: DecimalString; createdAt: string }
+export interface CatalogProviderPrice { mappingId: Id; provider: string; providerName: string; capabilities: string[]; priceVersionId: Id; priceEffectiveFrom: string; priceEffectiveTo: string | null; inputPriceMicroUsdPerMillion: DecimalString; outputPriceMicroUsdPerMillion: DecimalString; cachedInputPriceMicroUsdPerMillion: DecimalString | null }
+export interface CatalogModel { id: string; displayName: string; contextLength: number; maxOutputTokens: number; capabilities: string[]; status: 'Published'; providers: CatalogProviderPrice[] }
+export interface CustomerCatalog { dataAsOf: string; feePolicyVersionId: Id; markupBasisPoints: number; fixedFeeMicroUsdPerRequest: DecimalString; models: CatalogModel[] }
 export interface CreatedTopUp { intent: Omit<PaymentIntent, 'hasCredit' | 'hasReversal' | 'hasOpenReconciliationCase'>; duplicate: boolean; checkoutUrl: string | null }
 export interface UsageFilters { from?: string; to?: string; projectId?: Id; apiKeyId?: Id; modelId?: Id; providerId?: Id; status?: string; isStream?: boolean; requestId?: Id }
 export interface UsageActivityItem { requestId: Id; projectId: Id; projectName: string; apiKeyId: Id; apiKeyName: string; modelId: Id; modelCode: string; providerId: Id | null; providerCode: string | null; startedAt: string; completedAt: string | null; executionState: string; deliveryState: string; financialState: string; httpStatus: number | null; isStream: boolean; attemptCount: number; durationMs: number | null; inputTokens: number | null; outputTokens: number | null; chargedMicroUsd: DecimalString | null }
@@ -96,6 +99,8 @@ export const management = {
   organizations: () => request<Organization[]>('/organizations'),
   createOrganization: (name: string) => request<Organization>('/organizations', { method: 'POST', body: json({ name }) }),
   projects: (organizationId: Id) => request<Project[]>(`/organizations/${organizationId}/projects`),
+  catalog: (organizationId: Id, projectId: Id) => request<CustomerCatalog>(
+    `/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/catalog/models`),
   createProject: (organizationId: Id, name: string) => request<Project>(`/organizations/${organizationId}/projects`, { method: 'POST', body: json({ name }) }),
   keys: (projectId: Id) => request<ApiKey[]>(`/projects/${projectId}/api-keys`),
   createKey: (projectId: Id, name: string) => request<IssuedApiKey>(`/projects/${projectId}/api-keys`, { method: 'POST', body: json({ name, expiresAt: null }) }),

@@ -195,6 +195,57 @@ Normalized response includes:
 - capabilities.
 
 Detailed management model catalog may be richer than public OpenAI-compatible response.
+The public `/v1/models` pricing summary is the conservative provider-base
+maximum, **not** the customer's final managed price; use the scoped management
+catalog below for markup and fixed-fee disclosure.
+
+Customer dashboard model discovery uses a session-authenticated project read:
+
+```http
+GET /management/v1/organizations/{organizationId}/projects/{projectId}/catalog/models
+```
+
+The project must be active and readable by the signed-in organization member.
+`401` means no session, `403` means no tenant/project grant, `404` means the
+project is absent/archived, and `503` means the effective managed `default` fee
+policy is unavailable. The response is `no-store` and never contains provider
+credentials, upstream endpoint references or another tenant's settings:
+
+```json
+{
+  "dataAsOf": "2026-09-30T00:00:00Z",
+  "feePolicyVersionId": "<uuid>",
+  "markupBasisPoints": 2500,
+  "fixedFeeMicroUsdPerRequest": "100",
+  "models": [{
+    "id": "<published-canonical-model-code>",
+    "displayName": "Example Chat",
+    "contextLength": 8192,
+    "maxOutputTokens": 1024,
+    "capabilities": ["Text", "Tools"],
+    "status": "Published",
+    "providers": [{
+      "mappingId": "<uuid>",
+      "provider": "openai",
+      "providerName": "OpenAI",
+      "capabilities": ["Text", "Tools"],
+      "priceVersionId": "<uuid>",
+      "priceEffectiveFrom": "2026-09-29T00:00:00Z",
+      "priceEffectiveTo": null,
+      "inputPriceMicroUsdPerMillion": "1250000",
+      "outputPriceMicroUsdPerMillion": "2500000",
+      "cachedInputPriceMicroUsdPerMillion": null
+    }]
+  }]
+}
+```
+
+Rates are decimal strings of **customer** USD micro-units per million tokens:
+effective provider rate × `(10000 + markupBasisPoints) / 10000`. The separate
+fixed fee is in integer USD micro-units per request. Final settlement rounds the
+aggregate charge using measured usage and the selected attempt's immutable
+price/fee versions; displayed rates are not a quote or a live health/quota check.
+Only active, effectively priced chat mappings supported by the Gateway appear.
 
 ---
 
@@ -444,9 +495,17 @@ Especially useful for:
 Preserve `/v1` OpenAI-compatible namespace.
 
 ### Management
-Use explicit version path or version header.
+Use the existing `/management/v1` path. The customer catalog read added by
+`DX-001` follows the same version as other session-backed management reads.
 
 Breaking inference changes are especially costly because customer applications depend on compatibility.
+Within either `v1` namespace, existing field names, units, authentication and
+error meanings remain stable; new response fields may be additive and optional.
+A breaking change requires a new versioned path, a published migration guide
+and at least 180 days of overlap/deprecation notice before the old path is
+sunset. Emergency security retirement requires an explicit incident decision
+and customer notice. `DX-002` will enforce contract drift in CI; `DX-004`
+will specify automation-specific lifecycle details.
 
 ---
 

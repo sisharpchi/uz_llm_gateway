@@ -4,9 +4,10 @@ import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams 
 import { ApiError, management, tiyinFromWholeUzs, usdFromMicro, uzsFromTiyin,
   type Organization, type Project, type PaymentQuote, type CreatedTopUp, type PaymentIntent } from '@uzllm/api-client';
 import { ActivityPage, AnalyticsPage } from './UsagePages';
+import { CatalogPage } from './CatalogPage';
 
-type Page = 'overview' | 'projects' | 'keys' | 'billing' | 'activity' | 'analytics';
-const validPages: Page[] = ['overview', 'projects', 'keys', 'billing', 'activity', 'analytics'];
+type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics';
+const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics'];
 
 export function App() {
   return <Routes>
@@ -117,7 +118,7 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
         {!projects.data?.length && <option value="">No projects</option>}
         {projects.data?.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       <nav aria-label="Main navigation" className="nav-list">{validPages.map(item => <Link key={item} to={pageUrl(item)} aria-current={page === item ? 'page' : undefined}>
-        <span className="nav-icon">{item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
+        <span className="nav-icon">{item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'models' ? '◇' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
       <div className="sidebar-bottom"><p>Managed credits</p><strong>{wallet.data ? usdFromMicro(wallet.data.availableBalanceMicroUsd) : '—'}</strong>
         <button onClick={signOut} className="text-button">Sign out</button></div>
     </aside>
@@ -128,6 +129,7 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
         {page === 'overview' && <Overview organization={organization} project={selectedProject} wallet={wallet.data?.availableBalanceMicroUsd} />}
         {page === 'projects' && <ProjectsPanel organization={organization} projects={projects.data ?? []} />}
         {page === 'keys' && <KeysPanel organizationId={organization.id} project={selectedProject} />}
+        {page === 'models' && <CatalogPage organizationId={organization.id} projectId={selectedProject?.id} />}
         {page === 'billing' && <BillingPanel organizationId={organization.id} />}
         {page === 'activity' && <ActivityPage organizationId={organization.id} projectId={selectedProject?.id} />}
         {page === 'analytics' && <AnalyticsPage organizationId={organization.id} projectId={selectedProject?.id} />}
@@ -140,9 +142,9 @@ function Overview({ organization, project, wallet }: { organization: Organizatio
   return <><div className="page-heading"><span className="eyebrow">YOUR WORKSPACE</span><h1>Overview</h1><p>A clear starting point for your first live request.</p></div>
     <div className="summary-grid"><div className="panel metric"><span>Available balance</span><strong>{wallet ? usdFromMicro(wallet) : '—'}</strong><small>Managed credits · USD</small></div>
       <div className="panel metric"><span>Current project</span><strong>{project?.name ?? 'Not created'}</strong><small>{organization.name}</small></div></div>
-    <section className="panel"><h2>Get started</h2><ol className="steps"><li>Create a project</li><li>Top up with Payme or CLICK</li><li>Create and securely copy an API key</li><li>Call <code>POST /v1/chat/completions</code></li></ol>
+    <section className="panel"><h2>Get started</h2><ol className="steps"><li>Create a project</li><li>Top up with Payme or CLICK</li><li>Create and securely copy an API key</li><li>Choose a published model and copy its chat request</li></ol>
       <p className="muted">Activity and analytics show real gateway traffic once requests are made. No sample balance or fabricated traffic is shown here.</p>
-      <pre className="code-example">{`curl https://api.example.uz/v1/chat/completions \\\n+  -H 'Authorization: Bearer YOUR_API_KEY' \\\n+  -H 'Content-Type: application/json' \\\n+  -d '{"model":"YOUR_MODEL_ID","messages":[{"role":"user","content":"Hello"}]}'`}</pre></section>
+      {project && <Link className="button secondary" to={`/organizations/${organization.id}/models?project=${project.id}`}>Browse models and quickstart</Link>}</section>
   </>;
 }
 

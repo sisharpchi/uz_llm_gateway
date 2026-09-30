@@ -1,0 +1,12 @@
+@base = http://localhost:5063
+@organizationId = 00000000-0000-0000-0000-000000000001
+@projectId = 00000000-0000-0000-0000-000000000002
+@session = replace-with-browser-session-token
+
+### Published managed catalog for an active, authorized project
+GET {{base}}/management/v1/organizations/{{organizationId}}/projects/{{projectId}}/catalog/models
+Cookie: __Host-uzllm-session={{session}}
+
+### Unknown project returns 404 after organization authorization
+GET {{base}}/management/v1/organizations/{{organizationId}}/projects/00000000-0000-0000-0000-000000000099/catalog/models
+Cookie: __Host-uzllm-session={{session}}

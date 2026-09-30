@@ -14,6 +14,7 @@ using UZLLM.Modules.Notifications.Infrastructure;
 using UZLLM.Management.Api;
 using UZLLM.Management.Api.Administration;
 using UZLLM.Management.Api.Budgets;
+using UZLLM.Management.Api.Catalog;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
@@ -36,6 +37,7 @@ builder.Services.AddUzllmPayments(builder.Configuration);
 builder.Services.AddUzllmCustomerAlerts(builder.Configuration);
 builder.Services.AddUzllmAdministration();
 builder.Services.AddScoped<IBudgetManagementService, BudgetManagementService>();
+builder.Services.AddScoped<ICustomerCatalogService, CustomerCatalogService>();
 var app = builder.Build();
 
 app.UseUzllmManagementNoStore();
@@ -53,6 +55,7 @@ app.MapUzllmUsageReadEndpoints();
 app.MapUzllmPayloadRetentionEndpoints();
 app.MapUzllmAdminEndpoints();
 app.MapUzllmBudgetEndpoints();
+app.MapUzllmCustomerCatalogEndpoints();
 app.MapUzllmByokEndpoints();
 app.MapUzllmCustomerAlertEndpoints();
 app.Run();

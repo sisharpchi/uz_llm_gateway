@@ -52,6 +52,9 @@ src/UZLLM.Gateway.Api`. A usable managed inference route also requires an
 active catalog provider/model/price, platform credential, effective `default`
 fee policy, and funded organization wallet. See
 [`gateway.http`](src/UZLLM.Gateway.Api/gateway.http) for request examples.
+Customers can inspect effective managed model prices and copy a model-specific
+chat request in the dashboard's **Models** page; see the
+[customer quickstart](docs/20_CUSTOMER_QUICKSTART.md).
 
 Opt-in payload retention additionally requires a separate 32-byte base64
 `PAYLOADSECRETS__KEYS__v1` and `PAYLOADSECRETS__ACTIVEKEYVERSION=v1` on Gateway

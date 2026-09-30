@@ -474,7 +474,7 @@ Every extra mandatory configuration step reduces activation.
 | Onboarding | auth, organization, project, payment intent, key create | Identity, Projects, Payments |
 | Overview | wallet, summaries, recent activity | Billing, Usage rollups |
 | Projects/keys | scoped project and key metadata, holds/caps | Projects, ApiKeys, Billing |
-| Catalog | models, mappings, capability/pricing summary | Catalog |
+| Catalog | `GET /management/v1/organizations/{orgId}/projects/{projectId}/catalog/models`; published mappings, effective customer rates, capabilities and selected-model quickstart | Catalog, Billing fee policy, Projects authorization |
 | Activity/detail | cursor activity, request/attempt/evidence state | Usage |
 | Billing | wallet, quote, payment status/history, ledger/debt | Billing, Payments |
 | Operator console | providers, prices, payments, ledger, incidents | Admin/Ops |

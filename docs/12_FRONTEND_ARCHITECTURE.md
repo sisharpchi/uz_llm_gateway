@@ -100,6 +100,11 @@ Admin:
   audit
 ```
 
+The current customer dashboard uses `/organizations/:orgId/models?project=:projectId`
+for the catalog, matching its shared project selector. The selected project's
+ID is sent to the scoped Management catalog read endpoint; no project or
+provider data is inferred from the route alone.
+
 ---
 
 ## 5. State strategy
