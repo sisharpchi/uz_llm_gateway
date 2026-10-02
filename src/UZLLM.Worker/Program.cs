@@ -14,6 +14,8 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 builder.Services.AddUzllmOperatorKeyRing(builder.Configuration, builder.Environment.IsProduction());
 builder.Services.AddUzllmPersistence(builder.Configuration);
+builder.Services.AddSingleton(RetentionSchedule.FromConfiguration(builder.Configuration));
+builder.Services.AddScoped<IRetentionSweep, PostgreSqlRetentionSweep>();
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmUsage();
 builder.Services.AddUzllmAudit();
@@ -72,6 +74,7 @@ builder.Services.AddSingleton<IOperationalLeaseRenewer, ScopedOperationalLeaseRe
 builder.Services.AddHostedService<OutboxDispatchWorker>();
 builder.Services.AddHostedService<LeasedJobDispatchWorker>();
 builder.Services.AddHostedService<ExpiredPayloadDeletionWorker>();
+builder.Services.AddHostedService<RetentionSweepWorker>();
 builder.Services.AddHostedService<CustomerAlertEvaluationWorker>();
 builder.Services.AddHostedService<BillingRecoverySweepWorker>();
 var host = builder.Build();

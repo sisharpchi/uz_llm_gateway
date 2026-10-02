@@ -8,7 +8,8 @@ using UZLLM.Persistence;
 
 var rotateSecrets = args.Length > 0 && args[0] == "--rotate-provider-secrets";
 var rotateSession = args.Length > 0 && args[0] == "--rotate-session-key";
-var builder = Host.CreateApplicationBuilder(rotateSecrets || rotateSession ? [] : args);
+var scrubRestoredPayloads = args.Length > 0 && args[0] == "--scrub-restored-payloads";
+var builder = Host.CreateApplicationBuilder(rotateSecrets || rotateSession || scrubRestoredPayloads ? [] : args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 builder.Services.AddUzllmPersistence(builder.Configuration);
 if (rotateSecrets || rotateSession)
@@ -45,6 +46,17 @@ if (rotateSession)
     var keyId = await scope.ServiceProvider.GetRequiredService<OperatorKeyRingRotation>()
         .RotateAsync(actorId);
     Console.WriteLine($"Created Data Protection key {keyId}; verify every node before retirement.");
+    return;
+}
+if (scrubRestoredPayloads)
+{
+    if (args.Length != 3 || !Guid.TryParse(args[1], out var actorId) || actorId == Guid.Empty
+        || args[2] != "--confirm-all-payloads")
+        throw new ArgumentException("Usage: --scrub-restored-payloads <operator-account-id> --confirm-all-payloads");
+    var result = await new RestorePayloadScrubber(
+        scope.ServiceProvider.GetRequiredService<FoundationDbContext>(),
+        scope.ServiceProvider.GetRequiredService<TimeProvider>()).ScrubAsync(actorId);
+    Console.WriteLine($"Disabled {result.DisabledPolicies} restored opt-ins and deleted {result.DeletedPayloads} retained payloads.");
     return;
 }
 if (args.Length != 0) throw new ArgumentException("Unknown migrator command.");

@@ -479,3 +479,25 @@ rows in bounded batches every five minutes; reads reject expired rows
 immediately. Only an organization owner may change policy or retrieve a
 retained body, and both actions create metadata-only audit events. The normal
 usage detail API remains payload-free; prompts and responses are never logged.
+
+`PRIVACY-002` keeps four retention classes distinct. An externally approved
+`Retention:ScheduleReference` enables the Worker to clear only the `trace_id`
+of completed, financially final `usage.request` rows after
+`Retention:DiagnosticDays` (default 30), and JSON details/last errors of
+processed outbox, completed jobs and notified/resolved operational alerts
+after `Retention:OperationalDays` (default 90). The sweep is bounded and runs
+every five minutes; IDs, statuses and deduplication keys remain. Without the
+reference, metadata minimization is disabled, while `PRIVACY-001` payload
+opt-out and expiry still run. `AuditDisposition` and `FinancialDisposition`
+must explicitly be `LegalHold`: audit append-only records, usage/financial
+evidence, unresolved work and consumer inbox receipts are never purged by this
+sweep. Legal approval of exact durations and any eventual audit/financial
+archive is a separate launch prerequisite, not inferred from these defaults.
+
+Physical backups can contain payloads deleted by a later opt-out. A restored
+database must remain quarantined until `--scrub-restored-payloads` disables
+all restored opt-ins and deletes all restored `usage.payload` rows in one
+transaction with an audit event. See `deploy/PRIVACY-002-VALIDATION.md` for
+the restore procedure. Backup copies themselves expire only under the
+externally approved backup/PITR schedule; this code cannot erase bytes inside
+an existing immutable backup.

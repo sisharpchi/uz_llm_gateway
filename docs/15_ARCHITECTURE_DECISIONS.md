@@ -159,7 +159,7 @@ This prevents vendor coupling.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Implemented by `PRIVACY-001` (project opt-in, separate encrypted payload rows, bounded expiry)
+**Implementation status:** Implemented by `PRIVACY-001` (project opt-in, separate encrypted payload rows, bounded expiry) and `PRIVACY-002` (approved-schedule metadata minimization, operational content redaction, quarantined restore scrub; financial/audit legal hold)
 
 Default product should work with request metadata even when prompt/response body retention is disabled.
 

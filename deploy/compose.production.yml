@@ -86,6 +86,11 @@ x-worker: &worker
     Payments__FixedFeeTiyin: ${UZLLM_PAYMENT_FIXED_FEE_TIYIN}
     Observability__OtlpEndpoint: ${UZLLM_OTLP_ENDPOINT:-}
     Observability__OtlpProtocol: ${UZLLM_OTLP_PROTOCOL:-http/protobuf}
+    Retention__ScheduleReference: ${UZLLM_RETENTION_SCHEDULE_REF:-}
+    Retention__DiagnosticDays: ${UZLLM_RETENTION_DIAGNOSTIC_DAYS:-30}
+    Retention__OperationalDays: ${UZLLM_RETENTION_OPERATIONAL_DAYS:-90}
+    Retention__AuditDisposition: LegalHold
+    Retention__FinancialDisposition: LegalHold
   volumes:
     - ${UZLLM_CERT_DIR}/keyring.pfx:/run/certs/keyring.pfx:ro
     - ${UZLLM_KEYRING_DIR:?Set UZLLM_KEYRING_DIR}:/run/keyring:rw

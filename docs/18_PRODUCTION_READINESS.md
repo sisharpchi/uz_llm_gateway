@@ -36,7 +36,12 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
   local Compose host does not prove high availability.
 - Set payload retention separately from financial/audit retention. Test
   expiry, opt-out deletion, log redaction and backup handling for deleted
-  payloads. Define a data-subject and breach-response owner.
+  payloads. Define a data-subject and breach-response owner. For `PRIVACY-002`,
+  attach the signed schedule reference and approved diagnostic/operational
+  durations, evidence that Worker uses that config, and the quarantined
+  restore/scrub drill from `deploy/PRIVACY-002-VALIDATION.md`. Audit and
+  financial records remain on explicit legal hold pending an approved archive
+  procedure; do not represent the 30/90-day defaults as legal approval.
 - Attach the `SECURITY-006` staging rotation drill: both nodes read old/new
   provider and BYOK ciphertext, Management/Worker read old/new Data Protection
   payloads, provider version inventory reconciles to per-row audit events,
