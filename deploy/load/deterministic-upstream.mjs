@@ -27,11 +27,18 @@ createServer({ cert: readFileSync(cert), key: readFileSync(key) }, async (reques
   let body;
   try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { response.writeHead(400).end(); return; }
-  if (!body.stream || !body.model || !Array.isArray(body.messages)) {
+  if (typeof body.stream !== 'boolean' || !body.model || !Array.isArray(body.messages)) {
     response.writeHead(400).end();
     return;
   }
   const id = randomUUID();
+  if (!body.stream) {
+    response.writeHead(200, { 'content-type': 'application/json', 'x-request-id': id });
+    response.end(JSON.stringify({ id, object: 'chat.completion', model: body.model,
+      choices: [{ index: 0, message: { role: 'assistant', content: 'Fixture complete.' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 8, completion_tokens: 3, total_tokens: 11 } }));
+    return;
+  }
   response.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',

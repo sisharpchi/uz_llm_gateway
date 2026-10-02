@@ -62,3 +62,8 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 If any mandatory external evidence is unavailable, mark its gate `Blocked`
 and keep paid traffic disabled. A green repository CI run is not permission to
 open managed public admission.
+
+`LAUNCH-002` adds a disposable real-service acceptance stack to CI (see
+`deploy/LAUNCH-002-VALIDATION.md`). It proves the repository vertical flow with
+synthetic merchant/provider credentials, but does not replace the real staging
+and external evidence required by the Functional, Payment and Provider gates.

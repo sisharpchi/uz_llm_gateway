@@ -50,5 +50,24 @@ jobs:
           UZLLM_SMTP_FROM: no-reply@example.test
           UZLLM_OPERATIONS_ALERT_EMAIL: oncall@example.test
         run: docker compose -f deploy/compose.production.yml config --quiet
+      - name: Install dashboard acceptance browser
+        run: |
+          npm ci --prefix frontend/apps
+          cd frontend/apps/dashboard
+          npx playwright install --with-deps chromium
+      - name: Run disposable real-stack launch acceptance
+        run: |
+          for target in gateway management worker migrator; do
+            docker tag "uzllm-$target:ci" "uzllm-$target:acceptance"
+          done
+          docker tag uzllm-edge:ops002 uzllm-edge:acceptance
+          node deploy/tests/run-launch-acceptance.mjs --no-build
+      - name: Upload launch acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-acceptance-${{ github.sha }}
+          path: artifacts/acceptance/
+          if-no-files-found: warn
       - name: Check whitespace
         run: git diff --check

@@ -1,0 +1,139 @@
+# Disposable LAUNCH-002 acceptance stack. Never use with live merchant credentials or data.
+x-app: &app
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: https://+:8443
+  Kestrel__Certificates__Default__Path: /run/certs/internal.pfx
+  Kestrel__Certificates__Default__Password: ${UZLLM_ACCEPTANCE_PFX_PASSWORD}
+  ConnectionStrings__Postgres: Host=postgres;Database=uzllm_acceptance;Username=uzllm_runtime;Password=${UZLLM_ACCEPTANCE_DB_PASSWORD};SSL Mode=Disable
+  ConnectionStrings__Redis: redis:6379
+  ApiKeys__FingerprintKey: ${UZLLM_ACCEPTANCE_FINGERPRINT_KEY}
+  ApiKeys__ActiveKeyVersion: '1'
+  ProviderSecrets__ActiveKeyVersion: v1
+  ProviderSecrets__Keys__v1: ${UZLLM_ACCEPTANCE_PROVIDER_KEY}
+  PayloadSecrets__ActiveKeyVersion: v1
+  PayloadSecrets__Keys__v1: ${UZLLM_ACCEPTANCE_PAYLOAD_KEY}
+  SSL_CERT_FILE: /run/certs/ca.crt
+
+x-management-worker: &management-worker
+  DataProtection__KeyRingPath: /run/keyring
+  DataProtection__CertificatePath: /run/certs/internal.pfx
+  DataProtection__CertificatePassword: ${UZLLM_ACCEPTANCE_PFX_PASSWORD}
+  Payments__FeeBasisPoints: '0'
+  Payments__FixedFeeTiyin: '0'
+  Payments__Payme__MerchantId: acceptance-payme
+  Payments__Payme__Key: ${UZLLM_ACCEPTANCE_PAYME_KEY}
+  Payments__Click__MerchantId: acceptance-click
+  Payments__Click__ServiceId: acceptance-service
+  Payments__Click__SecretKey: ${UZLLM_ACCEPTANCE_CLICK_KEY}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports: ['127.0.0.1::5432']
+    environment:
+      POSTGRES_DB: uzllm_acceptance
+      POSTGRES_USER: uzllm_migrator
+      POSTGRES_PASSWORD: ${UZLLM_ACCEPTANCE_DB_PASSWORD}
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U uzllm_migrator -d uzllm_acceptance']
+      interval: 2s
+      retries: 30
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      retries: 30
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    environment:
+      MP_SMTP_TLS_CERT: /run/certs/internal.crt
+      MP_SMTP_TLS_KEY: /run/certs/internal.key
+      MP_SMTP_REQUIRE_STARTTLS: 'true'
+    volumes:
+      - ${UZLLM_ACCEPTANCE_TMP}/certs:/run/certs:ro
+    ports: ['127.0.0.1::8025']
+  provider:
+    image: node:22-alpine
+    command: [node, /app/deterministic-upstream.mjs]
+    environment:
+      UZLLM_FIXTURE_CERT: /run/certs/internal.crt
+      UZLLM_FIXTURE_KEY: /run/certs/internal.key
+      UZLLM_FIXTURE_PORT: '9443'
+      UZLLM_FIXTURE_DURATION_MS: '1000'
+    volumes:
+      - ./load/deterministic-upstream.mjs:/app/deterministic-upstream.mjs:ro
+      - ${UZLLM_ACCEPTANCE_TMP}/certs:/run/certs:ro
+    networks:
+      default:
+        aliases: [provider.internal]
+  migrator:
+    image: uzllm-migrator:acceptance
+    environment:
+      ConnectionStrings__Postgres: Host=postgres;Database=uzllm_acceptance;Username=uzllm_migrator;Password=${UZLLM_ACCEPTANCE_DB_PASSWORD};SSL Mode=Disable
+    depends_on:
+      postgres: { condition: service_healthy }
+  management:
+    image: uzllm-management:acceptance
+    environment:
+      <<: [*app, *management-worker]
+    volumes:
+      - ${UZLLM_ACCEPTANCE_TMP}/certs:/run/certs:ro
+      - ${UZLLM_ACCEPTANCE_TMP}/keyring:/run/keyring
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  gateway:
+    image: uzllm-gateway:acceptance
+    environment:
+      <<: *app
+      Providers__OpenAI__BaseUrl: https://provider.internal:9443/v1/
+      Gateway__PublicBaseUrl: https://localhost/
+      # Preserve Redis epoch fail-closed behavior, but bound the disposable
+      # stack's maximum lease/recovery window to three seconds.
+      Gateway__ProviderTimeoutSeconds: '3'
+      Gateway__ReservationLifetimeSeconds: '30'
+      Gateway__Limits__LeaseSeconds: '3'
+      Limits__MaxLeaseSeconds: '3'
+    volumes:
+      - ${UZLLM_ACCEPTANCE_TMP}/certs:/run/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      provider: { condition: service_started }
+  worker:
+    image: uzllm-worker:acceptance
+    environment:
+      <<: *management-worker
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: Host=postgres;Database=uzllm_acceptance;Username=uzllm_runtime;Password=${UZLLM_ACCEPTANCE_DB_PASSWORD};SSL Mode=Disable
+      ConnectionStrings__Redis: redis:6379
+      SSL_CERT_FILE: /run/certs/ca.crt
+      Email__SmtpHost: mailpit
+      Email__SmtpPort: '1025'
+      Email__FromAddress: no-reply@acceptance.invalid
+      Email__DashboardBaseUrl: https://localhost/
+      Operations__AlertEmail: oncall@acceptance.invalid
+    volumes:
+      - ${UZLLM_ACCEPTANCE_TMP}/certs:/run/certs:ro
+      - ${UZLLM_ACCEPTANCE_TMP}/keyring:/run/keyring
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mailpit: { condition: service_started }
+  edge:
+    image: uzllm-edge:acceptance
+    environment:
+      NGINX_ENVSUBST_FILTER: '^UZLLM_'
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+      UZLLM_GATEWAY_A: gateway:8443
+      UZLLM_GATEWAY_B: gateway:8443
+      UZLLM_MANAGEMENT_A: management:8443
+      UZLLM_MANAGEMENT_B: management:8443
+    volumes:
+      - ${UZLLM_ACCEPTANCE_TMP}/certs:/run/certs:ro
+      - ${UZLLM_ACCEPTANCE_TMP}/click-allowlist.conf:/etc/nginx/click-allowlist.conf:ro
+    ports: ['127.0.0.1::443']
+    depends_on:
+      - gateway
+      - management

@@ -1,0 +1,220 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { test, expect, type APIRequestContext, type BrowserContext } from '@playwright/test';
+
+const base = process.env.UZLLM_ACCEPTANCE_BASE_URL!;
+const mailbox = process.env.UZLLM_ACCEPTANCE_MAILPIT_URL!;
+const paymeAuth = `Basic ${Buffer.from(`Paycom:${process.env.UZLLM_ACCEPTANCE_PAYME_KEY}`).toString('base64')}`;
+const password = 'Acceptance-only-password-123';
+
+async function json(request: APIRequestContext, method: 'get' | 'post', path: string,
+  options: Record<string, unknown> = {}) {
+  const response = await request[method](base + path, options);
+  const body = await response.json().catch(() => null);
+  return { response, body };
+}
+async function csrf(context: BrowserContext) {
+  const cookie = (await context.cookies()).find(item => item.name === '__Host-uzllm-csrf');
+  expect(cookie?.value).toBeTruthy();
+  return { 'X-CSRF-Token': cookie!.value };
+}
+async function verificationToken(email: string) {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const list = await fetch(`${mailbox}/api/v1/messages`).then(response => response.json()).catch(() => null);
+    const message = list?.messages?.find((item: { To: { Address: string }[]; Subject: string }) =>
+      item.To?.some(person => person.Address.toLowerCase() === email) && item.Subject.includes('Verify'));
+    if (message) {
+      const body = await fetch(`${mailbox}/view/${message.ID}.txt`).then(response => response.text());
+      const token = body.match(/verification page:\s*\n\s*([A-Za-z0-9_-]+)/)?.[1];
+      if (token) return token;
+    }
+    await new Promise(resolveDelay => setTimeout(resolveDelay, 1000));
+  }
+  throw new Error(`Worker did not deliver verification email to ${email}`);
+}
+function clickFields(intentId: string, transactionId: string, amount: string, action: '0' | '1', prepareId = '') {
+  const fields = new URLSearchParams({
+    click_trans_id: transactionId, service_id: 'acceptance-service',
+    merchant_trans_id: intentId, amount, action, error: '0', error_note: 'Success',
+    sign_time: '2026-10-02 10:00:00', click_paydoc_id: '90001',
+  });
+  if (action === '1') fields.set('merchant_prepare_id', prepareId);
+  const signed = transactionId + 'acceptance-service' + process.env.UZLLM_ACCEPTANCE_CLICK_KEY
+    + intentId + prepareId + amount + action + fields.get('sign_time');
+  fields.set('sign_string', createHash('md5').update(signed).digest('hex'));
+  return fields;
+}
+
+test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async ({ page, browser }) => {
+  const email = `acceptance-${randomUUID()}@example.invalid`;
+  await page.goto('/register');
+  await page.getByRole('textbox', { name: 'Email' }).fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Create your account' }).click();
+  await expect(page.getByText(/sent a verification token/)).toBeVisible();
+  const token = await verificationToken(email);
+  await page.goto('/verify-email');
+  await page.getByRole('textbox', { name: 'Verification token' }).fill(token);
+  await page.getByRole('button', { name: 'Verify your email' }).click();
+  await expect(page.getByRole('status')).toContainText('Email verified');
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: 'Email' }).fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: /Start with your organization/ })).toBeVisible();
+
+  const auth = await csrf(page.context());
+  const request = page.context().request;
+  const organization = await json(request, 'post', '/management/v1/organizations',
+    { data: { name: 'Acceptance workspace' }, headers: auth });
+  expect(organization.response.status()).toBe(201);
+  const orgId: string = organization.body.id;
+  const project = await json(request, 'post', `/management/v1/organizations/${orgId}/projects`,
+    { data: { name: 'Acceptance project' }, headers: auth });
+  expect(project.response.status()).toBe(201);
+  const projectId: string = project.body.id;
+  const key = await json(request, 'post', `/management/v1/projects/${projectId}/api-keys`,
+    { data: { name: 'Acceptance key', expiresAt: null }, headers: auth });
+  expect(key.response.status()).toBe(201);
+  const gatewaySecret: string = key.body.secret;
+  expect(gatewaySecret).toMatch(/^uzllm_live_/);
+  expect(key.response.headers()['cache-control']).toContain('no-store');
+  const keys = await json(request, 'get', `/management/v1/projects/${projectId}/api-keys`);
+  expect(JSON.stringify(keys.body)).not.toContain(gatewaySecret);
+
+  const quote = await json(request, 'post', `/management/v1/organizations/${orgId}/billing/quotes`,
+    { data: { provider: 'Payme', amountTiyin: '10000000' }, headers: auth });
+  expect(quote.response.status()).toBe(200);
+  expect(quote.body.creditMicroUsd).toBe('10000000');
+  const idempotencyKey = randomUUID();
+  const topupPath = `/management/v1/organizations/${orgId}/billing/topups`;
+  const topupOptions = { data: { quoteId: quote.body.id },
+    headers: { ...auth, 'Idempotency-Key': idempotencyKey } };
+  const topup = await json(request, 'post', topupPath, topupOptions);
+  expect(topup.response.status()).toBe(201);
+  const repeatedTopup = await json(request, 'post', topupPath, topupOptions);
+  expect(repeatedTopup.response.status()).toBe(200);
+  expect(repeatedTopup.body.duplicate).toBe(true);
+  expect(repeatedTopup.body.intent.id).toBe(topup.body.intent.id);
+  const intentId: string = topup.body.intent.id;
+  const paymentPath = '/payments/payme/callback';
+  const paymentHeaders = { Authorization: paymeAuth };
+  const wrongAuth = await json(request, 'post', paymentPath,
+    { data: { id: 1, method: 'CheckPerformTransaction', params: { amount: 10000000,
+      account: { intent_id: intentId } } }, headers: { Authorization: 'Basic invalid' } });
+  expect(wrongAuth.body.error.code).toBe(-32504);
+  const wrongAmount = await json(request, 'post', paymentPath,
+    { data: { id: 2, method: 'CheckPerformTransaction', params: { amount: 9999999,
+      account: { intent_id: intentId } } }, headers: paymentHeaders });
+  expect(wrongAmount.body.error.code).toBe(-31001);
+  const providerTransaction = `payme-${randomUUID()}`;
+  const create = await json(request, 'post', paymentPath,
+    { data: { id: 3, method: 'CreateTransaction', params: { id: providerTransaction,
+      time: Date.now(), amount: 10000000, account: { intent_id: intentId } } }, headers: paymentHeaders });
+  expect(create.body.error).toBeUndefined();
+  expect(create.body.result.state).toBe(1);
+  const performPayload = { id: 4, method: 'PerformTransaction', params: { id: providerTransaction } };
+  const paid = await json(request, 'post', paymentPath, { data: performPayload, headers: paymentHeaders });
+  expect(paid.body.result.state).toBe(2);
+  const replay = await json(request, 'post', paymentPath, { data: performPayload, headers: paymentHeaders });
+  expect(replay.body.result.state).toBe(2);
+  expect(replay.body.result.perform_time).toBe(paid.body.result.perform_time);
+  const walletPath = `/management/v1/organizations/${orgId}/billing/wallet`;
+  const walletAfterPayme = await json(request, 'get', walletPath);
+  expect(walletAfterPayme.body.postedBalanceMicroUsd).toBe('10000000');
+  expect(walletAfterPayme.body.reservedBalanceMicroUsd).toBe('0');
+
+  const clickQuote = await json(request, 'post', `/management/v1/organizations/${orgId}/billing/quotes`,
+    { data: { provider: 'Click', amountTiyin: '1000000' }, headers: auth });
+  expect(clickQuote.response.status()).toBe(200);
+  const clickTopup = await json(request, 'post', topupPath,
+    { data: { quoteId: clickQuote.body.id }, headers: { ...auth, 'Idempotency-Key': randomUUID() } });
+  expect(clickTopup.response.status()).toBe(201);
+  const clickId: string = clickTopup.body.intent.id;
+  const clickTransaction = `click-${randomUUID()}`;
+  const prepare = clickFields(clickId, clickTransaction, '10000.00', '0');
+  const invalid = new URLSearchParams(prepare); invalid.set('sign_string', '0'.repeat(32));
+  const clickHeaders = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  const denied = await json(request, 'post', '/payments/click/callback',
+    { data: invalid.toString(), headers: clickHeaders });
+  expect(denied.body.error).toBe(-1);
+  const prepared = await json(request, 'post', '/payments/click/callback',
+    { data: prepare.toString(), headers: clickHeaders });
+  expect(prepared.body.error).toBe(0);
+  const complete = clickFields(clickId, clickTransaction, '10000.00', '1',
+    String(prepared.body.merchant_prepare_id));
+  const clicked = await json(request, 'post', '/payments/click/callback',
+    { data: complete.toString(), headers: clickHeaders });
+  expect(clicked.body.error).toBe(0);
+  const clickedReplay = await json(request, 'post', '/payments/click/callback',
+    { data: complete.toString(), headers: clickHeaders });
+  expect(clickedReplay.body.error).toBe(-4);
+  const walletAfterClick = await json(request, 'get', walletPath);
+  expect(walletAfterClick.body.postedBalanceMicroUsd).toBe('11000000');
+
+  const anonymous = await json(request, 'get', '/v1/models');
+  expect(anonymous.response.status()).toBe(401);
+  const failedKey = await json(request, 'post', '/v1/chat/completions',
+    { data: { model: 'fixture-model', messages: [{ role: 'user', content: 'Hello' }], stream: false },
+      headers: { Authorization: 'Bearer invalid' } });
+  expect(failedKey.response.status()).toBe(401);
+  const recoveryProbe = await json(request, 'post', '/v1/chat/completions',
+    { data: { model: 'fixture-model', messages: [{ role: 'user', content: 'Hello' }], stream: false },
+      headers: { Authorization: `Bearer ${gatewaySecret}` } });
+  expect(recoveryProbe.response.status(), JSON.stringify(recoveryProbe.body)).toBe(503);
+  expect(recoveryProbe.response.headers()['retry-after']).toBeTruthy();
+  await new Promise(resolveDelay => setTimeout(resolveDelay, 3500));
+  const inferenceHeaders = { Authorization: `Bearer ${gatewaySecret}`,
+    'Idempotency-Key': randomUUID() };
+  const inference = await json(request, 'post', '/v1/chat/completions',
+    { data: { model: 'fixture-model', messages: [{ role: 'user', content: 'Hello' }], stream: false },
+      headers: inferenceHeaders });
+  expect(inference.response.status(), JSON.stringify(inference.body)).toBe(200);
+  expect(inference.body.choices[0].message.content).toBe('Fixture complete.');
+  expect(inference.body.usage.prompt_tokens).toBe(8);
+  const streamed = await request.post(base + '/v1/chat/completions', {
+    data: { model: 'fixture-model', messages: [{ role: 'user', content: 'Hello' }], stream: true },
+    headers: { Authorization: `Bearer ${gatewaySecret}`, 'Idempotency-Key': randomUUID() },
+  });
+  expect(streamed.status()).toBe(200);
+  expect(streamed.headers()['content-type']).toContain('text/event-stream');
+  const sse = await streamed.text();
+  expect(sse).toContain('Fixture');
+  expect(sse).toContain('[DONE]');
+
+  const activityPath = `/management/v1/organizations/${orgId}/usage/activity`;
+  await expect.poll(async () => (await json(request, 'get', activityPath)).body?.items?.length)
+    .toBe(2);
+  const activity = await json(request, 'get', activityPath);
+  expect(activity.body.items.map((item: { chargedMicroUsd: string }) => item.chargedMicroUsd))
+    .toEqual(['11', '11']);
+  const finalWallet = await json(request, 'get', walletPath);
+  expect(finalWallet.body.postedBalanceMicroUsd).toBe('10999978');
+  expect(finalWallet.body.availableBalanceMicroUsd).toBe('10999978');
+  expect(finalWallet.body.reservedBalanceMicroUsd).toBe('0');
+
+  await page.goto(`/organizations/${orgId}/activity`);
+  await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
+  await expect(page.getByRole('table').getByText('fixture-model')).toHaveCount(2);
+  await page.goto(`/organizations/${orgId}/billing`);
+  await expect(page.getByText('$10.99').first()).toBeVisible();
+
+  const other = await browser.newContext({ ignoreHTTPSErrors: true });
+  try {
+    const outsider = `outsider-${randomUUID()}@example.invalid`;
+    const registered = await json(other.request, 'post', '/management/v1/auth/register',
+      { data: { email: outsider, password } });
+    expect(registered.response.status()).toBe(202);
+    const outsiderToken = await verificationToken(outsider);
+    const verified = await json(other.request, 'post', '/management/v1/auth/verify-email',
+      { data: { token: outsiderToken } });
+    expect(verified.response.status()).toBe(204);
+    const login = await json(other.request, 'post', '/management/v1/auth/login',
+      { data: { email: outsider, password } });
+    expect(login.response.status()).toBe(204);
+    const forbidden = await json(other.request, 'get', walletPath);
+    expect(forbidden.response.status()).toBe(403);
+    const hidden = await json(other.request, 'get',
+      `/management/v1/organizations/${orgId}/usage/requests/${activity.body.items[0].requestId}`);
+    expect([403, 404]).toContain(hidden.response.status());
+  } finally { await other.close(); }
+});
