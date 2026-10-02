@@ -29,10 +29,24 @@ public static class OperatorKeyRingConfiguration
         var certificate = X509CertificateLoader.LoadPkcs12FromFile(certificatePath, password);
         if (!certificate.HasPrivateKey)
             throw new InvalidOperationException("The Data Protection certificate requires a private key.");
+        var previous = configuration.GetSection("DataProtection:PreviousCertificates").GetChildren()
+            .Select(entry =>
+            {
+                var path = entry["Path"];
+                var priorPassword = entry["Password"];
+                if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(priorPassword)
+                    || !File.Exists(path))
+                    throw new InvalidOperationException("Every previous Data Protection certificate must be readable.");
+                var prior = X509CertificateLoader.LoadPkcs12FromFile(path, priorPassword);
+                if (!prior.HasPrivateKey)
+                    throw new InvalidOperationException("A previous Data Protection certificate requires its private key.");
+                return prior;
+            }).ToArray();
         services.AddDataProtection()
             .SetApplicationName("UZLLM.Management")
             .PersistKeysToFileSystem(new DirectoryInfo(directory))
-            .ProtectKeysWithCertificate(certificate);
+            .ProtectKeysWithCertificate(certificate)
+            .UnprotectKeysWithAnyCertificate([certificate, .. previous]);
         return services;
     }
 }

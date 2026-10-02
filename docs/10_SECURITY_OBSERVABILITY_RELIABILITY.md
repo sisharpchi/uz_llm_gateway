@@ -97,8 +97,26 @@ credential and provider IDs. Configure `ProviderSecrets:ActiveKeyVersion` and
 `ProviderSecrets:Keys:<version>` (base64-encoded 32-byte KEKs) through a secret
 manager or protected environment configuration, never repository settings. Keep
 old key versions available for decryption during rotation; deleting one before
-rewrapping its credentials makes those credentials unusable. Gateway API keys
+re-encrypting its credentials makes those credentials unusable. Gateway API keys
 are separate and remain non-recoverable.
+
+`SECURITY-006` adds an operator-attributed, bounded credential re-encryption
+job (`--rotate-provider-secrets <operator-account-id> <limit>`). Each platform
+or BYOK credential and its audit event commit together. The job retains tenant,
+credential and provider AAD binding, skips deleted rows, and can re-encrypt
+disabled rows that might later be re-enabled. Stage every KEK version on all
+readers before switching the active version; rollback changes only the active
+version and retains both KEKs. The full cutover and retirement checks are in
+`deploy/RUNBOOK.md`.
+
+Management session cookies are opaque random tokens whose hashes are stored in
+PostgreSQL; they have no separate signing key. ASP.NET Data Protection instead
+encrypts operator MFA secrets and pending identity-email outbox payloads. Its
+shared key ring supports an active PFX plus configured previous decryption
+certificates. `--rotate-session-key <operator-account-id>` creates a new active
+Data Protection key with start/completion audit events. During certificate
+rollback, keep the newer PFX as a previous decryptor. Old key-ring XML and PFX
+private keys remain required until all live and backed-up payloads have aged out.
 
 ---
 

@@ -21,6 +21,7 @@ x-gateway: &gateway
     - { source: api-fingerprint-v2, target: ApiKeys__Keys__2 }
     - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
     - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
+    - { source: provider-key-v2, target: ProviderSecrets__Keys__v2 }
     - { source: payload-active-version, target: PayloadSecrets__ActiveKeyVersion }
     - { source: payload-key-v1, target: PayloadSecrets__Keys__v1 }
     - { source: gateway-cert-password, target: Kestrel__Certificates__Default__Password }
@@ -51,6 +52,7 @@ x-management: &management
     - { source: api-fingerprint-v2, target: ApiKeys__Keys__2 }
     - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
     - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
+    - { source: provider-key-v2, target: ProviderSecrets__Keys__v2 }
     - { source: payload-active-version, target: PayloadSecrets__ActiveKeyVersion }
     - { source: payload-key-v1, target: PayloadSecrets__Keys__v1 }
     - { source: management-cert-password, target: Kestrel__Certificates__Default__Password }
@@ -144,6 +146,22 @@ services:
     secrets:
       - { source: migrator-postgres, target: ConnectionStrings__Postgres }
     networks: [application]
+  secret-rotation:
+    profiles: [rotation]
+    build: { context: .., dockerfile: deploy/Dockerfile.app, target: migrator }
+    environment:
+      DataProtection__KeyRingPath: /run/keyring
+      DataProtection__CertificatePath: /run/certs/keyring.pfx
+    volumes:
+      - ${UZLLM_CERT_DIR}/keyring.pfx:/run/certs/keyring.pfx:ro
+      - ${UZLLM_KEYRING_DIR}:/run/keyring:rw
+    secrets:
+      - { source: runtime-postgres, target: ConnectionStrings__Postgres }
+      - { source: provider-active-version, target: ProviderSecrets__ActiveKeyVersion }
+      - { source: provider-key-v1, target: ProviderSecrets__Keys__v1 }
+      - { source: provider-key-v2, target: ProviderSecrets__Keys__v2 }
+      - { source: keyring-cert-password, target: DataProtection__CertificatePassword }
+    networks: [application]
 
 networks:
   application: { internal: false }
@@ -157,6 +175,7 @@ secrets:
   api-fingerprint-v2: { file: '${UZLLM_SECRET_DIR}/ApiKeys__Keys__2' }
   provider-active-version: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__ActiveKeyVersion' }
   provider-key-v1: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__Keys__v1' }
+  provider-key-v2: { file: '${UZLLM_SECRET_DIR}/ProviderSecrets__Keys__v2' }
   payload-active-version: { file: '${UZLLM_SECRET_DIR}/PayloadSecrets__ActiveKeyVersion' }
   payload-key-v1: { file: '${UZLLM_SECRET_DIR}/PayloadSecrets__Keys__v1' }
   gateway-cert-password: { file: '${UZLLM_SECRET_DIR}/Kestrel__Certificates__Default__Password.gateway' }

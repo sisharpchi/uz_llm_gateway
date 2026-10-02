@@ -22,7 +22,10 @@ public static class ProviderServiceCollectionExtensions
             });
         services.AddScoped<IPlatformCredentialService, PlatformCredentialService>();
         services.AddScoped<IProviderCredentialResolver, ProviderCredentialResolver>();
-        services.AddSingleton<IProviderSecretProtector>(new ProviderEnvelopeSecretProtector(configuration));
+        services.AddSingleton(new ProviderEnvelopeSecretProtector(configuration));
+        services.AddSingleton<IProviderSecretProtector>(provider =>
+            provider.GetRequiredService<ProviderEnvelopeSecretProtector>());
+        services.AddScoped<ProviderCredentialKeyRotation>();
         return services;
     }
 }

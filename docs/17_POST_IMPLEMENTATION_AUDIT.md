@@ -34,7 +34,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | PAYMENT-001 | Completed | Payme/CLICK protocol handlers, signatures, callback idempotency and contract fixtures exist. | Deployment edge omits callback routes; reconciliation is primarily local, live merchant verification external. `LAUNCH-001`, `PAYMENT-002`. |
 | FRONTEND-001, ADMIN-001 | Completed | Dashboard/admin applications, shell and mocked browser coverage exist. | Audit finding: top-up unit, recovery, financial state and customer catalog gaps. `FRONTEND-002–005` and `DX-001` addressed top-up, financial, catalog, recovery and P0 activity UX gaps; remaining product flows are `FRONTEND-006–010`. |
 | NOTIFY-001–003 | Completed | Email, webhook, Telegram integrations and transport fixtures exist. | `OPS-004` adds the missing operational alert consumer and delivery status. Live on-call mailbox/SMTP receipt verification remains external. |
-| BYOK-001–002, PRIVACY-001 | Completed | Tenant-scoped encrypted keys, BYOK execution and opt-in bounded payload retention exist. | Credential/metadata lifecycle and additional provider parity need qualification. `SECURITY-006`, `PRIVACY-002`, `BYOK-003`. |
+| BYOK-001–002, PRIVACY-001 | Completed | Tenant-scoped encrypted keys, BYOK execution and opt-in bounded payload retention exist. | `SECURITY-006` added bounded, audited platform/BYOK KEK and operator key-ring rotation; its live multi-node drill remains a launch gate. Metadata lifecycle and additional provider parity remain `PRIVACY-002`, `BYOK-003`. |
 
 ## Concrete repository/document gaps
 

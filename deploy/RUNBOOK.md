@@ -51,6 +51,48 @@ unready node. A one-host Compose run is a functional drill, **not HA**.
   `SELECT fingerprint_key_version, count(*) FROM gateway.api_key WHERE status =
   'Active' GROUP BY fingerprint_key_version`. Revoke or rotate remaining old
   keys before retiring that secret. Do not log, commit or paste key bytes.
+- Provider and BYOK credentials share a versioned AES-GCM envelope KEK ring.
+  Before changing `ProviderSecrets__ActiveKeyVersion` from `v1` to `v2`, create
+  a new random 32-byte Base64 KEK in `ProviderSecrets__Keys__v2` on every Gateway
+  and Management node and in the restricted `secret-rotation` job; keep `v1`
+  unchanged. Deploy/restart readers with both keys but active `v1`; verify old
+  platform and BYOK inference through each Gateway node. Then switch active
+  version to `v2` everywhere, restart, and verify new credentials use `v2` while
+  old ones still resolve. A rollback switches active to `v1` **without removing
+  `v2`**; both versions must remain readable. With a restricted runtime database
+  identity, invoke `docker compose -f deploy/compose.production.yml --profile
+  rotation run --rm secret-rotation --rotate-provider-secrets <MFA-operator-UUID>
+  100` repeatedly, checking each bounded batch. This re-encrypts one credential
+  per transaction and writes `provider_credential.key_rotated` audit with actor,
+  credential, tenant and version transition; no key/plaintext enters output.
+  Stop on any failure and investigate before resuming. Inventory with
+  `SELECT credential_type, kms_key_version, count(*) FROM gateway.provider_credential
+  WHERE deleted_at IS NULL GROUP BY 1, 2`. Never remove a KEK referenced by a
+  live row or needed to decrypt a backup. The CLI UUID is audit attribution,
+  not authentication: only a restricted deployment operator may run the job;
+  the command also requires an active MFA-enrolled account.
+- Management sessions are opaque, randomly generated tokens hashed in PostgreSQL;
+  they are not signed with a rotating application secret. The shared ASP.NET
+  Data Protection ring encrypts operator MFA secrets and pending identity-email
+  outbox payloads. For certificate rollover, back up the key-ring directory and
+  both PFX files; stage the new active PFX as `keyring.pfx`, the old one as
+  `keyring-previous.pfx`, update the active certificate password, and put the old
+  password in the separate previous-certificate secret. Apply
+  `deploy/compose.keyring-rotation.yml` alongside production Compose
+  on **both** nodes and Worker; restart readers, proving old MFA and pending
+  email payloads decrypt on each. Run the restricted `secret-rotation` service
+  with `--rotate-session-key <MFA-operator-UUID>` and the same override. The
+  command creates an immediately active Data Protection key and records
+  `identity.keyring.rotation.started/completed` audit events; reconcile a
+  started-only event against the key-ring XML before retrying. Restart both
+  Management and Worker replicas after creation to force a key-ring refresh,
+  then prove each can decrypt a payload produced by the other before serving
+  traffic. Roll back by
+  restoring the old active PFX and configuring the new PFX as a previous
+  decryption certificate; retain both private keys. Do not retire either
+  certificate until all key-ring XML, backed-up key rings, MFA records, and
+  pending outbox messages no longer depend on it. Never use an empty ring or
+  delete old XML to force cutover.
 - Set `UZLLM_PUBLIC_BASE_URL`, payment fee values, the three directories above,
   and the four `UZLLM_GATEWAY_*` / `UZLLM_MANAGEMENT_*` address and bind values.
   Remote upstream addresses include port, e.g. `node-b.internal:8445`. The

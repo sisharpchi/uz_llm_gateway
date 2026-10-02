@@ -43,6 +43,25 @@ public sealed class ProviderCredentialSecurityTests
     }
 
     [Fact]
+    public void Removing_an_old_provider_key_before_rewrap_fails_closed()
+    {
+        var firstKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var nextKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var credentialId = Guid.NewGuid();
+        var providerId = Guid.NewGuid();
+        var protectedSecret = CreateProtector("v1", firstKey, nextKey)
+            .Protect(credentialId, providerId, "sk-old-provider-secret");
+        var onlyNext = new ProviderEnvelopeSecretProtector(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ProviderSecrets:ActiveKeyVersion"] = "v2",
+                ["ProviderSecrets:Keys:v2"] = nextKey
+            }).Build());
+        Assert.Throws<InvalidOperationException>(() => onlyNext.Unprotect(credentialId,
+            providerId, protectedSecret));
+    }
+
+    [Fact]
     public void Byok_secret_is_tenant_provider_bound_and_key_version_survives_rotation()
     {
         var firstKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));

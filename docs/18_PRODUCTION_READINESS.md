@@ -37,6 +37,12 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 - Set payload retention separately from financial/audit retention. Test
   expiry, opt-out deletion, log redaction and backup handling for deleted
   payloads. Define a data-subject and breach-response owner.
+- Attach the `SECURITY-006` staging rotation drill: both nodes read old/new
+  provider and BYOK ciphertext, Management/Worker read old/new Data Protection
+  payloads, provider version inventory reconciles to per-row audit events,
+  started/completed key-ring audit pairs match XML, and rollback retains every
+  decryptor. The local fixtures in `deploy/SECURITY-006-VALIDATION.md` do not
+  replace this deployment evidence.
 
 ## External / business prerequisites (never code-task completion)
 

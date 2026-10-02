@@ -12,10 +12,14 @@ public sealed class ProviderEnvelopeSecretProtector : IProviderSecretProtector
     private readonly string activeVersion;
     private readonly IReadOnlyDictionary<string, byte[]> keys;
 
+    public string ActiveKeyVersion => activeVersion;
+
     public ProviderEnvelopeSecretProtector(IConfiguration configuration)
     {
         activeVersion = configuration["ProviderSecrets:ActiveKeyVersion"]
             ?? throw new InvalidOperationException("ProviderSecrets:ActiveKeyVersion is required.");
+        if (activeVersion.Length is < 1 or > 100 || activeVersion != activeVersion.Trim())
+            throw new InvalidOperationException("The provider-secret key version is invalid.");
         keys = configuration.GetSection("ProviderSecrets:Keys").GetChildren()
             .ToDictionary(child => child.Key, child => ParseKey(child.Value), StringComparer.Ordinal);
         if (!keys.ContainsKey(activeVersion))

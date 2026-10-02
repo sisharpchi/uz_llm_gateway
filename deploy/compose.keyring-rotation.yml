@@ -1,0 +1,15 @@
+# Apply only during certificate rollover, with both private-key PFX files present.
+services:
+  management-a: &previous-certificate
+    environment:
+      DataProtection__PreviousCertificates__0__Path: /run/certs/keyring-previous.pfx
+    volumes:
+      - ${UZLLM_CERT_DIR}/keyring-previous.pfx:/run/certs/keyring-previous.pfx:ro
+    secrets:
+      - { source: keyring-previous-password, target: DataProtection__PreviousCertificates__0__Password }
+  management-b: *previous-certificate
+  worker-a: *previous-certificate
+  worker-b: *previous-certificate
+  secret-rotation: *previous-certificate
+secrets:
+  keyring-previous-password: { file: '${UZLLM_SECRET_DIR}/DataProtection__PreviousCertificates__0__Password' }
