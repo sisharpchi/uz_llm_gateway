@@ -229,6 +229,10 @@ recoverable WAL timestamp, observed RPO/RTO and any unresolved exposure.
 
 ## Staged load gate
 
+For the current `OPS-006` evidence procedure and blocker, see
+`deploy/OPS-006-VALIDATION.md`. A single-host k6 rehearsal is not a two-node
+reliability result.
+
 For a reproducible local rehearsal, create a **disposable** PostgreSQL database
 named `uzllm_load_*` and a Redis instance, apply migrations, then run
 `dotnet run --project tests/Load/UZLLM.LoadSeed` with

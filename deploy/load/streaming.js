@@ -5,6 +5,7 @@ import { Counter } from 'k6/metrics';
 const incompleteStreams = new Counter('uzllm_incomplete_streams');
 
 export const options = {
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)', 'count'],
   scenarios: {
     streaming: {
       executor: 'constant-arrival-rate',
@@ -48,11 +49,12 @@ export default function () {
     timeout: '45s',
     tags: { endpoint: 'chat-stream' },
   });
-  const complete = response.status === 200 && response.body.includes('data: [DONE]');
-  if (!complete) incompleteStreams.add(1);
+  const body = response.body ?? '';
+  const complete = response.status === 200 && body.includes('data: [DONE]');
+  incompleteStreams.add(complete ? 0 : 1);
   check(response, {
     'stream returns 200': value => value.status === 200,
-    'stream ends with DONE': value => value.body.includes('data: [DONE]'),
+    'stream ends with DONE': () => body.includes('data: [DONE]'),
     'response has request id': value => Boolean(value.headers['X-Request-Id']),
   });
 }

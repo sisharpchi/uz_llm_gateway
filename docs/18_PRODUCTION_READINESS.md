@@ -63,6 +63,9 @@ If any mandatory external evidence is unavailable, mark its gate `Blocked`
 and keep paid traffic disabled. A green repository CI run is not permission to
 open managed public admission.
 
+Local Aspire orchestration (`DEVEX-001`) is a developer convenience, not
+evidence for the two-node reliability, live payment, or provider gates.
+
 `LAUNCH-002` adds a disposable real-service acceptance stack to CI (see
 `deploy/LAUNCH-002-VALIDATION.md`). It proves the repository vertical flow with
 synthetic merchant/provider credentials, but does not replace the real staging

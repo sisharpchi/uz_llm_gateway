@@ -38,7 +38,7 @@ can prove live payment/provider agreements.
 
 | Stream | Dependency-safe order | Exit criterion |
 |---|---|---|
-| Architecture and developer experience | `ARCH-001`, `DX-002` | Module access and public contract drift are enforced without redesigning the shared financial transaction boundary. |
+| Local orchestration and developer experience | `DEVEX-001`, `ARCH-001`, `DX-002` | One Aspire command starts the real local frontend/backend/dependency stack; module access and public contract drift remain enforced without redesigning the shared financial transaction boundary. |
 | Usage and controls | `USAGE-004`, `USAGE-005`, `APIKEYS-004`, `LIMITS-002`, `PROJECTS-002` | Durable rollups, tenant-safe CSV, and configurable project/key/provider controls have explicit contracts. |
 | Customer UI | `FRONTEND-006–010` in register dependency order | Customer can manage projects, team, BYOK/routing, alerts/privacy, and accessible localized flows using real APIs. |
 | Provider and API breadth | `BYOK-003`, `GATEWAY-005–007`, `CATALOG-003` | Additional BYOK parity, explicitly bounded Responses/embeddings compatibility, and data-policy metadata have adapter/contract fixtures. |
@@ -48,6 +48,12 @@ can prove live payment/provider agreements.
 `GATEWAY-005` begins with non-streaming Responses (`FR-043`); SSE and embeddings
 are separate increments. `REFUND-001` is a wallet credit for a prior settled
 charge; cash payout is not silently implied.
+
+`DEVEX-001` is an independent local developer-workflow task requested after
+the P0 register was drafted. It does not depend on the blocked `OPS-006`
+two-host staging run and cannot satisfy that production gate. Selecting it
+before unfinished P0 work is an explicit user-approved exception, not a
+silent reordering or a claim that load qualification passed.
 
 ## P2 — Advanced/enterprise, specification first
 
