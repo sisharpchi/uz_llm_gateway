@@ -1,5 +1,13 @@
 # Production web applications
 
+For the complete disposable local stack, use the repository's Aspire AppHost:
+`dotnet run --project src/UZLLM.AppHost` from the repository root. It runs
+`npm ci` once for these workspaces, then starts both Vite apps with the
+Management proxy target supplied by Aspire. Find their dynamic URLs in the
+Aspire dashboard. Docker Desktop, Node/npm, .NET 10, and a trusted exportable
+HTTPS development certificate are required. Run `dotnet dev-certs https --trust`
+once if needed. See the root README for the full local-stack behavior.
+
 `dashboard/` is the customer P0 app; `admin/` is an access-controlled operator
 shell whose privileged controls arrive in ADMIN-001. These are npm workspaces
 rooted at `frontend/apps/`. The pre-existing `frontend/` root mock prototype is

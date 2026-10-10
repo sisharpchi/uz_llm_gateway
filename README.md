@@ -19,6 +19,33 @@ prerequisites. This is not yet a paid-launch claim.
 
 ## Local development
 
+### One-command disposable stack (Aspire)
+
+With Docker Desktop running, Node/npm and .NET 10 installed, trust an exportable
+local certificate once with `dotnet dev-certs https --trust`, then run from the
+repository root:
+
+```powershell
+dotnet run --project src/UZLLM.AppHost
+```
+
+The dashboard URL printed by Aspire lists dynamic URLs for the customer
+dashboard, admin app, Gateway, Management API, Mailpit, and HTTPS provider
+fixture. The AppHost starts PostgreSQL/Redis, explicitly runs the Migrator and
+disposable synthetic catalog seed, then starts runtime hosts and both Vite
+workspaces. It generates local-only credentials each run; no `.env` or live
+merchant/provider secrets are used. Registration verification mail appears in
+Mailpit. The database is ephemeral; this is not two-node, live-payment, or
+paid-launch evidence. Stop with Ctrl+C or:
+
+```powershell
+aspire stop --apphost src/UZLLM.AppHost/UZLLM.AppHost.csproj
+```
+
+The standalone instructions below remain useful when testing individual hosts.
+
+### Standalone hosts
+
 1. Copy `.env.example` to `.env` and choose local PostgreSQL passwords and
    distinct base64-encoded API-key and provider-secret keys. Export the key
    variables into the host environment when running `dotnet` directly; the

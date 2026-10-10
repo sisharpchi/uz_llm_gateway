@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/UZLLM.AppHost/UZLLM.AppHost.csproj" />
     <Project Path="src/UZLLM.Gateway.Api/UZLLM.Gateway.Api.csproj" />
     <Project Path="src/UZLLM.Management.Api/UZLLM.Management.Api.csproj" />
     <Project Path="src/UZLLM.Migrator/UZLLM.Migrator.csproj" />
@@ -63,6 +64,7 @@
     <Project Path="tests/Contract/UZLLM.Provider.OpenAI.ContractTests/UZLLM.Provider.OpenAI.ContractTests.csproj" />
   </Folder>
   <Folder Name="/tests/Integration/">
+    <Project Path="tests/Integration/UZLLM.AppHost.IntegrationTests/UZLLM.AppHost.IntegrationTests.csproj" />
     <Project Path="tests/Integration/UZLLM.AcceptanceSeed/UZLLM.AcceptanceSeed.csproj" />
     <Project Path="tests/Integration/UZLLM.Persistence.IntegrationTests/UZLLM.Persistence.IntegrationTests.csproj" />
   </Folder>

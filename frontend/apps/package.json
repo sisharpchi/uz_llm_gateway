@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "workspaces": ["dashboard", "admin"],
   "scripts": {
+    "dev:dashboard": "npm run dev --workspace @uzllm/dashboard --",
+    "dev:admin": "npm run dev --workspace @uzllm/admin --",
     "build": "npm run build --workspaces",
     "test:e2e": "npm run test:e2e --workspace @uzllm/dashboard"
   }

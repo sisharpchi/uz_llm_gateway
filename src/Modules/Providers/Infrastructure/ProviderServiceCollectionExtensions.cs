@@ -10,10 +10,8 @@ public static class ProviderServiceCollectionExtensions
     public static IServiceCollection AddUzllmProviders(this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddScoped<IProviderCredentialStore, PostgreSqlProviderCredentialStore>();
-        services.AddScoped<IByokCredentialStore, PostgreSqlByokCredentialStore>();
+        services.AddUzllmProviderResolution(configuration);
         services.AddScoped<IByokCredentialService, ByokCredentialService>();
-        services.AddScoped<IByokCredentialResolver, ByokCredentialResolver>();
         services.AddHttpClient<IByokCredentialVerifier, FixedEndpointByokVerifier>()
             .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(5))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -21,11 +19,22 @@ public static class ProviderServiceCollectionExtensions
                 AllowAutoRedirect = false, UseCookies = false
             });
         services.AddScoped<IPlatformCredentialService, PlatformCredentialService>();
+        services.AddScoped<ProviderCredentialKeyRotation>();
+        return services;
+    }
+
+    // The inference host only resolves encrypted credentials; management-only BYOK
+    // mutation and key rotation require Organization/Audit registrations.
+    public static IServiceCollection AddUzllmProviderResolution(this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddScoped<IProviderCredentialStore, PostgreSqlProviderCredentialStore>();
+        services.AddScoped<IByokCredentialStore, PostgreSqlByokCredentialStore>();
+        services.AddScoped<IByokCredentialResolver, ByokCredentialResolver>();
         services.AddScoped<IProviderCredentialResolver, ProviderCredentialResolver>();
         services.AddSingleton(new ProviderEnvelopeSecretProtector(configuration));
         services.AddSingleton<IProviderSecretProtector>(provider =>
             provider.GetRequiredService<ProviderEnvelopeSecretProtector>());
-        services.AddScoped<ProviderCredentialKeyRotation>();
         return services;
     }
 }

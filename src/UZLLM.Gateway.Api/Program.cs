@@ -23,7 +23,7 @@ builder.Services.AddUzllmGatewayApiKeys(builder.Configuration);
 builder.Services.AddUzllmCatalog();
 builder.Services.AddUzllmUsage();
 builder.Services.AddUzllmBilling();
-builder.Services.AddUzllmProviders(builder.Configuration);
+builder.Services.AddUzllmProviderResolution(builder.Configuration);
 builder.Services.AddUzllmOpenAiAdapter(builder.Configuration);
 builder.Services.AddUzllmAnthropicAdapter(builder.Configuration);
 builder.Services.AddUzllmGoogleAdapter(builder.Configuration);

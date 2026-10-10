@@ -1,0 +1,21 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.0">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsAspireHost>true</IsAspireHost>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.Redis" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UZLLM.Gateway.Api\UZLLM.Gateway.Api.csproj" />
+    <ProjectReference Include="..\UZLLM.Management.Api\UZLLM.Management.Api.csproj" />
+    <ProjectReference Include="..\UZLLM.Migrator\UZLLM.Migrator.csproj" />
+    <ProjectReference Include="..\UZLLM.Worker\UZLLM.Worker.csproj" />
+    <ProjectReference Include="..\..\tests\Integration\UZLLM.AcceptanceSeed\UZLLM.AcceptanceSeed.csproj" />
+  </ItemGroup>
+</Project>
