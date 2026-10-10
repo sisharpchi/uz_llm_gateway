@@ -7,6 +7,28 @@ namespace UZLLM.AppHost.IntegrationTests;
 
 public sealed class AppHostSmokeTests
 {
+    [Fact]
+    public void VisualStudio_launch_profile_starts_AppHost_dashboard()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "UZLLM.slnx")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        var path = Path.Combine(directory.FullName, "src", "UZLLM.AppHost", "Properties", "launchSettings.json");
+        Assert.True(File.Exists(path), "Visual Studio needs an AppHost launch profile for F5 startup.");
+
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var profile = document.RootElement.GetProperty("profiles").GetProperty("https");
+        Assert.Equal("Project", profile.GetProperty("commandName").GetString());
+        Assert.True(profile.GetProperty("launchBrowser").GetBoolean());
+        Assert.StartsWith("https://localhost:", profile.GetProperty("applicationUrl").GetString());
+        var environment = profile.GetProperty("environmentVariables");
+        Assert.Equal("Development", environment.GetProperty("DOTNET_ENVIRONMENT").GetString());
+        Assert.StartsWith("https://localhost:", environment.GetProperty("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL").GetString());
+        Assert.StartsWith("https://localhost:", environment.GetProperty("ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL").GetString());
+    }
+
     [Fact(Timeout = 240_000)]
     public async Task FullStack_starts_in_order_and_connects_frontends_gateway_and_worker()
     {

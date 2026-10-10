@@ -29,6 +29,14 @@ repository root:
 dotnet run --project src/UZLLM.AppHost
 ```
 
+In Visual Studio, open `UZLLM.slnx`, right-click `UZLLM.AppHost` and choose
+**Set as Startup Project**, then select its `https` launch profile and press
+F5. The Aspire dashboard opens at `https://localhost:17214`; its resource
+links use dynamic ports. Do not start a second AppHost instance while one is
+already running. First launch can take several minutes to build, migrate the
+disposable database, and run `npm ci`; wait for Gateway, Management, Worker,
+dashboard, and admin to become healthy in the Aspire dashboard.
+
 The dashboard URL printed by Aspire lists dynamic URLs for the customer
 dashboard, admin app, Gateway, Management API, Mailpit, and HTTPS provider
 fixture. The AppHost starts PostgreSQL/Redis, explicitly runs the Migrator and
