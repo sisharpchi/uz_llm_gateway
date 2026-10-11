@@ -78,8 +78,10 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
    lines in `15_ARCHITECTURE_DECISIONS.md` describe an earlier scaffold. The
    design-pack page flows are aspirational unless listed as implemented here.
    The shared `FoundationDbContext` differs from the module-owned context
-   diagram in `05_BACKEND_ARCHITECTURE_DOTNET.md`; preserve the working
-   transaction model and add boundary guardrails incrementally.
+   diagram in `05_BACKEND_ARCHITECTURE_DOTNET.md`; `ARCH-001` now documents
+   that transaction model and guards compiled cross-module type/project
+   references. Its exact legacy web/DI seams remain visible, not silently
+   treated as general implementation access.
 
 ## Requirements still open or underspecified
 

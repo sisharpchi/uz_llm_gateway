@@ -48,7 +48,7 @@ Vue 3 is an equally valid alternative if the team is stronger in Vue. The backen
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Foundation-002 structural baseline implemented
+**Implementation status:** Foundation-002 structural baseline implemented; ARCH-001 enforces cross-module contract access with compiled-reference tests and records exact legacy seams
 
 ### Decision
 Keep business modules in one codebase/process family while preserving module boundaries.

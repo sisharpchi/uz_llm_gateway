@@ -16,4 +16,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Build every module before inspecting its compiled type references. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Modules\*\*.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

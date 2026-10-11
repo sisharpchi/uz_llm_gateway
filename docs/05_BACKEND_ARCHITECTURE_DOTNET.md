@@ -292,10 +292,31 @@ Critical:
 
 Start with one assembly per business module, with `Domain`, `Application`,
 `Infrastructure`, and `Contracts` folders. Public contracts and host
-registration are the only intended cross-module seam. Implementations remain
-internal. Module-owned EF Core contexts share one PostgreSQL database; an
-explicit transaction coordinator may enlist contexts in a single financial
-transaction.
+registration are the intended cross-module seams. The implemented financial
+path uses one scoped `FoundationDbContext` and `ITransactionCoordinator` in
+`UZLLM.Persistence`, rather than module-owned EF contexts. Keep this shared
+PostgreSQL transaction boundary until any context split proves identical
+reservation, usage-evidence, settlement, and ledger atomicity (ADR-024).
+
+`ARCH-001` guards business-module references at build/test time: another
+module's `Contracts` types are allowed; its `Domain`, `Application`, and
+`Infrastructure` types are not. The architecture test reads compiled type
+references and project references, including newly added modules. It also
+rejects business-module references to provider adapters or deployable hosts.
+Host composition may call module infrastructure registration methods.
+
+The existing exceptions are frozen to these exact caller/type pairs, not open
+permissions for an entire namespace:
+
+| Caller | Existing seam | Reason |
+|---|---|---|
+| Identity | `Audit.Infrastructure.AuditServiceCollectionExtensions` | Legacy DI registration. |
+| ApiKeys, Organizations, Projects, Payments, Providers | `Identity.Infrastructure.IdentityRouteHandlerBuilderExtensions` | Shared Management CSRF endpoint filter. |
+| Notifications | `Identity.Infrastructure.IdentityEmailPayloadCodec` | Existing protected email outbox payload format. |
+
+New cross-module behavior should add a narrow contract and let a host compose
+the implementation. Extracting the listed legacy seams is separate work; do
+not weaken CSRF or email payload compatibility merely to remove a reference.
 
 The deployment migrator owns schema changes. API hosts never auto-migrate.
 Workers claim PostgreSQL-backed jobs through leases and process an outbox at
