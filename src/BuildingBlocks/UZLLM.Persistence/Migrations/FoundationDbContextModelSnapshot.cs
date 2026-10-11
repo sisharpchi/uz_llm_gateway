@@ -2654,6 +2654,81 @@ namespace UZLLM.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.UsageHourlyRollupEntity", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset>("Hour")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("hour");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("api_key_id");
+
+                    b.Property<Guid>("ModelId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("model_id");
+
+                    b.Property<Guid>("ProviderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("provider_id");
+
+                    b.Property<string>("ExecutionState")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("execution_state");
+
+                    b.Property<bool>("IsStream")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_stream");
+
+                    b.Property<long>("ChargedMicroUsd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("charged_micro_usd");
+
+                    b.Property<long>("CompletedCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("completed_count");
+
+                    b.Property<long>("ErrorCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("error_count");
+
+                    b.Property<long>("InputTokens")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_tokens");
+
+                    b.Property<long>("OutputTokens")
+                        .HasColumnType("bigint")
+                        .HasColumnName("output_tokens");
+
+                    b.Property<long>("PendingCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("pending_count");
+
+                    b.Property<long>("RefundedMicroUsd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("refunded_micro_usd");
+
+                    b.Property<long>("RequestCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("request_count");
+
+                    b.HasKey("OrganizationId", "Hour", "ProjectId", "ApiKeyId", "ModelId", "ProviderId", "ExecutionState", "IsStream");
+
+                    b.ToTable("hourly_rollup", "usage", t =>
+                        {
+                            t.HasCheckConstraint("CK_rollup_counts", "request_count > 0 AND completed_count >= 0 AND error_count >= 0 AND pending_count >= 0 AND input_tokens >= 0 AND output_tokens >= 0 AND charged_micro_usd >= 0 AND refunded_micro_usd >= 0 AND refunded_micro_usd <= charged_micro_usd");
+                        });
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.UsageIdempotencyClaimEntity", b =>
                 {
                     b.Property<Guid>("OrganizationId")
@@ -2899,6 +2974,52 @@ namespace UZLLM.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_usage_request_financial", "financial_state IN ('PendingAdmission', 'Reserved', 'PendingEvidence', 'PendingSettlement', 'Settled', 'Released')");
                         });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.UsageRollupBucketEntity", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset>("Hour")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("hour");
+
+                    b.Property<DateTimeOffset>("DataAsOf")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_as_of");
+
+                    b.HasKey("OrganizationId", "Hour");
+
+                    b.ToTable("rollup_bucket", "usage");
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.UsageRollupQueueEntity", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<DateTimeOffset>("EnqueuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("enqueued_at");
+
+                    b.Property<DateTimeOffset>("Hour")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("hour");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.HasKey("RequestId");
+
+                    b.HasIndex("EnqueuedAt", "RequestId");
+
+                    b.HasIndex("OrganizationId", "Hour");
+
+                    b.ToTable("rollup_queue", "usage");
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.AuditEventEntity", b =>
@@ -3507,6 +3628,15 @@ namespace UZLLM.Persistence.Migrations
                     b.Navigation("Request");
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.UsageHourlyRollupEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.UsageRollupBucketEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "Hour")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.UsageIdempotencyClaimEntity", b =>
                 {
                     b.HasOne("UZLLM.Persistence.UsageRequestEntity", "Request")
@@ -3574,6 +3704,24 @@ namespace UZLLM.Persistence.Migrations
                     b.Navigation("Organization");
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.UsageRollupBucketEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.UsageRollupQueueEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.UsageRequestEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.CatalogModelEntity", b =>

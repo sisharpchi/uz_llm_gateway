@@ -2574,7 +2574,16 @@ export interface components {
             items: components["schemas"]["UsageActivityItem"][];
             nextCursor: null | string;
         };
+        UsageAggregationInfo: {
+            /** Format: date-time */
+            oldestPendingAt: null | string;
+            /** Format: int64 */
+            pendingBucketCount: number;
+            /** @default HourlyRollupsWithLiveEdges */
+            source: string;
+        };
         UsageBreakdown: {
+            aggregation: components["schemas"]["UsageAggregationInfo"];
             /** Format: date-time */
             dataAsOf: string;
             dimension: string;
@@ -2592,8 +2601,10 @@ export interface components {
             /** Format: int64 */
             inputTokens: number;
             name: string;
+            netChargedMicroUsd: string;
             /** Format: int64 */
             outputTokens: number;
+            refundedMicroUsd: string;
             /** Format: int64 */
             requestCount: number;
         };
@@ -2605,8 +2616,10 @@ export interface components {
             errorCount: number;
             /** Format: int64 */
             inputTokens: number;
+            netChargedMicroUsd: string;
             /** Format: int64 */
             outputTokens: number;
+            refundedMicroUsd: string;
             /** Format: int64 */
             requestCount: number;
         };
@@ -2696,6 +2709,7 @@ export interface components {
             unresolvedUsage: null | boolean;
         };
         UsageSummary: {
+            aggregation: components["schemas"]["UsageAggregationInfo"];
             chargedMicroUsd: string;
             /** Format: int64 */
             completedCount: number;
@@ -2709,10 +2723,12 @@ export interface components {
             from: string;
             /** Format: int64 */
             inputTokens: number;
+            netChargedMicroUsd: string;
             /** Format: int64 */
             outputTokens: number;
             /** Format: int64 */
             pendingCount: number;
+            refundedMicroUsd: string;
             /** Format: int64 */
             requestCount: number;
             /** Format: date-time */
@@ -2721,6 +2737,7 @@ export interface components {
             topProviders: components["schemas"]["UsageBreakdownItem"][];
         };
         UsageTimeSeries: {
+            aggregation: components["schemas"]["UsageAggregationInfo"];
             /** Format: date-time */
             dataAsOf: string;
             /** Format: date-time */

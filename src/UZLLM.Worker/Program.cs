@@ -77,5 +77,7 @@ builder.Services.AddHostedService<ExpiredPayloadDeletionWorker>();
 builder.Services.AddHostedService<RetentionSweepWorker>();
 builder.Services.AddHostedService<CustomerAlertEvaluationWorker>();
 builder.Services.AddHostedService<BillingRecoverySweepWorker>();
+builder.Services.AddScoped<UsageRollupCycle>();
+builder.Services.AddHostedService<UsageRollupWorker>();
 var host = builder.Build();
 await host.RunAsync();

@@ -86,6 +86,20 @@ test('gateway request example and rejection boundaries agree with the bounded ch
   assert.equal(validate({ ...media.example, stop: [''] }), false);
 });
 
+test('usage rollup wire keeps gross refunds and net amounts distinct and reports lag', () => {
+  const example = read('examples.json').find(item => item.path.endsWith('/usage/summary'));
+  assert.ok(example);
+  assert.equal(example.body.chargedMicroUsd, '3200');
+  assert.equal(example.body.refundedMicroUsd, '1000');
+  assert.equal(example.body.netChargedMicroUsd, '2200');
+  assert.equal(example.body.aggregation.pendingBucketCount, 1);
+  assert.equal(example.body.aggregation.source, 'HourlyRollupsWithLiveEdges');
+  const schema = documents.management.paths[example.path].get.responses[200].content['application/json'].schema;
+  const validate = validator(documents.management, schema);
+  assert.ok(validate(example.body));
+  assert.equal(validate({ ...example.body, refundedMicroUsd: 1000 }), false);
+});
+
 test('session CSRF operator and idempotency requirements stay explicit', () => {
   const paths = documents.management.paths;
   assert.equal(paths['/management/v1/auth/login'].post.security, undefined);

@@ -37,33 +37,20 @@ public sealed class UsageReadService(IUsageReadStore store, TimeProvider timePro
     public async Task<UsageSummary> GetSummaryAsync(Guid organizationId, UsageReadQuery query,
         CancellationToken cancellationToken = default)
     {
-        var filter = Normalize(organizationId, query);
-        var totals = await store.GetTotalsAsync(filter, cancellationToken);
-        var topModels = await store.ListBreakdownAsync(filter, UsageBreakdownDimension.Model, cancellationToken);
-        var topProviders = await store.ListBreakdownAsync(filter, UsageBreakdownDimension.Provider, cancellationToken);
-        var denominator = totals.Completed;
-        var errorRate = denominator == 0 ? 0m : decimal.Round(100m * totals.Errors / denominator, 2);
-        return new UsageSummary(filter.From, filter.To, timeProvider.GetUtcNow(),
-            totals.Requests, totals.Completed, totals.Errors, totals.Pending,
-            totals.InputTokens, totals.OutputTokens, totals.ChargedMicroUsd.ToString(CultureInfo.InvariantCulture),
-            errorRate, topModels.Take(5).ToArray(), topProviders.Take(5).ToArray());
+        var result = await store.ReadSummaryAsync(Normalize(organizationId, query), cancellationToken);
+        return result with { ErrorRatePercent = result.CompletedCount == 0 ? 0m
+            : decimal.Round(100m * result.ErrorCount / result.CompletedCount, 2) };
     }
 
-    public async Task<UsageTimeSeries> GetTimeSeriesAsync(Guid organizationId, UsageReadQuery query,
-        CancellationToken cancellationToken = default)
-    {
-        var filter = Normalize(organizationId, query);
-        return new UsageTimeSeries(filter.From, filter.To, timeProvider.GetUtcNow(),
-            await store.ListDailyAsync(filter, cancellationToken));
-    }
+    public Task<UsageTimeSeries> GetTimeSeriesAsync(Guid organizationId, UsageReadQuery query,
+        CancellationToken cancellationToken = default) =>
+        store.ReadTimeSeriesAsync(Normalize(organizationId, query), cancellationToken);
 
-    public async Task<UsageBreakdown> GetBreakdownAsync(Guid organizationId, UsageReadQuery query,
+    public Task<UsageBreakdown> GetBreakdownAsync(Guid organizationId, UsageReadQuery query,
         UsageBreakdownDimension dimension, CancellationToken cancellationToken = default)
     {
-        var filter = Normalize(organizationId, query);
         if (!Enum.IsDefined(dimension)) throw new ArgumentOutOfRangeException(nameof(dimension));
-        return new UsageBreakdown(dimension.ToString(), filter.From, filter.To,
-            timeProvider.GetUtcNow(), await store.ListBreakdownAsync(filter, dimension, cancellationToken));
+        return store.ReadBreakdownAsync(Normalize(organizationId, query), dimension, cancellationToken);
     }
 
     private UsageReadFilter Normalize(Guid organizationId, UsageReadQuery query)

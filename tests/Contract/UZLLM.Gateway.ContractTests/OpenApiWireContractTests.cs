@@ -7,6 +7,7 @@ using UZLLM.Gateway.Api.Inference;
 using UZLLM.Modules.Payments.Contracts;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
+using UZLLM.Modules.Usage.Contracts;
 
 namespace UZLLM.Gateway.ContractTests;
 
@@ -73,6 +74,9 @@ public sealed class OpenApiWireContractTests : IDisposable
         Add(org + "/billing/topups", "post", 201, new CreatedTopUpResponse(intent, false, "https://example.test/checkout"));
         Add(org + "/billing/topups", "post", 200, new CreatedTopUpResponse(intent, true, "https://example.test/checkout"));
         Add(org + "/billing/topups/{intentId}", "get", 200, intent);
+        Add(org + "/usage/summary", "get", 200, new UsageSummary(now.AddDays(-1), now, now,
+            1, 1, 0, 0, 10, 5, "3200", 0, [], [], "1000", "2200",
+            new UsageAggregationInfo(1, now, "HourlyRollupsWithLiveEdges")));
 
         context = Context();
         await Results.Problem("Synthetic dependency failure", statusCode: 503).ExecuteAsync(context);

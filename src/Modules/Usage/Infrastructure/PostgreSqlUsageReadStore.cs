@@ -9,7 +9,7 @@ namespace UZLLM.Modules.Usage.Infrastructure;
 /// Read-only cross-module projection. The settlement row, not a recalculated price,
 /// is authoritative for the customer's final charge.
 /// </summary>
-public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IUsageReadStore
+public sealed partial class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IUsageReadStore
 {
     public async Task<IReadOnlyList<UsageActivityItem>> ListActivityAsync(UsageReadFilter filter,
         UsageActivityCursor? cursor, int take, CancellationToken cancellationToken = default)
@@ -60,111 +60,6 @@ public sealed class PostgreSqlUsageReadStore(FoundationDbContext dbContext) : IU
             fact.HasSettlement ? lateExternalSpend.ToString(CultureInfo.InvariantCulture) : null);
     }
 
-    public async Task<(long Requests, long Completed, long Errors, long Pending,
-        long InputTokens, long OutputTokens, long ChargedMicroUsd)> GetTotalsAsync(
-        UsageReadFilter filter, CancellationToken cancellationToken = default)
-    {
-        var totals = await Facts(FilteredRequests(filter)).GroupBy(_ => 1)
-            .Select(group => new
-            {
-                Requests = group.LongCount(),
-                Completed = group.LongCount(value => value.CompletedAt != null),
-                Errors = group.LongCount(value => value.HttpStatus >= 400
-                    || value.ExecutionState == "Failed" || value.ExecutionState == "Canceled"
-                    || value.ExecutionState == "OutcomeUnknown"
-                    || value.ExecutionState == "RejectedBeforeExecution"),
-                Pending = group.LongCount(value => value.FinancialState != "Settled"
-                    && value.FinancialState != "Released"),
-                InputTokens = group.Sum(value => value.InputTokens ?? 0),
-                OutputTokens = group.Sum(value => value.OutputTokens ?? 0),
-                ChargedMicroUsd = group.Sum(value => value.ChargedMicroUsd ?? 0)
-            }).SingleOrDefaultAsync(cancellationToken);
-        return totals is null ? (0, 0, 0, 0, 0, 0, 0)
-            : (totals.Requests, totals.Completed, totals.Errors, totals.Pending,
-                totals.InputTokens, totals.OutputTokens, totals.ChargedMicroUsd);
-    }
-
-    public async Task<IReadOnlyList<UsageDailyBucket>> ListDailyAsync(UsageReadFilter filter,
-        CancellationToken cancellationToken = default)
-    {
-        var rows = await Facts(FilteredRequests(filter))
-            .GroupBy(value => value.StartedAt.Date)
-            .Select(group => new
-            {
-                Day = group.Key,
-                Requests = group.LongCount(),
-                Errors = group.LongCount(value => value.HttpStatus >= 400
-                    || value.ExecutionState == "Failed" || value.ExecutionState == "Canceled"
-                    || value.ExecutionState == "OutcomeUnknown"
-                    || value.ExecutionState == "RejectedBeforeExecution"),
-                InputTokens = group.Sum(value => value.InputTokens ?? 0),
-                OutputTokens = group.Sum(value => value.OutputTokens ?? 0),
-                ChargedMicroUsd = group.Sum(value => value.ChargedMicroUsd ?? 0)
-            }).OrderBy(value => value.Day).ToListAsync(cancellationToken);
-        return rows.Select(value => new UsageDailyBucket(DateOnly.FromDateTime(value.Day),
-            value.Requests, value.Errors, value.InputTokens, value.OutputTokens,
-            value.ChargedMicroUsd.ToString(CultureInfo.InvariantCulture))).ToArray();
-    }
-
-    public async Task<IReadOnlyList<UsageBreakdownItem>> ListBreakdownAsync(UsageReadFilter filter,
-        UsageBreakdownDimension dimension, CancellationToken cancellationToken = default)
-    {
-        var requests = FilteredRequests(filter);
-        IQueryable<BreakdownSource> source = dimension switch
-        {
-            UsageBreakdownDimension.Model => requests.Select(value => new BreakdownSource
-            { RequestId = value.Id, Id = value.CanonicalModelId, Name = value.CanonicalModel.CanonicalCode,
-                HttpStatus = value.HttpStatus, ExecutionState = value.ExecutionState }),
-            UsageBreakdownDimension.Provider => requests.Select(value => new BreakdownSource
-            { RequestId = value.Id,
-                Id = value.Attempts.OrderByDescending(attempt => attempt.Number)
-                    .Select(attempt => (Guid?)attempt.ProviderModel.ProviderId).FirstOrDefault(),
-                Name = value.Attempts.OrderByDescending(attempt => attempt.Number)
-                    .Select(attempt => attempt.ProviderModel.Provider.Code).FirstOrDefault() ?? "Unrouted",
-                HttpStatus = value.HttpStatus, ExecutionState = value.ExecutionState }),
-            UsageBreakdownDimension.ApiKey => requests.Select(value => new BreakdownSource
-            { RequestId = value.Id, Id = value.ApiKeyId, Name = value.ApiKey.Name,
-                HttpStatus = value.HttpStatus, ExecutionState = value.ExecutionState }),
-            UsageBreakdownDimension.Project => requests.Select(value => new BreakdownSource
-            { RequestId = value.Id, Id = value.ProjectId, Name = value.Project.Name,
-                HttpStatus = value.HttpStatus, ExecutionState = value.ExecutionState }),
-            _ => throw new ArgumentOutOfRangeException(nameof(dimension))
-        };
-        var counts = await source.GroupBy(value => new { value.Id, value.Name })
-            .Select(group => new
-            {
-                group.Key.Id, group.Key.Name,
-                RequestCount = group.LongCount(),
-                ErrorCount = group.LongCount(value => value.HttpStatus >= 400
-                    || value.ExecutionState == "Failed" || value.ExecutionState == "Canceled"
-                    || value.ExecutionState == "OutcomeUnknown"
-                    || value.ExecutionState == "RejectedBeforeExecution")
-            }).OrderByDescending(value => value.RequestCount).ThenBy(value => value.Name)
-            .Take(100).ToListAsync(cancellationToken);
-        var tokens = await source.Join(dbContext.Set<UsageEvidenceEntity>().AsNoTracking()
-                .Where(value => value.State == "Verified"), value => value.RequestId,
-                value => value.RequestId, (request, evidence) => new { request.Id, request.Name, evidence.InputTokens, evidence.OutputTokens })
-            .GroupBy(value => new { value.Id, value.Name })
-            .Select(group => new { group.Key.Id, group.Key.Name,
-                InputTokens = group.Sum(value => value.InputTokens),
-                OutputTokens = group.Sum(value => value.OutputTokens) })
-            .ToListAsync(cancellationToken);
-        var charges = await source.Join(dbContext.Set<BillingSettlementEntity>().AsNoTracking(),
-                value => value.RequestId, value => value.RequestId,
-                (request, settlement) => new { request.Id, request.Name, settlement.ChargedMicroUsd })
-            .GroupBy(value => new { value.Id, value.Name })
-            .Select(group => new { group.Key.Id, group.Key.Name,
-                ChargedMicroUsd = group.Sum(value => value.ChargedMicroUsd) })
-            .ToListAsync(cancellationToken);
-        return counts.Select(value =>
-        {
-            var token = tokens.FirstOrDefault(item => item.Id == value.Id && item.Name == value.Name);
-            var charge = charges.FirstOrDefault(item => item.Id == value.Id && item.Name == value.Name);
-            return new UsageBreakdownItem(value.Id?.ToString("D") ?? "unrouted", value.Name,
-                value.RequestCount, value.ErrorCount, token?.InputTokens ?? 0,
-                token?.OutputTokens ?? 0, (charge?.ChargedMicroUsd ?? 0).ToString(CultureInfo.InvariantCulture));
-        }).ToArray();
-    }
 
     private IQueryable<UsageRequestEntity> FilteredRequests(UsageReadFilter filter)
     {

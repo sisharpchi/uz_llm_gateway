@@ -63,3 +63,33 @@ test('analytics shows authoritative summary and UTC daily data', async ({ page }
   expect(calls).toContain(`/management/v1/organizations/${one}/usage/summary`);
   expect(calls).toContain(`/management/v1/organizations/${one}/usage/timeseries`);
 });
+
+test('analytics refreshes rollup counters and makes pending corrections and refunds explicit', async ({ page }) => {
+  await page.clock.install();
+  await mockUsage(page);
+  let reads = 0;
+  let corrected = false;
+  await page.route('**/usage/summary?*', route => {
+    reads += 1;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      dataAsOf: !corrected ? '1970-01-01T00:00:00Z' : new Date().toISOString(), requestCount: !corrected ? 3 : 4,
+      completedCount: 3, errorCount: 1, pendingCount: 0, inputTokens: 10, outputTokens: 5,
+      chargedMicroUsd: '3200', refundedMicroUsd: '1000', netChargedMicroUsd: '2200', errorRatePercent: 33.33,
+      topModels: [], topProviders: [], aggregation: { pendingBucketCount: !corrected ? 1 : 0,
+        oldestPendingAt: !corrected ? '2026-10-11T00:00:00Z' : null, source: 'HourlyRollupsWithLiveEdges' }
+    }) });
+  });
+  await page.goto(`/organizations/${one}/analytics`);
+  await expect(page.getByText('Updating usage · 1 hour(s) pending.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Initial aggregation pending.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Refunded $0.001000 · net $0.002200')).toBeVisible();
+  const requests = page.locator('.metric').filter({ has: page.getByText('Requests', { exact: true }) });
+  await expect(requests.locator('strong')).toHaveText('3');
+  const initialReads = reads;
+  corrected = true;
+  await page.clock.runFor(10_000);
+  await expect(requests.locator('strong')).toHaveText('4');
+  await expect(page.getByText('Updating usage ·', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('Oldest hourly snapshot:', { exact: false })).toBeVisible();
+  expect(reads).toBe(initialReads + 1);
+});

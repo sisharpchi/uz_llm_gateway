@@ -28,7 +28,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | BILLING-001–003, BUDGET-001, LIMITS-001 | Completed | Conditional wallet update, append-only ledger, holds, terminal settlement, debt and caps are implemented. `BILLING-003` adds expired-hold sweep, terminal missing-evidence recovery, deduplicated settlement-failure alerts and operator financial-risk reads. | `ADMIN-002` adds operator fee/FX publication; `REFUND-001` adds settlement-linked wallet-credit counter-entries. Cash payouts and discretionary adjustments remain separate. |
 | APIKEYS-001, APIKEYS-003 | Completed | Hashed show-once keys, revocation/rotation and key budgets exist. | New-key response cache policy addressed by `SECURITY-003`; `SECURITY-005` added staged fingerprint-key versions and migration coverage. Live secret distribution/cutover remains an operational gate. |
 | CATALOG-001 | Completed | Model mappings, capabilities and effective pricing exist. | Audit finding: customer discovery and operator publication UX were incomplete. `ADMIN-002` and `DX-001` subsequently addressed publication and customer discovery; live provider availability remains a launch gate. |
-| USAGE-001–002 | Completed | Durable request/attempt/evidence and on-demand usage/activity queries exist. | No CSV export (`FR-095`), no durable near-real-time rollups (`FR-096`); separate `USAGE-005` and `USAGE-004`. |
+| USAGE-001–002 | Completed | Durable request/attempt/evidence and usage/activity queries exist. `USAGE-004` adds durable hourly rollups with replay/late-correction handling and explicit freshness. | CSV export (`FR-095`) remains `USAGE-005`; rollups do not replace authoritative financial state or production qualification. |
 | PROVIDER-001–002, PROVIDER-006–009 | Completed | OpenAI, Anthropic, Gemini and DeepSeek adapters, normalized errors, contract fixtures and SSE paths exist. | Live agreement/quota/usage qualification external; BYOK supports only OpenAI/Anthropic. `BYOK-003`. |
 | GATEWAY-001, ROUTING-003–006 | Completed | Managed admission, chat/SSE, deterministic/advanced selection, bounded fallback and credential-isolated health with cross-node half-open probes exist. | Responses/embeddings not implemented. `GATEWAY-005–007`. |
 | PAYMENT-001 | Completed | Payme/CLICK protocol handlers, signatures, callback idempotency and contract fixtures exist. | Deployment edge omits callback routes; reconciliation is primarily local, live merchant verification external. `LAUNCH-001`, `PAYMENT-002`. |
@@ -87,7 +87,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 
 - `USAGE-005` is `FR-095` export: define bounded, tenant-authorized CSV export
   from the current usage read model. `FR-096` durable/near-real-time rollups
-  belong to separate `USAGE-004`; current daily SQL aggregation is not that.
+  were subsequently delivered by `USAGE-004`; [publication and freshness semantics](21_USAGE_ROLLUPS.md) distinguish them from the earlier on-demand SQL reads.
 - `GATEWAY-005` is `FR-043` Responses API. Start with a versioned, explicitly
   supported **non-streaming** subset; streaming and embeddings (`FR-044`) are
   separate tasks. Do not imply the chat contract automatically covers them.

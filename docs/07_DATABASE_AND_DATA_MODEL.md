@@ -224,6 +224,19 @@ Use retention policy because callback payload can include sensitive data.
 
 ## 6. Usage
 
+`USAGE-004` adds derived `usage.hourly_rollup` (organization/UTC hour/project/
+key/requested model/selected provider/execution state/stream grain),
+`usage.rollup_bucket` (publication timestamp) and `usage.rollup_queue`
+(request-keyed transactional invalidations). PostgreSQL view
+`usage.rollup_source` reads verified evidence and settled gross/refund amounts.
+Queue indexes cover oldest-first batching and tenant/hour backlog; the hourly
+composite PK serves tenant/time reads. Empty provider UUID is an unrouted
+dimension, not a provider FK. Source request FKs remain the tenant authority;
+rollup rows reference their tenant/hour bucket. Full-hour publication and queue
+acknowledgement share one transaction; no financial row is mutated. These are
+rebuildable read models, not event sourcing or new financial history.
+See [publication, backfill and freshness](21_USAGE_ROLLUPS.md).
+
 ### `usage.request`
 Partition candidate when traffic grows.
 

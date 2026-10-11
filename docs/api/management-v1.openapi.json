@@ -4132,8 +4132,36 @@
         ],
         "type": "object"
       },
+      "UsageAggregationInfo": {
+        "properties": {
+          "oldestPendingAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pendingBucketCount": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "source": {
+            "default": "HourlyRollupsWithLiveEdges",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pendingBucketCount",
+          "oldestPendingAt"
+        ],
+        "type": "object"
+      },
       "UsageBreakdown": {
         "properties": {
+          "aggregation": {
+            "$ref": "#/components/schemas/UsageAggregationInfo"
+          },
           "dataAsOf": {
             "format": "date-time",
             "type": "string"
@@ -4161,7 +4189,8 @@
           "from",
           "to",
           "dataAsOf",
-          "items"
+          "items",
+          "aggregation"
         ],
         "type": "object"
       },
@@ -4186,10 +4215,16 @@
           "name": {
             "type": "string"
           },
+          "netChargedMicroUsd": {
+            "type": "string"
+          },
           "outputTokens": {
             "format": "int64",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": "integer"
+          },
+          "refundedMicroUsd": {
+            "type": "string"
           },
           "requestCount": {
             "format": "int64",
@@ -4204,7 +4239,9 @@
           "errorCount",
           "inputTokens",
           "outputTokens",
-          "chargedMicroUsd"
+          "chargedMicroUsd",
+          "refundedMicroUsd",
+          "netChargedMicroUsd"
         ],
         "type": "object"
       },
@@ -4227,10 +4264,16 @@
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": "integer"
           },
+          "netChargedMicroUsd": {
+            "type": "string"
+          },
           "outputTokens": {
             "format": "int64",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": "integer"
+          },
+          "refundedMicroUsd": {
+            "type": "string"
           },
           "requestCount": {
             "format": "int64",
@@ -4244,7 +4287,9 @@
           "errorCount",
           "inputTokens",
           "outputTokens",
-          "chargedMicroUsd"
+          "chargedMicroUsd",
+          "refundedMicroUsd",
+          "netChargedMicroUsd"
         ],
         "type": "object"
       },
@@ -4603,6 +4648,9 @@
       },
       "UsageSummary": {
         "properties": {
+          "aggregation": {
+            "$ref": "#/components/schemas/UsageAggregationInfo"
+          },
           "chargedMicroUsd": {
             "type": "string"
           },
@@ -4634,6 +4682,9 @@
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": "integer"
           },
+          "netChargedMicroUsd": {
+            "type": "string"
+          },
           "outputTokens": {
             "format": "int64",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -4643,6 +4694,9 @@
             "format": "int64",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": "integer"
+          },
+          "refundedMicroUsd": {
+            "type": "string"
           },
           "requestCount": {
             "format": "int64",
@@ -4679,12 +4733,18 @@
           "chargedMicroUsd",
           "errorRatePercent",
           "topModels",
-          "topProviders"
+          "topProviders",
+          "refundedMicroUsd",
+          "netChargedMicroUsd",
+          "aggregation"
         ],
         "type": "object"
       },
       "UsageTimeSeries": {
         "properties": {
+          "aggregation": {
+            "$ref": "#/components/schemas/UsageAggregationInfo"
+          },
           "dataAsOf": {
             "format": "date-time",
             "type": "string"
@@ -4708,7 +4768,8 @@
           "from",
           "to",
           "dataAsOf",
-          "items"
+          "items",
+          "aggregation"
         ],
         "type": "object"
       },

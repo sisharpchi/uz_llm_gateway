@@ -12,7 +12,7 @@ using UZLLM.Persistence;
 namespace UZLLM.Persistence.IntegrationTests;
 
 [Collection(nameof(PersistenceIntegrationCollection))]
-public sealed class UsageReadIntegrationTests(PersistenceIntegrationFixture fixture)
+public sealed partial class UsageReadIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     private static readonly DateTimeOffset Start = new(2026, 9, 20, 10, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset AsOf = Start.AddDays(3);
@@ -226,7 +226,7 @@ public sealed class UsageReadIntegrationTests(PersistenceIntegrationFixture fixt
         new PostgreSqlUsageReadStore(services.GetRequiredService<FoundationDbContext>()),
         new FixedClock(AsOf));
 
-    private async Task<ReadSeed> ResetAndSeedAsync(bool crossModel = false)
+    private async Task<ReadSeed> ResetAndSeedAsync(bool crossModel = false, bool aggregate = true)
     {
         await fixture.ResetMigrationsAsync();
         await fixture.ApplyMigrationsAsync();
@@ -333,6 +333,8 @@ public sealed class UsageReadIntegrationTests(PersistenceIntegrationFixture fixt
         AddSettlement(db, foreignRequestId, foreignOrgId, foreignProjectId, foreignKeyId, feeId, 500_000, 999_000);
         await db.SaveChangesAsync();
 
+        if (aggregate)
+            await new PostgreSqlUsageRollupStore(db).RebuildBatchAsync(100);
         return new ReadSeed(orgId, foreignOrgId, ownerId, projectId, foreignProjectId,
             keyId, modelId, anthropicId, foreignRequestId);
     }

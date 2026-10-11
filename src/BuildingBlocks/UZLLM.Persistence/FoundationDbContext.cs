@@ -79,6 +79,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureUsageRollups(modelBuilder);
         ConfigurePlatformControls(modelBuilder);
         ConfigureCustomerAlerts(modelBuilder);
         ConfigureFinancialCompletion(modelBuilder);

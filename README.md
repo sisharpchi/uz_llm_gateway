@@ -17,6 +17,10 @@ corrective work; [production readiness](docs/18_PRODUCTION_READINESS.md)
 separates repository evidence from live merchant/provider and infrastructure
 prerequisites. This is not yet a paid-launch claim.
 
+Usage analytics now uses durable hourly read models with a five-second Worker
+poll, live partial-hour reads, explicit backlog/freshness and gross/refund/net
+charge fields. See [rollup semantics and operations](docs/21_USAGE_ROLLUPS.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

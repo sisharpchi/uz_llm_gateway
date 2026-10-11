@@ -191,7 +191,7 @@ This protects the product from provider-commercial constraints and supports ente
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** On-demand daily usage reads implemented by `USAGE-002`; durable near-real-time rollups remain `USAGE-004`
+**Implementation status:** `USAGE-004` adds transactional invalidation and Worker-published hourly read models; activity/detail and partial-hour edges remain authoritative reads. See [usage rollup semantics](21_USAGE_ROLLUPS.md).
 
 Financial state is strongly consistent. Analytics rollups may lag briefly.
 

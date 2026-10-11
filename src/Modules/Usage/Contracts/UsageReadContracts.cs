@@ -35,27 +35,32 @@ public sealed record UsageSummary(
     long InputTokens, long OutputTokens, string ChargedMicroUsd,
     decimal ErrorRatePercent,
     IReadOnlyList<UsageBreakdownItem> TopModels,
-    IReadOnlyList<UsageBreakdownItem> TopProviders);
+    IReadOnlyList<UsageBreakdownItem> TopProviders,
+    string RefundedMicroUsd, string NetChargedMicroUsd,
+    UsageAggregationInfo Aggregation);
 
 /// <summary>Daily usage rollup; days use UTC boundaries.</summary>
 public sealed record UsageDailyBucket(
     DateOnly Day, long RequestCount, long ErrorCount,
-    long InputTokens, long OutputTokens, string ChargedMicroUsd);
+    long InputTokens, long OutputTokens, string ChargedMicroUsd,
+    string RefundedMicroUsd, string NetChargedMicroUsd);
 
 /// <summary>One model, provider, API-key, or project aggregate.</summary>
 public sealed record UsageBreakdownItem(
     string Id, string Name, long RequestCount, long ErrorCount,
-    long InputTokens, long OutputTokens, string ChargedMicroUsd);
+    long InputTokens, long OutputTokens, string ChargedMicroUsd,
+    string RefundedMicroUsd, string NetChargedMicroUsd);
 
 /// <summary>A usage breakdown and the read timestamp for a specific dimension.</summary>
 public sealed record UsageBreakdown(
     string Dimension, DateTimeOffset From, DateTimeOffset To,
-    DateTimeOffset DataAsOf, IReadOnlyList<UsageBreakdownItem> Items);
+    DateTimeOffset DataAsOf, IReadOnlyList<UsageBreakdownItem> Items,
+    UsageAggregationInfo Aggregation);
 
 /// <summary>A daily time series and the read timestamp.</summary>
 public sealed record UsageTimeSeries(
     DateTimeOffset From, DateTimeOffset To, DateTimeOffset DataAsOf,
-    IReadOnlyList<UsageDailyBucket> Items);
+    IReadOnlyList<UsageDailyBucket> Items, UsageAggregationInfo Aggregation);
 
 /// <summary>Safe provider-attempt metadata; no request or response payload.</summary>
 public sealed record UsageAttemptDetail(
@@ -90,12 +95,11 @@ public interface IUsageReadStore
         CancellationToken cancellationToken = default);
     Task<UsageRequestDetail?> FindDetailAsync(Guid organizationId, Guid requestId,
         CancellationToken cancellationToken = default);
-    Task<(long Requests, long Completed, long Errors, long Pending,
-        long InputTokens, long OutputTokens, long ChargedMicroUsd)> GetTotalsAsync(
+    Task<UsageSummary> ReadSummaryAsync(
         UsageReadFilter filter, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<UsageDailyBucket>> ListDailyAsync(
+    Task<UsageTimeSeries> ReadTimeSeriesAsync(
         UsageReadFilter filter, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<UsageBreakdownItem>> ListBreakdownAsync(
+    Task<UsageBreakdown> ReadBreakdownAsync(
         UsageReadFilter filter, UsageBreakdownDimension dimension,
         CancellationToken cancellationToken = default);
 }

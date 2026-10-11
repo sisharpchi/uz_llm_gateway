@@ -172,6 +172,7 @@ This creates clear boundaries without paying the operational cost of many micros
 18. `18_PRODUCTION_READINESS.md`
 19. `19_NEXT_PHASE_ROADMAP.md`
 20. `20_CUSTOMER_QUICKSTART.md`
+21. `21_USAGE_ROLLUPS.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

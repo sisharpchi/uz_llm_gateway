@@ -350,6 +350,35 @@
   },
   {
     "body": {
+      "aggregation": {
+        "oldestPendingAt": "2026-10-01T00:00:00+00:00",
+        "pendingBucketCount": 1,
+        "source": "HourlyRollupsWithLiveEdges"
+      },
+      "chargedMicroUsd": "3200",
+      "completedCount": 1,
+      "dataAsOf": "2026-10-01T00:00:00+00:00",
+      "errorCount": 0,
+      "errorRatePercent": 0,
+      "from": "2026-09-30T00:00:00+00:00",
+      "inputTokens": 10,
+      "netChargedMicroUsd": "2200",
+      "outputTokens": 5,
+      "pendingCount": 0,
+      "refundedMicroUsd": "1000",
+      "requestCount": 1,
+      "to": "2026-10-01T00:00:00+00:00",
+      "topModels": [],
+      "topProviders": []
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/organizations/{organizationId}/usage/summary",
+    "status": 200
+  },
+  {
+    "body": {
       "detail": "Synthetic dependency failure",
       "status": 503,
       "title": "Service Unavailable",

@@ -8,6 +8,7 @@ const today = () => startOfDay(new Date()).toISOString().slice(0, 10);
 const daysAgo = (days: number) => startOfDay(new Date(Date.now() - days * 86_400_000)).toISOString().slice(0, 10);
 const timestamp = (value: string) => new Date(value).toLocaleString();
 const money = (value: string | null | undefined) => value == null ? 'Unknown / unsettled' : usageUsdFromMicro(value);
+const analyticsRefresh = { refetchInterval: 10_000, refetchIntervalInBackground: false };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function useWindow(projectId?: string) {
@@ -156,8 +157,8 @@ export function AnalyticsPage({ organizationId, projectId }: { organizationId: s
   const window = useWindow(projectId);
   const filters = window.filters;
   const invalidWindow = window.from > window.to || !window.from || !window.to;
-  const summary = useQuery({ queryKey: ['usage-summary', organizationId, filters], queryFn: () => management.usageSummary(organizationId, filters), enabled: !invalidWindow });
-  const daily = useQuery({ queryKey: ['usage-daily', organizationId, filters], queryFn: () => management.usageTimeSeries(organizationId, filters), enabled: !invalidWindow });
+  const summary = useQuery({ queryKey: ['usage-summary', organizationId, filters], queryFn: () => management.usageSummary(organizationId, filters), enabled: !invalidWindow, ...analyticsRefresh });
+  const daily = useQuery({ queryKey: ['usage-daily', organizationId, filters], queryFn: () => management.usageTimeSeries(organizationId, filters), enabled: !invalidWindow, ...analyticsRefresh });
   const maxRequests = Math.max(1, ...(daily.data?.items.map(item => item.requestCount) ?? []));
   return <><div className="page-heading"><span className="eyebrow">USAGE INTELLIGENCE</span><h1>Analytics</h1>
     <p>Verified token evidence and settled charges across your selected window.</p></div>
@@ -167,7 +168,8 @@ export function AnalyticsPage({ organizationId, projectId }: { organizationId: s
     {summary.isPending ? <p role="status" className="muted">Loading analytics…</p> : summary.data && <>
       <div className="usage-metrics"><div className="panel metric"><span>Requests</span><strong>{summary.data.requestCount.toLocaleString()}</strong><small>{summary.data.completedCount} completed</small></div>
         <div className="panel metric"><span>Verified tokens</span><strong>{(summary.data.inputTokens + summary.data.outputTokens).toLocaleString()}</strong><small>{summary.data.inputTokens} input · {summary.data.outputTokens} output</small></div>
-        <div className="panel metric"><span>Settled charges</span><strong>{usageUsdFromMicro(summary.data.chargedMicroUsd)}</strong><small>Pending charges excluded</small></div>
+        <div className="panel metric"><span>Settled charges</span><strong>{usageUsdFromMicro(summary.data.chargedMicroUsd)}</strong><small>Pending charges excluded</small>
+          {summary.data.refundedMicroUsd != null && summary.data.netChargedMicroUsd != null && <small>Refunded {usageUsdFromMicro(summary.data.refundedMicroUsd)} · net {usageUsdFromMicro(summary.data.netChargedMicroUsd)}</small>}</div>
         <div className="panel metric"><span>Error rate</span><strong>{summary.data.errorRatePercent}%</strong><small>{summary.data.errorCount} errors</small></div></div>
       <div className="usage-analytics-grid"><section className="panel"><h2>Requests by day</h2>
         {daily.data?.items.length ? <div className="usage-bars">{daily.data.items.map(item => <div key={item.day} className="usage-bar-row">
@@ -175,7 +177,9 @@ export function AnalyticsPage({ organizationId, projectId }: { organizationId: s
           : <p className="muted">No request data for this period.</p>}</section>
         <section className="panel"><h2>Top models</h2><Breakdown items={summary.data.topModels} />
           <h2 className="usage-subheading">Top providers</h2><Breakdown items={summary.data.topProviders} /></section></div>
-      <p className="muted">Data as of {timestamp(summary.data.dataAsOf)}. UTC dates; financial totals come from settled charges.</p></>}
+      {(summary.data.aggregation?.pendingBucketCount ?? 0) > 0 && <p role="status" className="muted">Updating usage · {summary.data.aggregation?.pendingBucketCount} hour(s) pending.
+        {summary.data.aggregation?.oldestPendingAt && ` Waiting since ${timestamp(summary.data.aggregation.oldestPendingAt)}.`}</p>}
+      <p className="muted">{Date.parse(summary.data.dataAsOf) === 0 ? 'Initial aggregation pending.' : `Oldest hourly snapshot: ${timestamp(summary.data.dataAsOf)}.`} UTC dates; settled charges exclude pending usage. Analytics refreshes every 10 seconds while visible.</p></>}
   </>;
 }
 

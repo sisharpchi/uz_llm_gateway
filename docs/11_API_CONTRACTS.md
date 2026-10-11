@@ -715,8 +715,18 @@ contain up to 100 groups. Only verified usage evidence contributes token totals;
 only posted settlements contribute customer charges. Activity/detail token and
 charge values remain nullable when unknown or unsettled. Detail exposes safe
 attempt and evidence metadata, never prompt/response bodies or credentials.
-These reads aggregate directly from authoritative rows over the bounded window;
-no gateway hot-path rollup write is required.
+`USAGE-004` now reads complete UTC hours from durable Worker-published rollups;
+partial-hour edges and request-ID filters read authoritative rows. Activity and
+detail remain live. One analytics response uses a read-only database snapshot.
+`dataAsOf` is the oldest materialized hourly snapshot, not response time; Unix
+epoch means initial backfill has a missing bucket. Additive `aggregation` reports
+`pendingBucketCount`, nullable `oldestPendingAt`, and `source` (hourly with live
+edges or authoritative request). Pending metadata respects tenant/project/key/model
+scope but includes every mutable status/provider/stream mode to disclose changes
+out of a filter. Gross `chargedMicroUsd` keeps its meaning; `refundedMicroUsd`
+and `netChargedMicroUsd` separately report wallet-credit refunds and gross minus
+refunds in summary/daily/breakdown results. Neither is a wallet balance.
+See [rollup publication, lag and correction rules](21_USAGE_ROLLUPS.md).
 
 ### Opt-in payload retention (`PRIVACY-001`)
 
