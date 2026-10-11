@@ -173,6 +173,8 @@ This creates clear boundaries without paying the operational cost of many micros
 19. `19_NEXT_PHASE_ROADMAP.md`
 20. `20_CUSTOMER_QUICKSTART.md`
 
+Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
+
 ---
 
 ## 5. Priority notation

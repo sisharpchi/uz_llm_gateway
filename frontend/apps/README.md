@@ -1,5 +1,10 @@
 # Production web applications
 
+Wire types and the shared transport derive from the versioned OpenAPI artifacts.
+After an API change, run `npm run api:generate --prefix frontend/apps` from the
+repository root, then `api:check`, `api:test` and `build` with the same prefix.
+See [`docs/api/README.md`](../../docs/api/README.md) for scope and change policy.
+
 For the complete disposable local stack, use the repository's Aspire AppHost:
 `dotnet run --project src/UZLLM.AppHost` from the repository root. It runs
 `npm ci` once for these workspaces, then starts both Vite apps with the

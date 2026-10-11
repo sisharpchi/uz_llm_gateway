@@ -1,0 +1,191 @@
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.DependencyInjection;
+using UZLLM.Gateway.Api.Inference;
+using UZLLM.Modules.Payments.Contracts;
+using UZLLM.Modules.Providers.Contracts;
+using UZLLM.Modules.Identity.Infrastructure;
+
+namespace UZLLM.Gateway.ContractTests;
+
+public sealed class OpenApiWireContractTests : IDisposable
+{
+    private readonly ServiceProvider services = new ServiceCollection().AddLogging().BuildServiceProvider();
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    private static string Root => FindRoot();
+
+    [Fact]
+    public async Task Published_examples_use_real_parser_writer_and_management_serialization()
+    {
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(Root, "docs/api/gateway-v1.openapi.json")));
+        var example = document.RootElement.GetProperty("paths").GetProperty("/v1/chat/completions")
+            .GetProperty("post").GetProperty("requestBody").GetProperty("content")
+            .GetProperty("application/json").GetProperty("example");
+        var parsed = ChatRequestParser.Parse(Encoding.UTF8.GetBytes(example.GetRawText()));
+        Assert.Equal("example-chat", parsed.Model);
+        Assert.Equal(32, parsed.ProviderRequest.MaxOutputTokens);
+        Assert.False(parsed.Stream);
+
+        var id = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var now = DateTimeOffset.Parse("2026-10-01T00:00:00Z");
+        var snapshots = new List<WireExample>();
+        var context = Context();
+        await new OpenAiCompletionWriter(context).WriteCompletionAsync(new ProviderCompletion(
+            "upstream", "upstream-model", new ProviderMessage("assistant",
+                [new(ProviderContentKind.Text, "Hello")], [new("call_1", "lookup", "{\"q\":\"test\"}")]),
+            "tool_calls", new ProviderUsage(12, 3, 2, 1), "upstream-request"), parsed.Model, id, CancellationToken.None);
+        var completion = Body(context);
+        Assert.Equal(15, completion.GetProperty("usage").GetProperty("total_tokens").GetInt32());
+        Assert.Equal("lookup", completion.GetProperty("choices")[0].GetProperty("message")
+            .GetProperty("tool_calls")[0].GetProperty("function").GetProperty("name").GetString());
+        snapshots.Add(new("gateway", "/v1/chat/completions", "post", 200, "application/json", FixedTimestamp(completion)));
+
+        context = Context();
+        await new OpenAiCompletionWriter(context).WriteCompletionAsync(new ProviderCompletion(
+            "upstream", "upstream-model", new ProviderMessage("assistant", [new(ProviderContentKind.Text, "Hello")]),
+            "stop", null, null), parsed.Model, id, CancellationToken.None);
+        Assert.Equal(JsonValueKind.Null, Body(context).GetProperty("usage").ValueKind);
+        snapshots.Add(new("gateway", "/v1/chat/completions", "post", 200, "application/json", FixedTimestamp(Body(context))));
+
+        foreach (var status in new[] { 400, 401, 402, 403, 409, 413, 415, 429, 502, 503 })
+        {
+            context = Context();
+            await GatewayErrorResponse.WriteAsync(context, new(status, "example_error", "server_error",
+                "Synthetic contract rejection", status == 409 ? id : null), CancellationToken.None);
+            Assert.Equal(status, context.Response.StatusCode);
+            Assert.Equal(JsonValueKind.Null, Body(context).GetProperty("error").GetProperty("param").ValueKind);
+            if (status == 409) Assert.Equal(id.ToString("N"), context.Response.Headers["X-Original-Request-Id"]);
+            snapshots.Add(new("gateway", "/v1/chat/completions", "post", status, "application/json", Body(context)));
+        }
+
+        const string org = "/management/v1/organizations/{organizationId}";
+        Add("/management/v1/auth/session", "get", 200,
+            new UZLLM.Modules.Identity.Infrastructure.IdentityServiceCollectionExtensions.SessionResponse(id, "example@example.test", true, false));
+        Add(org + "/billing/wallet", "get", 200, new WalletResponse(id,
+            "9007199254740993", "100", "9007199254740893", "0", false, 3));
+        var intent = new PaymentIntentResponse(id, id, "Click", id, "Pending", "10000000", "10000",
+            "7500000", id, "133200000", null, now, null, null, null);
+        Add(org + "/billing/quotes", "post", 200, new PaymentQuoteResponse(id, id, "Click",
+            "10000000", "10000", "7500000", id, "133200000", now, now.AddMinutes(10)));
+        Add(org + "/billing/topups", "post", 201, new CreatedTopUpResponse(intent, false, "https://example.test/checkout"));
+        Add(org + "/billing/topups", "post", 200, new CreatedTopUpResponse(intent, true, "https://example.test/checkout"));
+        Add(org + "/billing/topups/{intentId}", "get", 200, intent);
+
+        context = Context();
+        await Results.Problem("Synthetic dependency failure", statusCode: 503).ExecuteAsync(context);
+        snapshots.Add(new("management", org + "/billing/quotes", "post", 503, "application/problem+json", Body(context)));
+        context = Context();
+        await Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Required"] }).ExecuteAsync(context);
+        snapshots.Add(new("management", "/management/v1/organizations", "post", 400, "application/problem+json", Body(context)));
+
+        // Ignored test output, consumed by api:generate/api:check; no tracked files are written by tests.
+        var output = Path.Combine(Root, "artifacts/contracts");
+        Directory.CreateDirectory(output);
+        await File.WriteAllTextAsync(Path.Combine(output, "dx002-wire.json"), JsonSerializer.Serialize(snapshots, Json));
+
+        void Add(string path, string method, int status, object value) => snapshots.Add(
+            new("management", path, method, status, "application/json", JsonSerializer.SerializeToElement(value, Json)));
+    }
+
+    [Fact]
+    public async Task Stream_example_preserves_done_and_safe_error_envelopes()
+    {
+        var context = Context();
+        var writer = new OpenAiCompletionWriter(context);
+        await writer.WriteStreamEventAsync(new(ProviderStreamKind.TextDelta, Text: "Hello"),
+            "example-chat", Guid.Parse("11111111-1111-4111-8111-111111111111"), CancellationToken.None);
+        context.Features.Set<IHttpResponseFeature>(new StartedResponseFeature());
+        await writer.FinishStreamAsync(CancellationToken.None);
+        context.Response.Body.Position = 0;
+        var success = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(Root, "docs/api/gateway-v1.openapi.json")));
+        var sample = document.RootElement.GetProperty("paths").GetProperty("/v1/chat/completions")
+            .GetProperty("post").GetProperty("responses").GetProperty("200").GetProperty("content")
+            .GetProperty("text/event-stream").GetProperty("example").GetString();
+        var normalized = string.Join("\n\n", success.Split("\n\n").Select(frame =>
+            frame.StartsWith("data: {", StringComparison.Ordinal)
+                ? "data: " + JsonSerializer.Serialize(FixedTimestamp(JsonSerializer.Deserialize<JsonElement>(frame[6..]))) : frame));
+        Assert.Equal(sample, normalized);
+
+        context = Context();
+        context.Features.Set<IHttpResponseFeature>(new StartedResponseFeature());
+        writer = new OpenAiCompletionWriter(context);
+        await writer.WriteStreamErrorAsync("Synthetic interruption", "provider_error", CancellationToken.None);
+        context.Response.Body.Position = 0;
+        var stream = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("event: error\ndata: {\"error\":", stream);
+        Assert.DoesNotContain("[DONE]", stream);
+    }
+
+    [Theory]
+    [InlineData("\"temperature\":3")]
+    [InlineData("\"max_completion_tokens\":0")]
+    [InlineData("\"max_completion_tokens\":2147483648")]
+    [InlineData("\"max_tokens\":1,\"max_completion_tokens\":1")]
+    [InlineData("\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"lookup\"}}]")]
+    [InlineData("\"response_format\":{}")]
+    [InlineData("\"stop\":[\"\"]")]
+    [InlineData("\"stream_options\":{\"unapproved\":true}")]
+    public void Documented_request_rejections_are_enforced_by_real_parser(string fragment)
+    {
+        var body = "{\"model\":\"example-chat\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]," + fragment + "}";
+        Assert.Throws<GatewayRequestException>(() => ChatRequestParser.Parse(Encoding.UTF8.GetBytes(body)));
+    }
+
+    [Theory]
+    [InlineData("gateway", "/v1/")]
+    [InlineData("management", "/management/v1/")]
+    public void Published_contracts_only_advertise_current_versioned_surfaces(string name, string prefix)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(Root, $"docs/api/{name}-v1.openapi.json")));
+        Assert.Equal("3.1.1", document.RootElement.GetProperty("openapi").GetString());
+        Assert.Equal("1.0.0", document.RootElement.GetProperty("info").GetProperty("version").GetString());
+        var paths = document.RootElement.GetProperty("paths").EnumerateObject().Select(item => item.Name).ToArray();
+        Assert.All(paths, path => Assert.StartsWith(prefix, path));
+        Assert.DoesNotContain("/v1/responses", paths);
+        Assert.DoesNotContain("/v1/embeddings", paths);
+    }
+
+    private DefaultHttpContext Context()
+    {
+        var context = new DefaultHttpContext { RequestServices = services };
+        context.Response.Body = new MemoryStream();
+        return context;
+    }
+
+    private static JsonElement Body(DefaultHttpContext context)
+    {
+        context.Response.Body.Position = 0;
+        using var document = JsonDocument.Parse(context.Response.Body);
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement FixedTimestamp(JsonElement value)
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(value.GetRawText())!;
+        Assert.True(node["created"]!.GetValue<long>() > 0);
+        node["created"] = 1790812800;
+        return JsonSerializer.SerializeToElement(node);
+    }
+
+    private sealed class StartedResponseFeature : HttpResponseFeature
+    {
+        public override bool HasStarted => true;
+    }
+
+    private static string FindRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "UZLLM.slnx"))) directory = directory.Parent;
+        return directory?.FullName ?? throw new InvalidOperationException("Repository root missing.");
+    }
+
+    private sealed record WireExample(string Document, string Path, string Method, int Status,
+        string MediaType, JsonElement Body);
+
+    public void Dispose() => services.Dispose();
+}

@@ -43,7 +43,7 @@ public static class PaymentEndpointExtensions
             try
             {
                 var result = await payments.CreateIntentAsync(accountId, organizationId, request.QuoteId, key, token);
-                var body = new { intent = Intent(result.Intent), result.Duplicate, result.CheckoutUrl };
+                var body = new CreatedTopUpResponse(Intent(result.Intent), result.Duplicate, result.CheckoutUrl);
                 return result.Duplicate ? Results.Ok(body) : Results.Created(
                     $"/management/v1/organizations/{organizationId}/billing/topups/{result.Intent.Id}", body);
             }
@@ -100,12 +100,12 @@ public static class PaymentEndpointExtensions
                 await authorization.EnsurePermissionAsync(accountId, organizationId,
                     OrganizationPermission.ReadBilling, cancellationToken: token);
                 return await financial.FindWalletStateAsync(organizationId, token) is { } state
-                    ? Results.Ok(new { state.Wallet.OrganizationId,
-                        postedBalanceMicroUsd = state.Wallet.PostedBalance.Value.ToString(CultureInfo.InvariantCulture),
-                        reservedBalanceMicroUsd = state.Wallet.ReservedBalance.Value.ToString(CultureInfo.InvariantCulture),
-                        availableBalanceMicroUsd = state.Wallet.AvailableBalance.Value.ToString(CultureInfo.InvariantCulture),
-                        recoveryDebtMicroUsd = state.RecoveryDebt.Value.ToString(CultureInfo.InvariantCulture),
-                        state.SpendingHeld, state.Wallet.Version }) : Results.NotFound();
+                    ? Results.Ok(new WalletResponse(state.Wallet.OrganizationId,
+                        state.Wallet.PostedBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        state.Wallet.ReservedBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        state.Wallet.AvailableBalance.Value.ToString(CultureInfo.InvariantCulture),
+                        state.RecoveryDebt.Value.ToString(CultureInfo.InvariantCulture),
+                        state.SpendingHeld, state.Wallet.Version)) : Results.NotFound();
             }
             catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         });
@@ -154,28 +154,20 @@ public static class PaymentEndpointExtensions
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static object Quote(PaymentQuote value) => new
-    {
-        value.Id, value.OrganizationId, provider = value.Provider.ToString(),
-        amountTiyin = value.Amount.Value.ToString(CultureInfo.InvariantCulture),
-        feeTiyin = value.Fee.Value.ToString(CultureInfo.InvariantCulture),
-        creditMicroUsd = value.Credit.Value.ToString(CultureInfo.InvariantCulture),
-        value.FxSnapshotId,
-        uzsTiyinPerUsd = value.UzsTiyinPerUsd.ToString(CultureInfo.InvariantCulture),
-        value.CreatedAt, value.ExpiresAt
-    };
+    private static PaymentQuoteResponse Quote(PaymentQuote value) => new(
+        value.Id, value.OrganizationId, value.Provider.ToString(),
+        value.Amount.Value.ToString(CultureInfo.InvariantCulture),
+        value.Fee.Value.ToString(CultureInfo.InvariantCulture),
+        value.Credit.Value.ToString(CultureInfo.InvariantCulture), value.FxSnapshotId,
+        value.UzsTiyinPerUsd.ToString(CultureInfo.InvariantCulture), value.CreatedAt, value.ExpiresAt);
 
-    private static object Intent(PaymentIntent value) => new
-    {
-        value.Id, value.OrganizationId, provider = value.Provider.ToString(),
-        value.QuoteId, status = value.Status.ToString(),
-        amountTiyin = value.Amount.Value.ToString(CultureInfo.InvariantCulture),
-        feeTiyin = value.Fee.Value.ToString(CultureInfo.InvariantCulture),
-        creditMicroUsd = value.Credit.Value.ToString(CultureInfo.InvariantCulture),
-        value.FxSnapshotId,
-        uzsTiyinPerUsd = value.UzsTiyinPerUsd.ToString(CultureInfo.InvariantCulture),
-        value.ExternalTransactionId, value.CreatedAt, value.BoundAt, value.PaidAt, value.CanceledAt
-    };
+    private static PaymentIntentResponse Intent(PaymentIntent value) => new(
+        value.Id, value.OrganizationId, value.Provider.ToString(), value.QuoteId, value.Status.ToString(),
+        value.Amount.Value.ToString(CultureInfo.InvariantCulture),
+        value.Fee.Value.ToString(CultureInfo.InvariantCulture),
+        value.Credit.Value.ToString(CultureInfo.InvariantCulture), value.FxSnapshotId,
+        value.UzsTiyinPerUsd.ToString(CultureInfo.InvariantCulture), value.ExternalTransactionId,
+        value.CreatedAt, value.BoundAt, value.PaidAt, value.CanceledAt);
 
     private sealed record QuoteRequest(string Provider, string AmountTiyin);
     private sealed record TopUpRequest(Guid QuoteId);

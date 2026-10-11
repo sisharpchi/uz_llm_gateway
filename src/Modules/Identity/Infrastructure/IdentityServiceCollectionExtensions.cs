@@ -214,7 +214,7 @@ public static class IdentityServiceCollectionExtensions
 
     private sealed record OperatorMfaEnrollmentRequest(string Password);
 
-    private sealed record SessionResponse(Guid AccountId, string Email, bool EmailVerified, bool IsOperator);
+    public sealed record SessionResponse(Guid AccountId, string Email, bool EmailVerified, bool IsOperator);
 }
 
 public static class IdentityRouteHandlerBuilderExtensions

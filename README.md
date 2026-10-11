@@ -91,6 +91,10 @@ Customers can inspect effective managed model prices and copy a model-specific
 chat request in the dashboard's **Models** page; see the
 [customer quickstart](docs/20_CUSTOMER_QUICKSTART.md).
 
+Versioned Gateway and Management OpenAPI artifacts, serializer-derived examples
+and typed client generation are documented in [API contracts](docs/api/README.md).
+Run `npm run api:check --prefix frontend/apps` to detect contract/client drift.
+
 Opt-in payload retention additionally requires a separate 32-byte base64
 `PAYLOADSECRETS__KEYS__v1` and `PAYLOADSECRETS__ACTIVEKEYVERSION=v1` on Gateway
 and Management. Without opt-in, no request or response bodies are persisted.

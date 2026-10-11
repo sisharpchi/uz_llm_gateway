@@ -1,0 +1,1401 @@
+{
+  "components": {
+    "securitySchemes": {
+      "GatewayKey": {
+        "description": "Project-scoped UZLLM gateway key; never a provider key.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Implemented OpenAI-compatible models/chat contract. Responses and embeddings are not yet supported. Breaking changes require a versioned path and 180 days of migration overlap.",
+    "title": "UZLLM Gateway API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.1",
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "description": "Bounded chat subset; unsupported fields return 400. max_tokens and max_completion_tokens are mutually exclusive. Tool/vision/structured-output capability is checked against the selected mapping. After output begins, no replay/fallback occurs. Unknown usage leaves settlement pending, never a zero-cost claim.",
+        "operationId": "CreateChatCompletion",
+        "parameters": [
+          {
+            "description": "Non-empty UUID, scoped to organization/key/operation for 24 hours. Replay returns 409 and X-Original-Request-Id; completion bodies are not replayed.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "max_completion_tokens": 32,
+                "messages": [
+                  {
+                    "content": "Hello",
+                    "role": "user"
+                  }
+                ],
+                "model": "example-chat",
+                "stream": false
+              },
+              "schema": {
+                "additionalProperties": false,
+                "not": {
+                  "required": [
+                    "max_tokens",
+                    "max_completion_tokens"
+                  ]
+                },
+                "properties": {
+                  "max_completion_tokens": {
+                    "format": "int32",
+                    "maximum": 2147483647,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "max_tokens": {
+                    "format": "int32",
+                    "maximum": 2147483647,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "messages": {
+                    "items": {
+                      "description": "Content is required except assistant tool-call messages. Only user messages accept HTTPS image URLs; only assistant messages accept tool_calls; tool messages require tool_call_id and one text content part.",
+                      "properties": {
+                        "content": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            },
+                            {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "properties": {
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "enum": [
+                                          "text"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "text"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "properties": {
+                                      "image_url": {
+                                        "properties": {
+                                          "detail": {
+                                            "enum": [
+                                              "auto",
+                                              "low",
+                                              "high"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "url": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "url"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": {
+                                        "enum": [
+                                          "image_url"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "image_url"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            }
+                          ]
+                        },
+                        "role": {
+                          "enum": [
+                            "system",
+                            "developer",
+                            "user",
+                            "assistant",
+                            "tool"
+                          ],
+                          "type": "string"
+                        },
+                        "tool_call_id": {
+                          "type": "string"
+                        },
+                        "tool_calls": {
+                          "items": {
+                            "properties": {
+                              "function": {
+                                "properties": {
+                                  "arguments": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "arguments"
+                                ],
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "enum": [
+                                  "function"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type",
+                              "function"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "role"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 256,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "model": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "response_format": {
+                    "properties": {
+                      "json_schema": {
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "schema": {
+                            "type": "object"
+                          },
+                          "strict": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "schema"
+                        ],
+                        "type": "object"
+                      },
+                      "type": {
+                        "enum": [
+                          "text",
+                          "json_object",
+                          "json_schema"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  "stop": {
+                    "oneOf": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 4,
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "stream": {
+                    "type": "boolean"
+                  },
+                  "stream_options": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "include_usage": {
+                        "type": "boolean"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "temperature": {
+                    "maximum": 2,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "tool_choice": {
+                    "oneOf": [
+                      {
+                        "enum": [
+                          "auto",
+                          "none",
+                          "required"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "properties": {
+                          "function": {
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": {
+                            "enum": [
+                              "function"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "function"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "tools": {
+                    "items": {
+                      "properties": {
+                        "function": {
+                          "properties": {
+                            "description": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "parameters": {
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "parameters"
+                          ],
+                          "type": "object"
+                        },
+                        "type": {
+                          "enum": [
+                            "function"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "function"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 64,
+                    "type": "array"
+                  },
+                  "top_p": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 1,
+                    "type": "number"
+                  },
+                  "uzllm": {
+                    "additionalProperties": false,
+                    "description": "provider_key_id must be non-empty. Managed fallback opt-in requires provider_key_id. Fallback codes must be canonical and distinct from the requested model; BYOK cross-model fallback requires Managed opt-in.",
+                    "properties": {
+                      "allow_managed_fallback": {
+                        "type": "boolean"
+                      },
+                      "fallback_models": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 2,
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "provider_key_id": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "routing": {
+                        "enum": [
+                          "price",
+                          "latency",
+                          "throughput",
+                          "auto"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "model",
+                  "messages"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "choices": {
+                      "items": {
+                        "properties": {
+                          "finish_reason": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "index": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "message": {
+                            "properties": {
+                              "content": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "refusal": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              },
+                              "role": {
+                                "enum": [
+                                  "assistant"
+                                ],
+                                "type": "string"
+                              },
+                              "tool_calls": {
+                                "items": {
+                                  "properties": {
+                                    "function": {
+                                      "properties": {
+                                        "arguments": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "arguments"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "enum": [
+                                        "function"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "type",
+                                    "function"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": [
+                                  "null",
+                                  "array"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "content",
+                              "refusal",
+                              "tool_calls"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "message",
+                          "finish_reason"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "created": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "chat.completion"
+                      ],
+                      "type": "string"
+                    },
+                    "usage": {
+                      "properties": {
+                        "completion_tokens": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "completion_tokens_details": {
+                          "properties": {
+                            "reasoning_tokens": {
+                              "format": "int64",
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "reasoning_tokens"
+                          ],
+                          "type": "object"
+                        },
+                        "prompt_tokens": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "prompt_tokens_details": {
+                          "properties": {
+                            "cached_tokens": {
+                              "format": "int64",
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "cached_tokens"
+                          ],
+                          "type": "object"
+                        },
+                        "total_tokens": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "prompt_tokens",
+                        "completion_tokens",
+                        "total_tokens",
+                        "prompt_tokens_details",
+                        "completion_tokens_details"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "object",
+                    "created",
+                    "model",
+                    "choices",
+                    "usage"
+                  ],
+                  "type": "object"
+                }
+              },
+              "text/event-stream": {
+                "example": "data: {\"id\":\"chatcmpl-11111111111141118111111111111111\",\"object\":\"chat.completion.chunk\",\"created\":1790812800,\"model\":\"example-chat\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-11111111111141118111111111111111\",\"object\":\"chat.completion.chunk\",\"created\":1790812800,\"model\":\"example-chat\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "JSON completion or SSE data frames. A complete stream ends with data: [DONE]. Interrupted streams use event: error with the error envelope; HTTP status cannot change after headers. Usage/finish/tool/refusal chunks may appear before the terminal marker.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Billing-Mode": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Model": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Provider": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Requested-Model": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Original-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GatewayKey": []
+          }
+        ],
+        "summary": "Create an OpenAI-compatible chat completion or SSE stream",
+        "tags": [
+          "UZLLM.Gateway.Api"
+        ]
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "ListGatewayModels",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "capabilities": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "context_length": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "max_output_tokens": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "object": {
+                            "enum": [
+                              "model"
+                            ],
+                            "type": "string"
+                          },
+                          "owned_by": {
+                            "enum": [
+                              "uzllm"
+                            ],
+                            "type": "string"
+                          },
+                          "pricing": {
+                            "properties": {
+                              "cached_input_micro_usd_per_million": {
+                                "format": "int64",
+                                "type": [
+                                  "null",
+                                  "integer"
+                                ]
+                              },
+                              "input_micro_usd_per_million": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "output_micro_usd_per_million": {
+                                "format": "int64",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "input_micro_usd_per_million",
+                              "output_micro_usd_per_million",
+                              "cached_input_micro_usd_per_million"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "object",
+                          "owned_by",
+                          "name",
+                          "context_length",
+                          "max_output_tokens",
+                          "capabilities",
+                          "pricing"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful inference/model discovery.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GatewayKey": []
+          }
+        ],
+        "summary": "List active models available for inference",
+        "tags": [
+          "UZLLM.Gateway.Api"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "UZLLM.Gateway.Api"
+    }
+  ]
+}

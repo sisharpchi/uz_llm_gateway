@@ -67,7 +67,7 @@ Lower operational complexity while product rules are evolving.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** Chat completions and model discovery implemented; Responses and embeddings remain P1 (`GATEWAY-005–007`)
+**Implementation status:** Chat completions and model discovery implemented; `DX-002` publishes versioned Gateway/Management OpenAPI, serializer examples and generated client types with CI drift checks. Responses and embeddings remain P1 (`GATEWAY-005–007`).
 
 ### Decision
 Use OpenAI-compatible endpoints as the initial developer contract.

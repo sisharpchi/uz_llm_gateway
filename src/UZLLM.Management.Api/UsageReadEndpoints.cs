@@ -91,17 +91,17 @@ public static class UsageReadEndpoints
 /// <summary>Bounded organization-scoped usage filters. Dates are UTC, from inclusive and to exclusive.</summary>
 public sealed record UsageReadQueryParameters
 {
-    public DateTimeOffset? From { get; init; }
-    public DateTimeOffset? To { get; init; }
-    public Guid? ProjectId { get; init; }
-    public Guid? ApiKeyId { get; init; }
-    public Guid? ModelId { get; init; }
-    public Guid? ProviderId { get; init; }
-    public string? Status { get; init; }
-    public bool? IsStream { get; init; }
-    public Guid? RequestId { get; init; }
-    public int? Limit { get; init; }
-    public string? Cursor { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "from")] public DateTimeOffset? From { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "to")] public DateTimeOffset? To { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "projectId")] public Guid? ProjectId { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "apiKeyId")] public Guid? ApiKeyId { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "modelId")] public Guid? ModelId { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "providerId")] public Guid? ProviderId { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "status")] public string? Status { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "isStream")] public bool? IsStream { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "requestId")] public Guid? RequestId { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "limit")] public int? Limit { get; init; }
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "cursor")] public string? Cursor { get; init; }
 
     public UsageReadQuery ToQuery() => new(From, To, ProjectId, ApiKeyId, ModelId,
         ProviderId, Status, IsStream, RequestId);

@@ -504,7 +504,8 @@ error meanings remain stable; new response fields may be additive and optional.
 A breaking change requires a new versioned path, a published migration guide
 and at least 180 days of overlap/deprecation notice before the old path is
 sunset. Emergency security retirement requires an explicit incident decision
-and customer notice. `DX-002` will enforce contract drift in CI; `DX-004`
+and customer notice. `DX-002` enforces generated document/example/client drift in
+CI; see [versioned artifacts and regeneration](api/README.md). `DX-004`
 will specify automation-specific lifecycle details.
 
 ---

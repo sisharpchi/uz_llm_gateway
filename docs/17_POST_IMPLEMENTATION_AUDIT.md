@@ -96,8 +96,12 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
   provider reversal and discretionary adjustment are different policies; the
   latter belongs to `REFUND-002`, while cash payout is external-policy gated.
 - Project/key permissions, customer limits/alerts/team/BYOK/routing UI,
-  privacy metadata retention, OpenAPI/SDK examples, and enterprise features
+  privacy metadata retention, SDK examples, and enterprise features
   remain incomplete or require a fresh contract before implementation.
+- `DX-002` now publishes the implemented Gateway/Management v1 OpenAPI surfaces,
+  serializer-derived examples and generated client wire types with CI drift checks
+  (see [API artifact guide](api/README.md)). This does not implement Responses,
+  embeddings or automation lifecycle (`DX-004`), or certify live compatibility.
 
 ## Audit disposition
 

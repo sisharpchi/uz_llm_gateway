@@ -57,6 +57,12 @@ jobs:
           npm ci --prefix frontend/apps
           cd frontend/apps/dashboard
           npx playwright install --with-deps chromium
+      - name: Verify versioned API and generated client drift
+        run: |
+          npm run api:check --prefix frontend/apps
+          npm run api:test --prefix frontend/apps
+          npm run api:types --prefix frontend/apps
+          npm run build --prefix frontend/apps
       - name: Run disposable real-stack launch acceptance
         run: |
           for target in gateway management worker migrator; do

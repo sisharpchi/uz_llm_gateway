@@ -5,6 +5,7 @@ using UZLLM.Modules.Identity.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Payments.Contracts;
 using UZLLM.Persistence;
+using UZLLM.Management.Api.OpenApi;
 
 namespace UZLLM.Management.Api.Administration;
 
@@ -21,8 +22,8 @@ public static class AdminEndpoints
         {
             if (context.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
             if (!IsOperator(context)) return Results.StatusCode(StatusCodes.Status403Forbidden);
-            return Results.Ok(new { recentMfa = await identity.HasRecentOperatorReauthenticationAsync(
-                context.Request.Cookies[IdentityCookieNames.Session] ?? string.Empty, ct) });
+            return Results.Ok(new OperatorAccessResponse(await identity.HasRecentOperatorReauthenticationAsync(
+                context.Request.Cookies[IdentityCookieNames.Session] ?? string.Empty, ct)));
         });
 
         var admin = access.MapGroup(string.Empty).AddEndpointFilter(async (context, next) =>

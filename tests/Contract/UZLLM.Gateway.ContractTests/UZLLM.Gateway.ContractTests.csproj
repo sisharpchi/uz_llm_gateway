@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\UZLLM.Gateway.Api\UZLLM.Gateway.Api.csproj" />
+    <ProjectReference Include="..\..\..\src\UZLLM.Management.Api\UZLLM.Management.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

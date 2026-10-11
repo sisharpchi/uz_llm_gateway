@@ -15,9 +15,11 @@ using UZLLM.Management.Api;
 using UZLLM.Management.Api.Administration;
 using UZLLM.Management.Api.Budgets;
 using UZLLM.Management.Api.Catalog;
+using UZLLM.Management.Api.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
+builder.Services.AddManagementOpenApi();
 builder.Services.AddUzllmOperatorKeyRing(builder.Configuration, builder.Environment.IsProduction());
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);
@@ -58,4 +60,5 @@ app.MapUzllmBudgetEndpoints();
 app.MapUzllmCustomerCatalogEndpoints();
 app.MapUzllmByokEndpoints();
 app.MapUzllmCustomerAlertEndpoints();
+if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.Run();

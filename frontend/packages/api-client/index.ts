@@ -1,46 +1,48 @@
+import type { components, paths } from './generated/management-v1';
+
 export type Id = string;
 export type DecimalString = string;
-
-export interface Session { accountId: Id; email: string; emailVerified: boolean; isOperator: boolean }
-export interface Organization { id: Id; name: string; status: 0 | 1 }
-export interface Project { id: Id; organizationId: Id; name: string; status: 0 | 1 }
-export interface ApiKey { id: Id; projectId: Id; name: string; prefix: string; status: 0 | 1; expiresAt: string | null; createdAt: string }
-export interface IssuedApiKey { apiKey: ApiKey; secret: string }
-export interface Wallet { organizationId: Id; postedBalanceMicroUsd: DecimalString; reservedBalanceMicroUsd: DecimalString; availableBalanceMicroUsd: DecimalString; recoveryDebtMicroUsd: DecimalString; spendingHeld: boolean; version: number }
-export interface PaymentQuote { id: Id; organizationId: Id; provider: 'Payme' | 'Click'; amountTiyin: DecimalString; feeTiyin: DecimalString; creditMicroUsd: DecimalString; uzsTiyinPerUsd: DecimalString; expiresAt: string }
-export interface PaymentIntent { id: Id; organizationId: Id; provider: 'Payme' | 'Click'; status: 'Pending' | 'Created' | 'Paid' | 'Canceled' | 'Expired'; amountTiyin: DecimalString; feeTiyin: DecimalString; creditMicroUsd: DecimalString; createdAt: string; hasCredit: boolean; hasReversal: boolean; hasOpenReconciliationCase: boolean }
-export interface CustomerRefund { id: Id; settlementId: Id; organizationId: Id; amountMicroUsd: DecimalString; createdAt: string }
-export interface CatalogProviderPrice { mappingId: Id; provider: string; providerName: string; capabilities: string[]; priceVersionId: Id; priceEffectiveFrom: string; priceEffectiveTo: string | null; inputPriceMicroUsdPerMillion: DecimalString; outputPriceMicroUsdPerMillion: DecimalString; cachedInputPriceMicroUsdPerMillion: DecimalString | null }
-export interface CatalogModel { id: string; displayName: string; contextLength: number; maxOutputTokens: number; capabilities: string[]; status: 'Published'; providers: CatalogProviderPrice[] }
-export interface CustomerCatalog { dataAsOf: string; feePolicyVersionId: Id; markupBasisPoints: number; fixedFeeMicroUsdPerRequest: DecimalString; models: CatalogModel[] }
-export interface CreatedTopUp { intent: Omit<PaymentIntent, 'hasCredit' | 'hasReversal' | 'hasOpenReconciliationCase'>; duplicate: boolean; checkoutUrl: string | null }
-export interface UsageFilters { from?: string; to?: string; projectId?: Id; apiKeyId?: Id; modelId?: Id; providerId?: Id; status?: string; isStream?: boolean; requestId?: Id }
-export interface UsageActivityItem { requestId: Id; projectId: Id; projectName: string; apiKeyId: Id; apiKeyName: string; modelId: Id; modelCode: string; providerId: Id | null; providerCode: string | null; startedAt: string; completedAt: string | null; executionState: string; deliveryState: string; financialState: string; httpStatus: number | null; isStream: boolean; attemptCount: number; durationMs: number | null; inputTokens: number | null; outputTokens: number | null; chargedMicroUsd: DecimalString | null; selectedModelId?: Id | null; selectedModelCode?: string | null }
-export interface UsageActivityPage { items: UsageActivityItem[]; nextCursor: string | null; dataAsOf: string }
-export interface UsageBreakdownItem { id: Id; name: string; requestCount: number; errorCount: number; inputTokens: number; outputTokens: number; chargedMicroUsd: DecimalString }
-export interface UsageSummary { from: string; to: string; dataAsOf: string; requestCount: number; completedCount: number; errorCount: number; pendingCount: number; inputTokens: number; outputTokens: number; chargedMicroUsd: DecimalString; errorRatePercent: number; topModels: UsageBreakdownItem[]; topProviders: UsageBreakdownItem[] }
-export interface UsageDailyBucket { day: string; requestCount: number; errorCount: number; inputTokens: number; outputTokens: number; chargedMicroUsd: DecimalString }
-export interface UsageTimeSeries { from: string; to: string; dataAsOf: string; items: UsageDailyBucket[] }
-export interface UsageBreakdown { dimension: string; from: string; to: string; dataAsOf: string; items: UsageBreakdownItem[] }
-export interface UsageAttemptDetail { attemptId: Id; number: number; providerModelId: Id; providerCode: string; startedAt: string; completedAt: string | null; executionState: string; providerRequestId: string | null; errorCategory: string | null; modelCode?: string | null }
-export interface UsageEvidenceDetail { evidenceId: Id; attemptId: Id; state: string; source: string; inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; reasoningTokens: number | null; capturedAt: string; reconcileAfter: string | null }
-export interface UsageRequestDetail { request: UsageActivityItem; traceId: string | null; routeStrategy: string | null; providerCostMicroUsd: DecimalString | null; chargedMicroUsd: DecimalString | null; platformExposureMicroUsd: DecimalString | null; unresolvedUsage: boolean | null; attempts: UsageAttemptDetail[]; evidence: UsageEvidenceDetail[]; externalProviderSpendMicroUsd?: DecimalString | null; lateExternalSpendMicroUsd?: DecimalString | null }
-export interface AdminAccount { id: Id; email: string; status: string; emailVerified: boolean; isOperator: boolean; createdAt: string }
-export interface AdminOrganization { id: Id; name: string; status: string; postedBalanceMicroUsd: DecimalString | null; reservedBalanceMicroUsd: DecimalString | null; createdAt: string }
-export interface AdminMapping { id: Id; providerId: Id; modelId: Id; modelCode: string; modelStatus: string; upstreamModelCode: string; status: string }
-export interface AdminCredential { id: Id; providerId: Id; status: string; keyVersion: string; createdAt: string }
-export interface AdminProvider { id: Id; code: string; name: string; status: string; mappings: AdminMapping[]; credentials: AdminCredential[] }
-export interface AdminPrice { id: Id; providerModelId: Id; effectiveFrom: string; effectiveTo: string | null; inputPriceMicroUsdPerMillion: DecimalString; outputPriceMicroUsdPerMillion: DecimalString; cachedInputPriceMicroUsdPerMillion: DecimalString | null }
-export interface AdminLedgerEntry { id: Id; organizationId: Id; type: string; amountMicroUsd: DecimalString; referenceType: string; referenceId: Id; occurredAt: string }
-export interface AdminPayment { id: Id; organizationId: Id; provider: string; localStatus: string; providerObservation: string; amountTiyin: DecimalString; creditMicroUsd: DecimalString; externalTransactionId: string | null; hasCredit: boolean; hasReversal: boolean; reconciliationReason: string | null; reconciliationStatus: string | null; callbackCount: number; createdAt: string }
-export interface AdminPaymentCase { id: Id; intentId: Id | null; provider: string | null; externalTransactionId: string | null; reason: string; status: string; createdAt: string; resolvedAt: string | null; resolutionReference: string | null }
-export interface AdminRefund { id: Id; settlementId: Id; organizationId: Id; actorAccountId: Id; refundKey: string; amountMicroUsd: DecimalString; reason: string; createdAt: string; duplicate: boolean }
-export interface AdminFinancialRisk { dataAsOf: string; pending: { reservationId: Id; requestId: Id; organizationId: Id; heldMicroUsd: DecimalString; expiresAt: string; state: string; nextReviewAt: string | null }[]; exposure: { settlementId: Id; reservationId: Id; organizationId: Id; platformExposureMicroUsd: DecimalString; uncollectedChargeMicroUsd: DecimalString; unresolvedUsage: boolean; createdAt: string }[]; debt: { organizationId: Id; outstandingMicroUsd: DecimalString; spendingHeld: boolean }[] }
-export interface AdminControl { feature: 'ManagedTraffic' | 'TopUps'; enabled: boolean; updatedAt: string }
-export interface AdminAudit { id: Id; organizationId: Id | null; actorAccountId: Id; action: string; resourceType: string; resourceId: Id | null; occurredAt: string }
+type Schema = components['schemas'];
+export type Session = Schema['SessionResponse'];
+export type Organization = Schema['Organization'];
+export type Project = Schema['Project'];
+export type ApiKey = Schema['IssuedGatewayApiKey']['apiKey'];
+export type IssuedApiKey = Schema['IssuedGatewayApiKey'];
+export type Wallet = Schema['WalletResponse'];
+export type PaymentQuote = Schema['PaymentQuoteResponse'];
+export type PaymentIntent = Schema['CustomerTopUpList'][number];
+export type CreatedTopUp = Schema['CreatedTopUpResponse'];
+export type CustomerRefund = Schema['CustomerSettlementRefundList'][number];
+export type CatalogProviderPrice = Schema['CustomerCatalogMappingResponse'];
+export type CatalogModel = Schema['CustomerCatalogModelResponse'];
+export type CustomerCatalog = Schema['CustomerCatalogResponse'];
+export type UsageActivityItem = Schema['UsageActivityItem'];
+export type UsageActivityPage = Schema['UsageActivityPage'];
+export type UsageBreakdownItem = Schema['UsageBreakdownItem'];
+export type UsageSummary = Schema['UsageSummary'];
+export type UsageDailyBucket = Schema['UsageDailyBucket'];
+export type UsageTimeSeries = Schema['UsageTimeSeries'];
+export type UsageBreakdown = Schema['UsageBreakdown'];
+export type UsageAttemptDetail = Schema['UsageRequestDetail']['attempts'][number];
+export type UsageEvidenceDetail = Schema['UsageRequestDetail']['evidence'][number];
+export type UsageRequestDetail = Schema['UsageRequestDetail'];
+export type AdminAccount = Schema['AdminAccountResponse'];
+export type AdminOrganization = Schema['AdminOrganizationResponse'];
+export type AdminMapping = Schema['AdminMappingResponse'];
+export type AdminCredential = Schema['AdminCredentialResponse'];
+export type AdminProvider = Schema['AdminProviderResponse'];
+export type AdminPrice = Schema['AdminPriceResponse'];
+export type AdminLedgerEntry = Schema['AdminLedgerEntryResponse'];
+export type AdminPayment = Schema['AdminPaymentResponse'];
+export type AdminPaymentCase = Schema['PaymentReconciliationCase'];
+export type AdminRefund = Schema['AdminSettlementRefundResponse'];
+export type AdminFinancialRisk = Schema['AdminFinancialRiskResponse'];
+export type AdminControl = Schema['AdminPlatformControlResponse'];
+export type AdminAudit = Schema['AdminAuditResponse'];
+export type UsageFilters = Omit<NonNullable<paths['/management/v1/organizations/{organizationId}/usage/activity']['get']['parameters']['query']>, 'limit' | 'cursor'>;
 
 export class ApiError extends Error {
-  constructor(readonly status: number) { super(`Request failed (${status})`); }
+  constructor(readonly status: number) { super('Request failed (' + status + ')'); }
 }
 
 function csrfToken(): string | null {
@@ -48,82 +50,107 @@ function csrfToken(): string | null {
   return encoded ? decodeURIComponent(encoded.split('=').slice(1).join('=')) : null;
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (init.body) headers.set('Content-Type', 'application/json');
-  if (init.method && init.method !== 'GET') {
-    const csrf = csrfToken();
-    if (csrf) headers.set('X-CSRF-Token', csrf);
-  }
-  const response = await fetch(`/management/v1${path}`, { ...init, headers, credentials: 'same-origin' });
+type Verb = 'get' | 'post' | 'put' | 'patch' | 'delete';
+type Operation<P extends keyof paths, M extends Verb & keyof paths[P]> = NonNullable<paths[P][M]>;
+type ParametersOf<O> = O extends { parameters: infer P } ? P : never;
+type OptionalParameter<O, K extends PropertyKey> = K extends keyof ParametersOf<O> ? NonNullable<ParametersOf<O>[K]> : never;
+type HeadersOf<O> = Omit<OptionalParameter<O, 'header'>, 'X-CSRF-Token'>;
+type Input<O> =
+  (ParametersOf<O> extends { path: infer P } ? { path: P } : { path?: never }) &
+  (ParametersOf<O> extends { query: infer Q } ? { query: Q } : { query?: OptionalParameter<O, 'query'> }) &
+  (O extends { requestBody: { content: { 'application/json': infer B } } } ? { body: B } : { body?: never }) &
+  ({} extends HeadersOf<O> ? { headers?: HeadersOf<O> } : { headers: HeadersOf<O> });
+type Success<O> = O extends { responses: infer R } ? {
+  [S in keyof R]: S extends 200 | 201 | 202 | 204
+    ? R[S] extends { content: { 'application/json': infer T } } ? T : void : never
+}[keyof R] : never;
+
+// Only the transport casts decoded JSON; every caller's method/path/input/output comes from OpenAPI.
+async function call<P extends keyof paths, M extends Verb & keyof paths[P]>(
+  template: P, method: M, ...args: {} extends Input<Operation<P, M>>
+    ? [input?: Input<Operation<P, M>>] : [input: Input<Operation<P, M>>]
+): Promise<Success<Operation<P, M>>> {
+  const input = args[0] as { path?: Record<string, unknown>; query?: Record<string, unknown>; body?: unknown; headers?: HeadersInit } | undefined;
+  const path = template.replace(/\{([^}]+)\}/g, (_, name: string) => encodeURIComponent(String(input?.path?.[name])));
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(input?.query ?? {}))
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  const headers = new Headers(input?.headers);
+  if (input?.body !== undefined) headers.set('Content-Type', 'application/json');
+  if (method !== 'get') { const csrf = csrfToken(); if (csrf) headers.set('X-CSRF-Token', csrf); }
+  const response = await fetch(path + (query.size ? '?' + query : ''), {
+    method: method.toUpperCase(), headers, credentials: 'same-origin',
+    body: input?.body === undefined ? undefined : JSON.stringify(input.body)
+  });
   if (!response.ok) throw new ApiError(response.status);
-  return response.status === 204 || response.status === 202 ? undefined as T : await response.json() as T;
+  return response.status === 204 || response.status === 202
+    ? undefined as Success<Operation<P, M>> : await response.json() as Success<Operation<P, M>>;
 }
 
-const json = (value: unknown) => JSON.stringify(value);
-function usageQuery(filters: UsageFilters, extra: Record<string, string | number | undefined> = {}): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries({ ...filters, ...extra })) if (value !== undefined && value !== '') query.set(key, String(value));
-  return query.size ? `?${query}` : '';
-}
+const org = '/management/v1/organizations/{organizationId}' as const;
 export const management = {
-  session: () => request<Session>('/auth/session'),
-  register: (email: string, password: string) => request<void>('/auth/register', { method: 'POST', body: json({ email, password }) }),
-  verifyEmail: (token: string) => request<void>('/auth/verify-email', { method: 'POST', body: json({ token }) }),
-  recover: (email: string) => request<void>('/auth/recover', { method: 'POST', body: json({ email }) }),
-  resetPassword: (token: string, newPassword: string) => request<void>('/auth/reset-password', { method: 'POST', body: json({ token, newPassword }) }),
-  login: (email: string, password: string) => request<void>('/auth/login', { method: 'POST', body: json({ email, password }) }),
-  logout: () => request<void>('/auth/logout', { method: 'POST' }),
-  operatorAccess: () => request<{ recentMfa: boolean }>('/admin/access'),
-  enrollOperatorMfa: (password: string) => request<{ sharedSecret: string; expiresAt: string }>('/auth/operator/mfa/enroll', { method: 'POST', body: json({ password }) }),
-  confirmOperatorMfa: (code: string) => request<void>('/auth/operator/mfa/confirm', { method: 'POST', body: json({ code }) }),
-  verifyOperatorMfa: (code: string) => request<void>('/auth/operator/mfa/verify', { method: 'POST', body: json({ code }) }),
-  resetOperatorMfa: (accountId: Id, reason: string) => request<void>(`/admin/operators/${encodeURIComponent(accountId)}/mfa/reset`, { method: 'POST', body: json({ reason }) }),
-  adminAccounts: (query: string) => request<AdminAccount[]>(`/admin/accounts?query=${encodeURIComponent(query)}`),
-  adminOrganizations: (query: string) => request<AdminOrganization[]>(`/admin/organizations?query=${encodeURIComponent(query)}`),
-  adminProviders: () => request<AdminProvider[]>('/admin/providers'),
-  adminPrices: (mappingId: Id) => request<AdminPrice[]>(`/admin/mappings/${encodeURIComponent(mappingId)}/prices`),
-  adminLedger: (organizationId: Id) => request<AdminLedgerEntry[]>(`/admin/organizations/${encodeURIComponent(organizationId)}/ledger`),
-  adminPayments: (organizationId?: Id) => request<AdminPayment[]>(`/admin/payments${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ''}`),
-  adminPaymentCases: () => request<AdminPaymentCase[]>('/admin/payment-reconciliation/cases'),
-  adminResolvePaymentCase: (id: Id, reason: string, resolutionReference: string) => request<void>(`/admin/payment-reconciliation/cases/${encodeURIComponent(id)}/resolve`, { method: 'PATCH', body: json({ reason, resolutionReference }) }),
-  adminRefunds: (organizationId?: Id) => request<AdminRefund[]>(`/admin/refunds${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ''}`),
-  adminCreateRefund: (settlementId: Id, refundKey: string, amountMicroUsd: DecimalString, reason: string) => request<AdminRefund>('/admin/refunds', { method: 'POST', body: json({ settlementId, refundKey, amountMicroUsd, reason }) }),
-  adminFinancialRisk: () => request<AdminFinancialRisk>('/admin/financial/risk'),
-  adminAudit: () => request<AdminAudit[]>('/admin/audit'),
-  adminControls: () => request<AdminControl[]>('/admin/controls'),
-  adminCreateProvider: (code: string, name: string, reason: string) => request<{ id: Id }>('/admin/providers', { method: 'POST', body: json({ code, name, reason }) }),
-  adminCreateModel: (code: string, name: string, contextLength: number, maxOutputTokens: number, capabilities: string[], reason: string) => request<{ id: Id }>('/admin/models', { method: 'POST', body: json({ code, name, contextLength, maxOutputTokens, capabilities, reason }) }),
-  adminCreateMapping: (providerId: Id, modelId: Id, upstreamModelCode: string, reason: string) => request<{ id: Id }>('/admin/mappings', { method: 'POST', body: json({ providerId, modelId, upstreamModelCode, endpointReference: null, reason }) }),
-  adminCreateCredential: (providerId: Id, secret: string, reason: string) => request<{ id: Id }>('/admin/credentials', { method: 'POST', body: json({ providerId, secret, reason }) }),
-  adminSchedulePrice: (providerModelId: Id, effectiveFrom: string, inputPriceMicroUsdPerMillion: number, outputPriceMicroUsdPerMillion: number, reason: string) => request<{ id: Id }>('/admin/prices', { method: 'POST', body: json({ providerModelId, effectiveFrom, inputPriceMicroUsdPerMillion, outputPriceMicroUsdPerMillion, cachedInputPriceMicroUsdPerMillion: null, reason }) }),
-  adminSetStatus: (kind: 'providers' | 'models' | 'mappings' | 'credentials' | 'controls', id: Id, enabled: boolean, reason: string) => request<void>(`/admin/${kind}/${encodeURIComponent(id)}`, { method: 'PATCH', body: json({ enabled, reason }) }),
-  organizations: () => request<Organization[]>('/organizations'),
-  createOrganization: (name: string) => request<Organization>('/organizations', { method: 'POST', body: json({ name }) }),
-  projects: (organizationId: Id) => request<Project[]>(`/organizations/${organizationId}/projects`),
-  catalog: (organizationId: Id, projectId: Id) => request<CustomerCatalog>(
-    `/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/catalog/models`),
-  createProject: (organizationId: Id, name: string) => request<Project>(`/organizations/${organizationId}/projects`, { method: 'POST', body: json({ name }) }),
-  keys: (projectId: Id) => request<ApiKey[]>(`/projects/${projectId}/api-keys`),
-  createKey: (projectId: Id, name: string) => request<IssuedApiKey>(`/projects/${projectId}/api-keys`, { method: 'POST', body: json({ name, expiresAt: null }) }),
-  disableKey: (id: Id) => request<void>(`/api-keys/${id}`, { method: 'PATCH', body: json({ status: 1 }) }),
-  wallet: (organizationId: Id) => request<Wallet>(`/organizations/${organizationId}/billing/wallet`),
-  quotes: (organizationId: Id, provider: 'Payme' | 'Click', amountTiyin: DecimalString) => request<PaymentQuote>(
-    `/organizations/${organizationId}/billing/quotes`, { method: 'POST', body: json({ provider, amountTiyin }) }),
-  createTopUp: (organizationId: Id, quoteId: Id, idempotencyKey: string) => request<CreatedTopUp>(
-    `/organizations/${organizationId}/billing/topups`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: json({ quoteId }) }),
-  topUps: (organizationId: Id) => request<PaymentIntent[]>(`/organizations/${organizationId}/billing/topups`),
-  customerRefunds: (organizationId: Id) => request<CustomerRefund[]>(`/organizations/${organizationId}/billing/refunds`),
-  activity: (organizationId: Id, filters: UsageFilters = {}, limit = 25, cursor?: string) => request<UsageActivityPage>(
-    `/organizations/${organizationId}/usage/activity${usageQuery(filters, { limit, cursor })}`),
-  usageDetail: (organizationId: Id, requestId: Id) => request<UsageRequestDetail>(
-    `/organizations/${organizationId}/usage/requests/${encodeURIComponent(requestId)}`),
-  usageSummary: (organizationId: Id, filters: UsageFilters = {}) => request<UsageSummary>(
-    `/organizations/${organizationId}/usage/summary${usageQuery(filters)}`),
-  usageTimeSeries: (organizationId: Id, filters: UsageFilters = {}) => request<UsageTimeSeries>(
-    `/organizations/${organizationId}/usage/timeseries${usageQuery(filters)}`),
-  usageBreakdown: (organizationId: Id, dimension: 'model' | 'provider' | 'api-key' | 'project', filters: UsageFilters = {}) => request<UsageBreakdown>(
-    `/organizations/${organizationId}/usage/by-${dimension}${usageQuery(filters)}`)
+  session: () => call('/management/v1/auth/session', 'get'),
+  register: (email: string, password: string) => call('/management/v1/auth/register', 'post', { body: { email, password } }),
+  verifyEmail: (token: string) => call('/management/v1/auth/verify-email', 'post', { body: { token } }),
+  recover: (email: string) => call('/management/v1/auth/recover', 'post', { body: { email } }),
+  resetPassword: (token: string, newPassword: string) => call('/management/v1/auth/reset-password', 'post', { body: { token, newPassword } }),
+  login: (email: string, password: string) => call('/management/v1/auth/login', 'post', { body: { email, password } }),
+  logout: () => call('/management/v1/auth/logout', 'post'),
+  operatorAccess: () => call('/management/v1/admin/access', 'get'),
+  enrollOperatorMfa: (password: string) => call('/management/v1/auth/operator/mfa/enroll', 'post', { body: { password } }),
+  confirmOperatorMfa: (code: string) => call('/management/v1/auth/operator/mfa/confirm', 'post', { body: { code } }),
+  verifyOperatorMfa: (code: string) => call('/management/v1/auth/operator/mfa/verify', 'post', { body: { code } }),
+  resetOperatorMfa: (accountId: Id, reason: string) => call('/management/v1/admin/operators/{accountId}/mfa/reset', 'post', { path: { accountId }, body: { reason } }),
+  adminAccounts: (query: string) => call('/management/v1/admin/accounts', 'get', { query: { query } }),
+  adminOrganizations: (query: string) => call('/management/v1/admin/organizations', 'get', { query: { query } }),
+  adminProviders: () => call('/management/v1/admin/providers', 'get'),
+  adminPrices: (id: Id) => call('/management/v1/admin/mappings/{id}/prices', 'get', { path: { id } }),
+  adminLedger: (id: Id) => call('/management/v1/admin/organizations/{id}/ledger', 'get', { path: { id } }),
+  adminPayments: (organizationId?: Id) => call('/management/v1/admin/payments', 'get', { query: { organizationId } }),
+  adminPaymentCases: () => call('/management/v1/admin/payment-reconciliation/cases', 'get'),
+  adminResolvePaymentCase: (id: Id, reason: string, resolutionReference: string) => call('/management/v1/admin/payment-reconciliation/cases/{id}/resolve', 'patch', { path: { id }, body: { reason, resolutionReference } }),
+  adminRefunds: (organizationId?: Id) => call('/management/v1/admin/refunds', 'get', { query: { organizationId } }),
+  adminCreateRefund: (settlementId: Id, refundKey: string, amountMicroUsd: DecimalString, reason: string) => call('/management/v1/admin/refunds', 'post', { body: { settlementId, refundKey, amountMicroUsd, reason } }),
+  adminFinancialRisk: () => call('/management/v1/admin/financial/risk', 'get'),
+  adminAudit: () => call('/management/v1/admin/audit', 'get'),
+  adminControls: () => call('/management/v1/admin/controls', 'get'),
+  adminCreateProvider: (code: string, name: string, reason: string) => call('/management/v1/admin/providers', 'post', { body: { code, name, reason } }),
+  adminCreateModel: (code: string, name: string, contextLength: number, maxOutputTokens: number, capabilities: string[], reason: string) => call('/management/v1/admin/models', 'post', { body: { code, name, contextLength, maxOutputTokens, capabilities, reason } }),
+  adminCreateMapping: (providerId: Id, modelId: Id, upstreamModelCode: string, reason: string) => call('/management/v1/admin/mappings', 'post', { body: { providerId, modelId, upstreamModelCode, endpointReference: null, reason } }),
+  adminCreateCredential: (providerId: Id, secret: string, reason: string) => call('/management/v1/admin/credentials', 'post', { body: { providerId, secret, reason } }),
+  adminSchedulePrice: (providerModelId: Id, effectiveFrom: string, inputPriceMicroUsdPerMillion: number, outputPriceMicroUsdPerMillion: number, reason: string) => call('/management/v1/admin/prices', 'post', { body: { providerModelId, effectiveFrom, inputPriceMicroUsdPerMillion, outputPriceMicroUsdPerMillion, cachedInputPriceMicroUsdPerMillion: null, reason } }),
+  adminSetStatus: (kind: 'providers' | 'models' | 'mappings' | 'credentials' | 'controls', id: Id, enabled: boolean, reason: string) => {
+    const body = { enabled, reason };
+    if (kind === 'controls') return call('/management/v1/admin/controls/{feature}', 'patch', { path: { feature: id }, body });
+    if (kind === 'providers') return call('/management/v1/admin/providers/{id}', 'patch', { path: { id }, body });
+    if (kind === 'models') return call('/management/v1/admin/models/{id}', 'patch', { path: { id }, body });
+    if (kind === 'mappings') return call('/management/v1/admin/mappings/{id}', 'patch', { path: { id }, body });
+    return call('/management/v1/admin/credentials/{id}', 'patch', { path: { id }, body });
+  },
+  organizations: () => call('/management/v1/organizations', 'get'),
+  createOrganization: (name: string) => call('/management/v1/organizations', 'post', { body: { name } }),
+  projects: (organizationId: Id) => call(`${org}/projects`, 'get', { path: { organizationId } }),
+  catalog: (organizationId: Id, projectId: Id) => call(`${org}/projects/{projectId}/catalog/models`, 'get', { path: { organizationId, projectId } }),
+  createProject: (organizationId: Id, name: string) => call(`${org}/projects`, 'post', { path: { organizationId }, body: { name } }),
+  keys: (projectId: Id) => call('/management/v1/projects/{projectId}/api-keys', 'get', { path: { projectId } }),
+  createKey: (projectId: Id, name: string) => call('/management/v1/projects/{projectId}/api-keys', 'post', { path: { projectId }, body: { name, expiresAt: null } }),
+  disableKey: (apiKeyId: Id) => call('/management/v1/api-keys/{apiKeyId}', 'patch', { path: { apiKeyId }, body: { status: 1 } }),
+  wallet: (organizationId: Id) => call(`${org}/billing/wallet`, 'get', { path: { organizationId } }),
+  quotes: (organizationId: Id, provider: 'Payme' | 'Click', amountTiyin: DecimalString) => call(`${org}/billing/quotes`, 'post', { path: { organizationId }, body: { provider, amountTiyin } }),
+  createTopUp: (organizationId: Id, quoteId: Id, idempotencyKey: string) => call(`${org}/billing/topups`, 'post', { path: { organizationId }, headers: { 'Idempotency-Key': idempotencyKey }, body: { quoteId } }),
+  topUps: (organizationId: Id) => call(`${org}/billing/topups`, 'get', { path: { organizationId } }),
+  customerRefunds: (organizationId: Id) => call(`${org}/billing/refunds`, 'get', { path: { organizationId } }),
+  activity: (organizationId: Id, filters: UsageFilters = {}, limit = 25, cursor?: string) => call(`${org}/usage/activity`, 'get', { path: { organizationId }, query: { ...filters, limit, cursor } }),
+  usageDetail: (organizationId: Id, requestId: Id) => call(`${org}/usage/requests/{requestId}`, 'get', { path: { organizationId, requestId } }),
+  usageSummary: (organizationId: Id, filters: UsageFilters = {}) => call(`${org}/usage/summary`, 'get', { path: { organizationId }, query: filters }),
+  usageTimeSeries: (organizationId: Id, filters: UsageFilters = {}) => call(`${org}/usage/timeseries`, 'get', { path: { organizationId }, query: filters }),
+  usageBreakdown: (organizationId: Id, dimension: 'model' | 'provider' | 'api-key' | 'project', filters: UsageFilters = {}) => {
+    const input = { path: { organizationId }, query: filters };
+    if (dimension === 'model') return call(`${org}/usage/by-model`, 'get', input);
+    if (dimension === 'provider') return call(`${org}/usage/by-provider`, 'get', input);
+    if (dimension === 'api-key') return call(`${org}/usage/by-api-key`, 'get', input);
+    return call(`${org}/usage/by-project`, 'get', input);
+  }
 };
 
 export function usdFromMicro(value: DecimalString): string {

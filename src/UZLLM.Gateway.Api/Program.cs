@@ -11,10 +11,11 @@ using UZLLM.Provider.Google;
 using UZLLM.Provider.DeepSeek;
 using UZLLM.Modules.Routing.Infrastructure;
 using UZLLM.Gateway.Api.Inference;
+using UZLLM.Gateway.Api.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
-builder.Services.AddOpenApi();
+builder.Services.AddGatewayOpenApi();
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmObservability(builder.Configuration, "UZLLM.Gateway.Api");
