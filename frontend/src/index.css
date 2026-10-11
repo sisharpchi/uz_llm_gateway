@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #09090b; /* Zinc 950 / pitch dark */
+    color: #f4f4f5; /* Zinc 100 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Minimalist scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a; /* Zinc 800 */
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46; /* Zinc 700 */
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid #52525b;
+  outline-offset: 1px;
+}
