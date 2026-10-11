@@ -78,7 +78,16 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         foreach (var status in response.Success)
         {
             var result = new OpenApiResponse { Description = status is 202 or 204 ? "Accepted; empty body." : "Success." };
-            if (response.Type is { } type)
+            if (path.EndsWith("/usage/export", StringComparison.Ordinal))
+            {
+                result.Content = new Dictionary<string, OpenApiMediaType>
+                { ["text/csv"] = new() { Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "binary" } } };
+                result.Headers = new Dictionary<string, IOpenApiHeader>();
+                foreach (var header in new[] { "Content-Disposition", "X-Content-Type-Options", "X-Usage-From",
+                    "X-Usage-To", "X-Usage-Data-As-Of", "X-Usage-Source", "X-Usage-Pending-Buckets", "X-Usage-Row-Count" })
+                    result.Headers[header] = new OpenApiHeader { Schema = new OpenApiSchema { Type = JsonSchemaType.String } };
+            }
+            else if (response.Type is { } type)
                 result.Content = new Dictionary<string, OpenApiMediaType>
                 { ["application/json"] = new() { Schema = await SchemaForAsync(type, context, cancellationToken) } };
             operation.Responses[status.ToString()] = result;
@@ -93,7 +102,8 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
                 429 => "Attempt limit reached; Retry-After is in seconds; empty body.",
                 _ => "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific."
             } };
-            if (status is 400 or 409 or 503)
+            if (status is 400 or 409 or 503
+                || path.EndsWith("/usage/export", StringComparison.Ordinal) && status is 413 or 504)
             {
                 result.Content = new Dictionary<string, OpenApiMediaType>
                 {
@@ -127,6 +137,26 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
             AddHeader(operation, "Idempotency-Key", true, "Replay is valid only for the same immutable quote.");
         if (path.Contains("/admin/", StringComparison.Ordinal))
             operation.Description = "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.";
+        if (path.EndsWith("/usage/export", StringComparison.Ordinal))
+        {
+            // Shared parameter binding rejects HTTP paging on complete exports.
+            // Do not advertise rejected paging parameters to generated clients.
+            foreach (var paging in operation.Parameters?.Where(parameter => parameter.Name is "limit" or "cursor").ToArray() ?? [])
+                operation.Parameters!.Remove(paging);
+            foreach (var parameter in operation.Parameters?.OfType<OpenApiParameter>() ?? [])
+            {
+                if (parameter.Name == "kind") parameter.Schema = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.String, Default = System.Text.Json.Nodes.JsonValue.Create("activity"),
+                    Enum = [System.Text.Json.Nodes.JsonValue.Create("activity"), System.Text.Json.Nodes.JsonValue.Create("daily")]
+                };
+                if (parameter.Name == "rowLimit") parameter.Schema = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.Integer, Minimum = "1", Maximum = "5000",
+                    Default = System.Text.Json.Nodes.JsonValue.Create(1000)
+                };
+            }
+        }
     }
 
     private static void AddHeader(OpenApiOperation operation, string name, bool required, string description)
@@ -197,6 +227,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Read<UsageRequestDetail>(org + "/usage/requests/{requestId}", 404);
         Read<UsageSummary>(org + "/usage/summary", 400);
         Read<UsageTimeSeries>(org + "/usage/timeseries", 400);
+        Add("GET", org + "/usage/export", null, 200, 400, 401, 403, 413, 504);
         foreach (var dimension in new[] { "model", "provider", "api-key", "project" })
             Read<UsageBreakdown>(org + "/usage/by-" + dimension, 400);
         Read<PayloadRetentionPolicy>(project + "/payload-retention", 404);

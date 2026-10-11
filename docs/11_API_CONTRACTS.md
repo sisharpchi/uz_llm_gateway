@@ -687,7 +687,11 @@ they may exceed JavaScript safe integers. Aggregate responses include `dataAsOf`
 ### Usage reads implemented by USAGE-002
 
 All routes below are under `/management/v1/organizations/{organizationId}/usage`
-and require an authenticated organization owner:
+and require an authenticated account with current `ReadUsage` permission.
+Owner/Admin/BillingViewer may read organization-wide; Developer/ReadOnly must
+specify a currently granted project for list/aggregate/export reads. Request
+detail derives the project from the stored request and checks current grants.
+Revoked grants are checked on each request:
 
 ```text
 GET /activity?from=<UTC>&to=<UTC>&limit=50&cursor=<opaque>
@@ -727,6 +731,37 @@ out of a filter. Gross `chargedMicroUsd` keeps its meaning; `refundedMicroUsd`
 and `netChargedMicroUsd` separately report wallet-credit refunds and gross minus
 refunds in summary/daily/breakdown results. Neither is a wallet balance.
 See [rollup publication, lag and correction rules](21_USAGE_ROLLUPS.md).
+
+### Bounded usage CSV export (`USAGE-005`, FR-095)
+
+```text
+GET /management/v1/organizations/{organizationId}/usage/export?kind=activity&rowLimit=1000&from=<UTC>&to=<UTC>
+```
+
+Uses the same `ReadUsage` authorization, filters and UTC `[from,to)` normalization
+as usage reads. `kind` is `activity` (default) or `daily`; `rowLimit` defaults to
+1000 and accepts 1–5000. The complete UTF-8 BOM/quoted CSV must fit 4 MiB;
+`limit`/`cursor` are rejected rather than silently exporting one page. Invalid
+filters return `400`, missing session `401`, forbidden scope `403`, excess rows
+or bytes `413`, and the 30-second server deadline `504`. No partial attachment
+is returned on failure. Client disconnect cancels database I/O and serialization.
+
+Success is `text/csv; charset=utf-8`, `Content-Disposition: attachment` with
+`uzllm-activity.csv` or `uzllm-daily.csv`, `Cache-Control: no-store`, and
+`X-Content-Type-Options: nosniff`. Headers `X-Usage-From`, `X-Usage-To`,
+`X-Usage-Data-As-Of`, `X-Usage-Source`, `X-Usage-Pending-Buckets`, and
+`X-Usage-Row-Count` describe even an empty, header-only export. Rows repeat
+scope/freshness metadata. Activity uses the live metadata projection in one
+bounded statement; daily uses the same snapshot and lag/refund/net semantics as
+`/timeseries`. Unknown activity tokens/charges are blank, not fabricated zero;
+amounts retain integer micro-USD text without floating-point conversion.
+
+All fields are quoted and embedded quotes doubled. Unsafe formula prefixes
+(including whitespace/control/format bypasses and full-width equivalents) gain
+a leading apostrophe. This is a CSV escaping policy, **not** a universal
+spreadsheet/save-reopen safety guarantee: import untrusted names as text.
+Bodies, credentials and trace IDs are excluded. See [schema, examples and
+validation](22_USAGE_EXPORT.md).
 
 ### Opt-in payload retention (`PRIVACY-001`)
 

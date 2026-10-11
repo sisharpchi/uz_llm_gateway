@@ -154,6 +154,30 @@ public sealed class OpenApiWireContractTests : IDisposable
         Assert.DoesNotContain("/v1/embeddings", paths);
     }
 
+    [Fact]
+    public void Published_usage_export_contract_describes_binary_csv_bounds_auth_and_failures()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(Root, "docs/api/management-v1.openapi.json")));
+        var operation = document.RootElement.GetProperty("paths")
+            .GetProperty("/management/v1/organizations/{organizationId}/usage/export").GetProperty("get");
+        Assert.True(operation.GetProperty("security")[0].TryGetProperty("Session", out _));
+        var responses = operation.GetProperty("responses");
+        var success = responses.GetProperty("200");
+        var content = success.GetProperty("content");
+        Assert.Single(content.EnumerateObject());
+        Assert.Equal("binary", content.GetProperty("text/csv").GetProperty("schema").GetProperty("format").GetString());
+        Assert.Equal("no-store", success.GetProperty("headers").GetProperty("Cache-Control").GetProperty("schema").GetProperty("enum")[0].GetString());
+        foreach (var header in new[] { "Content-Disposition", "X-Content-Type-Options", "X-Usage-From", "X-Usage-To", "X-Usage-Data-As-Of", "X-Usage-Source", "X-Usage-Pending-Buckets", "X-Usage-Row-Count" })
+            Assert.True(success.GetProperty("headers").TryGetProperty(header, out _), header);
+        foreach (var status in new[] { "400", "401", "403", "413", "504" })
+            Assert.True(responses.TryGetProperty(status, out _), status);
+        Assert.True(responses.GetProperty("413").GetProperty("content").TryGetProperty("application/problem+json", out _));
+        var limit = operation.GetProperty("parameters").EnumerateArray().Single(value => value.GetProperty("name").GetString() == "rowLimit").GetProperty("schema");
+        Assert.Equal(1, limit.GetProperty("minimum").GetInt32());
+        Assert.Equal(5000, limit.GetProperty("maximum").GetInt32());
+        Assert.Equal(1000, limit.GetProperty("default").GetInt32());
+    }
+
     private DefaultHttpContext Context()
     {
         var context = new DefaultHttpContext { RequestServices = services };

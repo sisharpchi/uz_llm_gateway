@@ -19,6 +19,12 @@ const exactWalletMoney: WalletResult['postedBalanceMicroUsd'] = '900719925474099
 const lossyWalletMoney: WalletResult['postedBalanceMicroUsd'] = 9007199254740992;
 type Completion = GatewayPaths['/v1/chat/completions']['post']['responses'][200]['content']['application/json'];
 const unknownUsage: Completion['usage'] = null;
+type CsvResult = Awaited<ReturnType<typeof management.exportUsage>>;
+const csvDownload: CsvResult = new Blob(['csv'], { type: 'text/csv' });
+// @ts-expect-error Binary downloads must not masquerade as JSON strings.
+const invalidCsvDownload: CsvResult = 'csv';
+// @ts-expect-error Only the documented CSV kinds are supported.
+const invalidCsvKind: Parameters<typeof management.exportUsage>[1] = 'summary';
 
 void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
-  exactWalletMoney, lossyWalletMoney, unknownUsage];
+  exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind];

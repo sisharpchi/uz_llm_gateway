@@ -1,0 +1,17 @@
+@baseUrl = https://localhost:7150
+@organizationId = 11111111-1111-4111-8111-111111111111
+@session = replace-with-local-browser-session
+
+### Complete activity CSV: same ReadUsage permission as /activity, no secrets/payloads
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/usage/export?kind=activity&rowLimit=1000&from=2026-10-01T00:00:00Z&to=2026-10-02T00:00:00Z
+Cookie: __Host-uzllm-session={{session}}
+Accept: text/csv
+
+### Daily usage CSV: exactly the /timeseries read model, including lag/refund/net
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/usage/export?kind=daily&rowLimit=100&from=2026-10-01T00:00:00Z&to=2026-10-02T00:00:00Z
+Cookie: __Host-uzllm-session={{session}}
+Accept: text/csv
+
+### Invalid export bound: 400. More matching rows than rowLimit: 413, not a truncated CSV
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/usage/export?rowLimit=5001
+Cookie: __Host-uzllm-session={{session}}

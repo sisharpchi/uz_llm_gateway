@@ -1290,6 +1290,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/organizations/{organizationId}/usage/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download bounded activity or daily usage CSV.
+         * @description Same tenant/project permissions and UTC filters as usage reads. Default 1000, maximum 5000 rows and 4 MiB; no partial export. Unknown values are blank; monetary units are integer micro-USD.
+         */
+        get: operations["ExportUsageCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/organizations/{organizationId}/usage/requests/{requestId}": {
         parameters: {
             query?: never;
@@ -8546,6 +8566,98 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ExportUsageCsv: {
+        parameters: {
+            query?: {
+                apiKeyId?: string;
+                from?: string;
+                isStream?: boolean;
+                kind?: "activity" | "daily";
+                modelId?: string;
+                projectId?: string;
+                providerId?: string;
+                requestId?: string;
+                rowLimit?: number;
+                status?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "Content-Disposition"?: string;
+                    "X-Content-Type-Options"?: string;
+                    "X-Usage-Data-As-Of"?: string;
+                    "X-Usage-From"?: string;
+                    "X-Usage-Pending-Buckets"?: string;
+                    "X-Usage-Row-Count"?: string;
+                    "X-Usage-Source"?: string;
+                    "X-Usage-To"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
             };
         };
     };

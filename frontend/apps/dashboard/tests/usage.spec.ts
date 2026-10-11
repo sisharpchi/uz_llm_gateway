@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 const one = '11111111-1111-1111-1111-111111111111';
 const two = '22222222-2222-2222-2222-222222222222';
@@ -14,6 +15,9 @@ async function mockUsage(page: Page) {
     if (path.endsWith('/auth/session')) return json({ accountId: 'owner', email: 'owner@example.uz', emailVerified: true, isOperator: false });
     if (path.endsWith('/organizations')) return json([{ id: one, name: 'Alpha', status: 0 }, { id: two, name: 'Beta', status: 0 }]);
     if (path.endsWith('/projects')) return json([{ id: path.includes(one) ? 'project-one' : 'project-two', name: path.includes(one) ? 'Alpha project' : 'Beta project', status: 0 }]);
+    if (path.endsWith('/api-keys')) return json([{ id: 'key-one', projectId: 'project-one', name: 'Alpha key', prefix: 'uzllm_test', status: 0 }]);
+    if (path.endsWith('/usage/by-model')) return json({ items: [{ id: 'model-one', name: 'gpt-test' }] });
+    if (path.endsWith('/usage/by-provider')) return json({ items: [{ id: 'provider-one', name: 'OpenAI' }] });
     if (path.endsWith('/billing/wallet')) return json({ organizationId: one, postedBalanceMicroUsd: '0', reservedBalanceMicroUsd: '0', availableBalanceMicroUsd: '0', version: 0 });
     if (path.endsWith('/usage/activity')) return json({ dataAsOf: new Date().toISOString(), nextCursor: null,
       items: path.includes(one) ? [{ requestId, projectId: 'project-one', projectName: 'Alpha project', apiKeyId: 'key-one', apiKeyName: 'Alpha key',
@@ -42,7 +46,7 @@ async function mockUsage(page: Page) {
 test('activity opens safe detail and tenant switch does not retain prior rows', async ({ page }) => {
   const calls = await mockUsage(page);
   await page.goto(`/organizations/${one}/activity`);
-  await expect(page.getByText('gpt-test')).toBeVisible();
+  await expect(page.getByRole('button', { name: `Inspect request ${requestId}` })).toBeVisible();
   await page.getByRole('button', { name: `Inspect request ${requestId}` }).click();
   await expect(page.getByText('safe-trace')).toBeVisible();
   await expect(page.getByText('Prompt and response bodies are not retained in this view.')).toBeVisible();
@@ -93,3 +97,121 @@ test('analytics refreshes rollup counters and makes pending corrections and refu
   await expect(page.getByText('Oldest hourly snapshot:', { exact: false })).toBeVisible();
   expect(reads).toBe(initialReads + 1);
 });
+
+test('activity downloads server CSV with active UTC filters, not just loaded rows', async ({ page }) => {
+  await mockUsage(page);
+  const csv = '\uFEFF"requestId","chargedMicroUsd"\r\n"first","9007199254740993"\r\n"not-loaded",""\r\n';
+  let query: URLSearchParams | undefined;
+  await page.route('**/usage/export?*', route => {
+    query = new URL(route.request().url()).searchParams;
+    return route.fulfill({ contentType: 'text/csv; charset=utf-8', body: csv });
+  });
+  await page.goto(`/organizations/${one}/activity`);
+  await expect(page.getByRole('button', { name: `Inspect request ${requestId}` })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Filter project' }).selectOption('project-one');
+  await page.getByRole('combobox', { name: 'API key' }).selectOption('key-one');
+  await page.getByRole('combobox', { name: 'Model', exact: true }).selectOption('model-one');
+  await page.getByRole('combobox', { name: 'Provider', exact: true }).selectOption('provider-one');
+  await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('OutcomeUnknown');
+  await page.getByRole('combobox', { name: 'Delivery', exact: true }).selectOption('true');
+  const event = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export activity CSV' }).click();
+  const download = await event;
+  expect(download.suggestedFilename()).toBe('uzllm-activity.csv');
+  expect(await readFile((await download.path())!, 'utf8')).toBe(csv);
+  expect(query?.get('kind')).toBe('activity');
+  expect(query?.get('rowLimit')).toBe('1000');
+  expect(query?.get('projectId')).toBe('project-one');
+  expect(query?.get('apiKeyId')).toBe('key-one');
+  expect(query?.get('modelId')).toBe('model-one');
+  expect(query?.get('providerId')).toBe('provider-one');
+  expect(query?.get('status')).toBe('OutcomeUnknown');
+  expect(query?.get('isStream')).toBe('true');
+  expect(query?.get('from')).toMatch(/T00:00:00.000Z$/);
+  expect(query?.get('to')).toMatch(/T00:00:00.000Z$/);
+  expect(query?.has('limit')).toBe(false);
+  expect(query?.has('cursor')).toBe(false);
+  await expect(page.getByText('CSV downloaded.', { exact: false })).toBeVisible();
+});
+
+test('daily CSV preserves backend refund/net fields and does not export chart pixels', async ({ page }) => {
+  await mockUsage(page);
+  const csv = '"day","chargedMicroUsd","refundedMicroUsd","netChargedMicroUsd"\r\n"2026-10-01","3200","1000","2200"\r\n';
+  await page.route('**/usage/export?*', route => {
+    expect(new URL(route.request().url()).searchParams.get('kind')).toBe('daily');
+    return route.fulfill({ contentType: 'text/csv', body: csv });
+  });
+  await page.goto(`/organizations/${one}/analytics`);
+  const event = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export daily CSV' }).click();
+  const download = await event;
+  expect(download.suggestedFilename()).toBe('uzllm-daily.csv');
+  expect(await readFile((await download.path())!, 'utf8')).toBe(csv);
+  await page.getByLabel('From (UTC)').fill('2020-01-01');
+  await expect(page.getByRole('button', { name: 'Export daily CSV' })).toBeDisabled();
+});
+
+test('oversized export shows no-partial error, allows retry and disables invalid date ranges', async ({ page }) => {
+  await mockUsage(page);
+  let attempts = 0;
+  const downloads: string[] = [];
+  page.on('download', download => downloads.push(download.suggestedFilename()));
+  await page.route('**/usage/export?*', route => {
+    attempts += 1;
+    return attempts === 1
+      ? route.fulfill({ status: 413, contentType: 'application/problem+json', body: '{"title":"Export too large"}' })
+      : route.fulfill({ contentType: 'text/csv', body: '"requestId"\r\n' });
+  });
+  await page.goto(`/organizations/${one}/activity`);
+  const button = page.getByRole('button', { name: 'Export activity CSV' });
+  await button.click();
+  await expect(page.getByRole('alert').filter({ hasText: 'no partial CSV was downloaded' })).toBeVisible();
+  expect(downloads).toEqual([]);
+  const event = page.waitForEvent('download');
+  await button.click();
+  await event;
+  expect(attempts).toBe(2);
+  await page.getByLabel('From (UTC)').fill('2020-01-01');
+  await expect(button).toBeDisabled();
+  await expect(page.getByRole('alert').filter({ hasText: 'at most 90 days' })).toBeVisible();
+});
+
+test('tenant switch aborts pending export and never downloads the old tenant response', async ({ page }) => {
+  await mockUsage(page);
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const downloads: string[] = [];
+  page.on('download', download => downloads.push(download.suggestedFilename()));
+  await page.route('**/usage/export?*', async route => {
+    await held;
+    await route.fulfill({ contentType: 'text/csv', body: 'old tenant' }).catch(() => {});
+  });
+  await page.goto(`/organizations/${one}/activity`);
+  const started = page.waitForRequest('**/usage/export?*');
+  await page.getByRole('button', { name: 'Export activity CSV' }).click();
+  const request = await started;
+  await expect(page.getByRole('button', { name: 'Preparing CSV…' })).toBeDisabled();
+  const aborted = page.waitForEvent('requestfailed', { predicate: failed => failed === request });
+  await page.getByRole('combobox', { name: 'Organization' }).selectOption(two);
+  await aborted;
+  release();
+  await page.getByRole('link', { name: 'Activity' }).click();
+  await expect(page.getByText('No requests match this window and filters.')).toBeVisible();
+  await expect(page.getByText('Preparing complete CSV…')).toHaveCount(0);
+  expect(downloads).toEqual([]);
+});
+
+for (const status of [403, 504]) {
+  test(`CSV ${status} shows a safe error without downloading a file`, async ({ page }) => {
+    await mockUsage(page);
+    const downloads: string[] = [];
+    page.on('download', download => downloads.push(download.suggestedFilename()));
+    await page.route('**/usage/export?*', route => route.fulfill({ status, contentType: 'application/problem+json', body: '{}' }));
+    await page.goto(`/organizations/${one}/activity`);
+    const button = page.getByRole('button', { name: 'Export activity CSV' });
+    await button.click();
+    await expect(page.getByRole('alert').filter({ hasText: status === 403 ? 'not authorized for this scope' : 'could not be downloaded' })).toBeVisible();
+    await expect(button).toBeEnabled();
+    expect(downloads).toEqual([]);
+  });
+}

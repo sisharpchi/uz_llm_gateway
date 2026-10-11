@@ -6,7 +6,7 @@ FR-096 / ADR-014 are implemented with rebuildable PostgreSQL UTC-hour read
 models. Wallet, ledger, reservations, settlement and payment accounting remain
 authoritative and strongly consistent. Analytics cannot admit spending or
 post money. Redis, provider HTTP, payload bodies and secrets are not involved.
-CSV export remains `USAGE-005`.
+Bounded CSV is delivered separately by `USAGE-005`; see [export contract and evidence](22_USAGE_EXPORT.md).
 
 ## Publication and recovery
 

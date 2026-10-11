@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { management, usageUsdFromMicro, type Project, type UsageFilters, type UsageRequestDetail } from '@uzllm/api-client';
+import { UsageExportButton } from './UsageExportButton';
 
 const startOfDay = (value: Date) => new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 const today = () => startOfDay(new Date()).toISOString().slice(0, 10);
@@ -99,6 +100,7 @@ export function ActivityPage({ organizationId, projectId, projects }: { organiza
     {effectiveKey && keySummary.data && <div className="panel usage-key-summary" role="status"><strong>{keys.data?.find(key => key.id === effectiveKey)?.name} usage</strong>
       <span>{keySummary.data.requestCount.toLocaleString()} requests</span><span>{(keySummary.data.inputTokens + keySummary.data.outputTokens).toLocaleString()} verified tokens</span>
       <span>{usageUsdFromMicro(keySummary.data.chargedMicroUsd)} settled charge</span></div>}
+    <UsageExportButton organizationId={organizationId} kind="activity" filters={filters} disabled={invalidWindow} />
     <div className="usage-layout"><section className="panel usage-table-panel" aria-label="Request activity">
       <div className="usage-section-head"><h2>Requests</h2><span className="muted">{activity.isFetching ? 'Updating…' : `${rows.length} loaded`}</span></div>
       {activity.isPending && !invalidWindow ? <p role="status" className="muted">Loading activity…</p>
@@ -156,14 +158,16 @@ function RequestInspector({ detail }: { detail: UsageRequestDetail }) {
 export function AnalyticsPage({ organizationId, projectId }: { organizationId: string; projectId?: string }) {
   const window = useWindow(projectId);
   const filters = window.filters;
-  const invalidWindow = window.from > window.to || !window.from || !window.to;
+  const windowDays = (Date.parse(`${window.to}T00:00:00Z`) - Date.parse(`${window.from}T00:00:00Z`)) / 86_400_000 + 1;
+  const invalidWindow = window.from > window.to || !window.from || !window.to || !Number.isFinite(windowDays) || windowDays > 90;
   const summary = useQuery({ queryKey: ['usage-summary', organizationId, filters], queryFn: () => management.usageSummary(organizationId, filters), enabled: !invalidWindow, ...analyticsRefresh });
   const daily = useQuery({ queryKey: ['usage-daily', organizationId, filters], queryFn: () => management.usageTimeSeries(organizationId, filters), enabled: !invalidWindow, ...analyticsRefresh });
   const maxRequests = Math.max(1, ...(daily.data?.items.map(item => item.requestCount) ?? []));
   return <><div className="page-heading"><span className="eyebrow">USAGE INTELLIGENCE</span><h1>Analytics</h1>
     <p>Verified token evidence and settled charges across your selected window.</p></div>
     <div className="usage-toolbar panel"><WindowControls {...window} /></div>
-    {invalidWindow && <p role="alert" className="error">Choose a valid date range.</p>}
+    <UsageExportButton organizationId={organizationId} kind="daily" filters={filters} disabled={invalidWindow} />
+    {invalidWindow && <p role="alert" className="error">Choose a valid UTC date range of at most 90 days.</p>}
     {(summary.isError || daily.isError) && <p role="alert" className="error">Analytics could not be loaded. Try a shorter range.</p>}
     {summary.isPending ? <p role="status" className="muted">Loading analytics…</p> : summary.data && <>
       <div className="usage-metrics"><div className="panel metric"><span>Requests</span><strong>{summary.data.requestCount.toLocaleString()}</strong><small>{summary.data.completedCount} completed</small></div>

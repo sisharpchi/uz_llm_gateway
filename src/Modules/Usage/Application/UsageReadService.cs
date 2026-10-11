@@ -4,7 +4,8 @@ using UZLLM.Modules.Usage.Contracts;
 
 namespace UZLLM.Modules.Usage.Application;
 
-public sealed class UsageReadService(IUsageReadStore store, TimeProvider timeProvider) : IUsageReadService
+public sealed partial class UsageReadService(IUsageReadStore store, TimeProvider timeProvider)
+    : IUsageReadService, IUsageExportService
 {
     private static readonly TimeSpan DefaultWindow = TimeSpan.FromDays(30);
     private static readonly TimeSpan MaximumWindow = TimeSpan.FromDays(90);

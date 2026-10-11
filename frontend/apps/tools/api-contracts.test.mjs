@@ -117,6 +117,23 @@ test('session CSRF operator and idempotency requirements stay explicit', () => {
   assert.match(chat.responses['200'].description, /event: error/);
 });
 
+test('usage CSV is a bounded authenticated binary download, not a JSON page', () => {
+  const operation = documents.management.paths['/management/v1/organizations/{organizationId}/usage/export'].get;
+  assert.deepEqual(operation.security, [{ Session: [] }]);
+  assert.deepEqual(Object.keys(operation.responses['200'].content), ['text/csv']);
+  assert.deepEqual(operation.responses['200'].content['text/csv'].schema, { format: 'binary', type: 'string' });
+  const parameters = Object.fromEntries(operation.parameters.map(item => [item.name, item]));
+  assert.equal(parameters.limit, undefined);
+  assert.equal(parameters.cursor, undefined);
+  assert.deepEqual(parameters.kind.schema.enum, ['activity', 'daily']);
+  assert.equal(parameters.rowLimit.schema.minimum, 1);
+  assert.equal(parameters.rowLimit.schema.maximum, 5000);
+  assert.equal(parameters.rowLimit.schema.default, 1000);
+  for (const status of ['400', '401', '403', '413', '504']) assert.ok(operation.responses[status]);
+  assert.ok(operation.responses['504'].content['application/problem+json']);
+  assert.ok(operation.responses['200'].headers['X-Usage-Data-As-Of']);
+});
+
 test('drift comparison detects schema and client changes without treating CRLF as drift', () => {
   assert.equal(artifactMatches('contract\n', 'contract\r\n'), true);
   assert.equal(artifactMatches('contract\n', 'changed\n'), false);

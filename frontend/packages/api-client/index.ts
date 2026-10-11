@@ -55,14 +55,15 @@ type Operation<P extends keyof paths, M extends Verb & keyof paths[P]> = NonNull
 type ParametersOf<O> = O extends { parameters: infer P } ? P : never;
 type OptionalParameter<O, K extends PropertyKey> = K extends keyof ParametersOf<O> ? NonNullable<ParametersOf<O>[K]> : never;
 type HeadersOf<O> = Omit<OptionalParameter<O, 'header'>, 'X-CSRF-Token'>;
-type Input<O> =
+type Input<O> = { signal?: AbortSignal } &
   (ParametersOf<O> extends { path: infer P } ? { path: P } : { path?: never }) &
   (ParametersOf<O> extends { query: infer Q } ? { query: Q } : { query?: OptionalParameter<O, 'query'> }) &
   (O extends { requestBody: { content: { 'application/json': infer B } } } ? { body: B } : { body?: never }) &
   ({} extends HeadersOf<O> ? { headers?: HeadersOf<O> } : { headers: HeadersOf<O> });
 type Success<O> = O extends { responses: infer R } ? {
   [S in keyof R]: S extends 200 | 201 | 202 | 204
-    ? R[S] extends { content: { 'application/json': infer T } } ? T : void : never
+    ? R[S] extends { content: { 'application/json': infer T } } ? T
+      : R[S] extends { content: { 'text/csv': unknown } } ? Blob : void : never
 }[keyof R] : never;
 
 // Only the transport casts decoded JSON; every caller's method/path/input/output comes from OpenAPI.
@@ -70,7 +71,7 @@ async function call<P extends keyof paths, M extends Verb & keyof paths[P]>(
   template: P, method: M, ...args: {} extends Input<Operation<P, M>>
     ? [input?: Input<Operation<P, M>>] : [input: Input<Operation<P, M>>]
 ): Promise<Success<Operation<P, M>>> {
-  const input = args[0] as { path?: Record<string, unknown>; query?: Record<string, unknown>; body?: unknown; headers?: HeadersInit } | undefined;
+  const input = args[0] as { path?: Record<string, unknown>; query?: Record<string, unknown>; body?: unknown; headers?: HeadersInit; signal?: AbortSignal } | undefined;
   const path = template.replace(/\{([^}]+)\}/g, (_, name: string) => encodeURIComponent(String(input?.path?.[name])));
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(input?.query ?? {}))
@@ -79,10 +80,12 @@ async function call<P extends keyof paths, M extends Verb & keyof paths[P]>(
   if (input?.body !== undefined) headers.set('Content-Type', 'application/json');
   if (method !== 'get') { const csrf = csrfToken(); if (csrf) headers.set('X-CSRF-Token', csrf); }
   const response = await fetch(path + (query.size ? '?' + query : ''), {
-    method: method.toUpperCase(), headers, credentials: 'same-origin',
+    method: method.toUpperCase(), headers, credentials: 'same-origin', signal: input?.signal,
     body: input?.body === undefined ? undefined : JSON.stringify(input.body)
   });
   if (!response.ok) throw new ApiError(response.status);
+  if (response.headers.get('Content-Type')?.startsWith('text/csv'))
+    return await response.blob() as Success<Operation<P, M>>;
   return response.status === 204 || response.status === 202
     ? undefined as Success<Operation<P, M>> : await response.json() as Success<Operation<P, M>>;
 }
@@ -144,6 +147,8 @@ export const management = {
   usageDetail: (organizationId: Id, requestId: Id) => call(`${org}/usage/requests/{requestId}`, 'get', { path: { organizationId, requestId } }),
   usageSummary: (organizationId: Id, filters: UsageFilters = {}) => call(`${org}/usage/summary`, 'get', { path: { organizationId }, query: filters }),
   usageTimeSeries: (organizationId: Id, filters: UsageFilters = {}) => call(`${org}/usage/timeseries`, 'get', { path: { organizationId }, query: filters }),
+  exportUsage: (organizationId: Id, kind: 'activity' | 'daily', filters: UsageFilters = {}, signal?: AbortSignal) =>
+    call(`${org}/usage/export`, 'get', { path: { organizationId }, query: { ...filters, kind, rowLimit: 1000 }, signal }),
   usageBreakdown: (organizationId: Id, dimension: 'model' | 'provider' | 'api-key' | 'project', filters: UsageFilters = {}) => {
     const input = { path: { organizationId }, query: filters };
     if (dimension === 'model') return call(`${org}/usage/by-model`, 'get', input);

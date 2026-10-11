@@ -74,6 +74,40 @@ public static class UsageReadEndpoints
             TypedResults.Ok(await service.GetTimeSeriesAsync(organizationId, parameters.ToQuery(), cancellationToken)))
             .WithName("GetUsageTimeSeries").WithSummary("Read UTC daily usage rollups.");
 
+        usage.MapGet("/export", async Task<IResult> (Guid organizationId,
+            [AsParameters] UsageReadQueryParameters parameters, string? kind, int? rowLimit,
+            HttpContext context, IUsageExportService service, CancellationToken cancellationToken) =>
+        {
+            if (parameters.Limit is not null || parameters.Cursor is not null)
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    { ["query"] = ["Export is complete or rejected; use rowLimit, not limit/cursor."] });
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(30));
+            try
+            {
+                var csv = await service.ExportAsync(organizationId, parameters.ToQuery(), kind, rowLimit, deadline.Token);
+                context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+                context.Response.Headers["X-Usage-From"] = csv.From.ToString("O");
+                context.Response.Headers["X-Usage-To"] = csv.To.ToString("O");
+                context.Response.Headers["X-Usage-Data-As-Of"] = csv.DataAsOf.ToString("O");
+                context.Response.Headers["X-Usage-Source"] = csv.Source;
+                context.Response.Headers["X-Usage-Pending-Buckets"] = csv.PendingBucketCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                context.Response.Headers["X-Usage-Row-Count"] = csv.RowCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return TypedResults.File(csv.Content, "text/csv; charset=utf-8", csv.FileName);
+            }
+            catch (UsageExportLimitException)
+            {
+                return TypedResults.Problem(statusCode: 413, title: "Export too large",
+                    detail: "Narrow the date range or filters. No partial export was produced.");
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                return TypedResults.Problem(statusCode: 504, title: "Export deadline exceeded",
+                    detail: "Narrow the date range or filters and retry.");
+            }
+        }).WithName("ExportUsageCsv").WithSummary("Download bounded activity or daily usage CSV.")
+            .WithDescription("Same tenant/project permissions and UTC filters as usage reads. Default 1000, maximum 5000 rows and 4 MiB; no partial export. Unknown values are blank; monetary units are integer micro-USD.");
+
         MapBreakdown(usage, "/by-model", UsageBreakdownDimension.Model);
         MapBreakdown(usage, "/by-provider", UsageBreakdownDimension.Provider);
         MapBreakdown(usage, "/by-api-key", UsageBreakdownDimension.ApiKey);

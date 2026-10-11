@@ -20,6 +20,9 @@ prerequisites. This is not yet a paid-launch claim.
 Usage analytics now uses durable hourly read models with a five-second Worker
 poll, live partial-hour reads, explicit backlog/freshness and gross/refund/net
 charge fields. See [rollup semantics and operations](docs/21_USAGE_ROLLUPS.md).
+Activity and Analytics can download bounded, tenant-authorized CSV with the
+same filters, UTC windows and unknown/lag semantics as the API. See
+[export limits, schema and spreadsheet handling](docs/22_USAGE_EXPORT.md).
 
 ## Local development
 
