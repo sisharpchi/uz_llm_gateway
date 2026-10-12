@@ -453,6 +453,19 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
                   END IF;
                 END $$;
                 """);
+        // Disposable fixture only: production downgrade must never silently
+        // discard configured API-key restrictions.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema = 'gateway' AND table_name = 'api_key'
+                        AND column_name = 'allowed_models') THEN
+                    UPDATE gateway.api_key SET allowed_models = NULL, denied_models = NULL,
+                      allowed_providers = NULL, denied_providers = NULL;
+                  END IF;
+                END $$;
+                """);
         // Disposable fixture: the payment reconciliation downgrade cannot map
         // source-only cases back to the legacy non-null intent FK.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()

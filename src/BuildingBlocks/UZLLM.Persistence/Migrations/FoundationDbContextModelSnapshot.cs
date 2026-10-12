@@ -1157,6 +1157,14 @@ namespace UZLLM.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.PrimitiveCollection<string[]>("AllowedModels")
+                        .HasColumnType("text[]")
+                        .HasColumnName("allowed_models");
+
+                    b.PrimitiveCollection<string[]>("AllowedProviders")
+                        .HasColumnType("text[]")
+                        .HasColumnName("allowed_providers");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1164,6 +1172,14 @@ namespace UZLLM.Persistence.Migrations
                     b.Property<Guid>("CreatedByAccountId")
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
+
+                    b.PrimitiveCollection<string[]>("DeniedModels")
+                        .HasColumnType("text[]")
+                        .HasColumnName("denied_models");
+
+                    b.PrimitiveCollection<string[]>("DeniedProviders")
+                        .HasColumnType("text[]")
+                        .HasColumnName("denied_providers");
 
                     b.Property<DateTimeOffset?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")

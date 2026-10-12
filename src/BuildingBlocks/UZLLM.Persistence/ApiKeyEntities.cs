@@ -13,6 +13,10 @@ public sealed class GatewayApiKeyEntity
     public Guid CreatedByAccountId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public int Generation { get; set; } = 1;
+    public string[]? AllowedModels { get; set; }
+    public string[]? DeniedModels { get; set; }
+    public string[]? AllowedProviders { get; set; }
+    public string[]? DeniedProviders { get; set; }
     public ProjectEntity Project { get; set; } = null!;
     public IdentityAccountEntity CreatedByAccount { get; set; } = null!;
 }

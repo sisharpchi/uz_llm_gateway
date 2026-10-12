@@ -84,6 +84,52 @@ Payment errors remain provider-native response bodies after proxying.
 
 ---
 
+## 1a. API-key model/provider permissions
+
+`PUT /management/v1/api-keys/{apiKeyId}/permissions` replaces all four lists:
+
+```json
+{
+  "allowedModels": ["example-chat"],
+  "deniedModels": null,
+  "allowedProviders": ["openai", "anthropic"],
+  "deniedProviders": ["anthropic"]
+}
+```
+
+Requires a current session, `X-CSRF-Token`, and `ManageApiKeys` permission on
+the key's project (Owner/Admin or explicitly project-granted Developer).
+Returns `204`; missing session `401`, denied role/tenant/CSRF `403`, unknown
+key `404`, invalid rules `400`. All responses are `no-store`. Key listing and
+create/rotate metadata include `permissions`; secrets remain show-once.
+
+Null/omitted allowlists mean unrestricted; `[]` denies everything in that
+dimension. Null/empty denylists deny nothing. Deny wins over allow; model AND
+provider must pass. `{}` resets to unrestricted. Each list accepts at most
+128 catalog codes, trimmed/lowercased/deduplicated/sorted: 1–200 ASCII letters,
+digits, `-`, `_`, `.`, `:`, starting with a letter/digit. Model codes are
+canonical, never provider-prefixed; aliases/wildcards are unsupported. Unknown
+JSON properties are rejected to prevent misspelled restrictions becoming open
+policies. Syntactically valid unpublished codes can be preconfigured; they do
+not create routes or authorize a disabled catalog entry.
+
+Gateway rejects forbidden models, pinned providers, and explicit forbidden
+fallbacks with `403 api_key_permission_denied` before reservation/dispatch.
+Other provider candidates are filtered before ranking/hold estimation across
+Managed, BYOK and Hybrid. `/v1/models` exposes only permitted models/mappings;
+its price maxima cover only those mappings. Session-based catalog discovery
+remains project-scoped, not scoped to an unrelated Gateway key.
+
+PostgreSQL is read at authentication and again immediately before financial
+admission. A committed tightening/revocation observed at the latter read
+rejects the request, rather than rebuilding a route silently. That read is
+the permission-snapshot boundary: later changes affect subsequent admission,
+not an already admitted stream or its settlement. No Redis permission cache.
+Concurrent full replacements are last-committed-write-wins, never fieldwise
+merges; secret rotation never overwrites permissions. Mutation and audit commit
+together. Price-class restrictions remain unspecified: no taxonomy/rank exists
+in Catalog, and APIKEYS-004 does not invent one (see FR-027).
+
 ## 2. Chat completions [P0]
 
 ```http

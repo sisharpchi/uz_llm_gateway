@@ -51,6 +51,15 @@ public sealed class PostgreSqlApiKeyStore(FoundationDbContext dbContext) : IApiK
             .Where(apiKey => apiKey.Id == apiKeyId && apiKey.Status != status.ToString())
             .ExecuteUpdateAsync(setters => setters.SetProperty(apiKey => apiKey.Status, status.ToString()), cancellationToken) == 1;
 
+    public async Task<bool> TrySetPermissionsAsync(Guid apiKeyId, ApiKeyPermissions permissions,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.Set<GatewayApiKeyEntity>().Where(value => value.Id == apiKeyId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(value => value.AllowedModels, permissions.AllowedModels == null ? null : permissions.AllowedModels.ToArray())
+                .SetProperty(value => value.DeniedModels, permissions.DeniedModels == null ? null : permissions.DeniedModels.ToArray())
+                .SetProperty(value => value.AllowedProviders, permissions.AllowedProviders == null ? null : permissions.AllowedProviders.ToArray())
+                .SetProperty(value => value.DeniedProviders, permissions.DeniedProviders == null ? null : permissions.DeniedProviders.ToArray()), cancellationToken) == 1;
+
     public async Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration,
         string newPrefix, byte[] newFingerprint, int fingerprintKeyVersion, DateTimeOffset now,
         CancellationToken cancellationToken = default)
@@ -109,8 +118,13 @@ public sealed class PostgreSqlApiKeyStore(FoundationDbContext dbContext) : IApiK
         ExpiresAt = apiKey.ApiKey.ExpiresAt,
         CreatedByAccountId = apiKey.ApiKey.CreatedByAccountId,
         CreatedAt = apiKey.ApiKey.CreatedAt,
-        Generation = apiKey.ApiKey.Generation
+        Generation = apiKey.ApiKey.Generation,
+        AllowedModels = apiKey.ApiKey.Permissions?.AllowedModels?.ToArray(),
+        DeniedModels = apiKey.ApiKey.Permissions?.DeniedModels?.ToArray(),
+        AllowedProviders = apiKey.ApiKey.Permissions?.AllowedProviders?.ToArray(),
+        DeniedProviders = apiKey.ApiKey.Permissions?.DeniedProviders?.ToArray()
     };
 
-    private static GatewayApiKey ToContract(GatewayApiKeyEntity apiKey) => new(apiKey.Id, apiKey.ProjectId, apiKey.Name, apiKey.Prefix, Enum.Parse<GatewayApiKeyStatus>(apiKey.Status, false), apiKey.ExpiresAt, apiKey.CreatedByAccountId, apiKey.CreatedAt, apiKey.Generation);
+    private static GatewayApiKey ToContract(GatewayApiKeyEntity apiKey) => new(apiKey.Id, apiKey.ProjectId, apiKey.Name, apiKey.Prefix, Enum.Parse<GatewayApiKeyStatus>(apiKey.Status, false), apiKey.ExpiresAt, apiKey.CreatedByAccountId, apiKey.CreatedAt, apiKey.Generation,
+        new ApiKeyPermissions(apiKey.AllowedModels, apiKey.DeniedModels, apiKey.AllowedProviders, apiKey.DeniedProviders));
 }

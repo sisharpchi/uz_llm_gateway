@@ -1434,6 +1434,52 @@
         },
         "type": "array"
       },
+      "ApiKeyPermissions": {
+        "additionalProperties": false,
+        "properties": {
+          "allowedModels": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 128,
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "allowedProviders": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 128,
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "deniedModels": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 128,
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "deniedProviders": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 128,
+            "type": [
+              "null",
+              "array"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "BudgetPolicyResponse": {
         "properties": {
           "apiKeyId": {
@@ -2574,6 +2620,55 @@
             "name": {
               "type": "string"
             },
+            "permissions": {
+              "additionalProperties": false,
+              "properties": {
+                "allowedModels": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 128,
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "allowedProviders": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 128,
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "deniedModels": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 128,
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
+                "deniedProviders": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 128,
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                }
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            },
             "prefix": {
               "type": "string"
             },
@@ -2694,6 +2789,55 @@
               },
               "name": {
                 "type": "string"
+              },
+              "permissions": {
+                "additionalProperties": false,
+                "properties": {
+                  "allowedModels": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "allowedProviders": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "deniedModels": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "deniedProviders": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 128,
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  }
+                },
+                "type": [
+                  "null",
+                  "object"
+                ]
               },
               "prefix": {
                 "type": "string"
@@ -10191,6 +10335,136 @@
             "Session": []
           }
         ],
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/api-keys/{apiKeyId}/permissions": {
+      "put": {
+        "operationId": "SetGatewayApiKeyPermissions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "apiKeyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must match the readable CSRF cookie and the current session.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyPermissions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Accepted; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Replace model/provider permissions; null allowlists are unrestricted, empty lists deny all",
         "tags": [
           "UZLLM.Management.Api"
         ]

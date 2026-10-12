@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using UZLLM.Observability;
 using UZLLM.Modules.ApiKeys.Contracts;
+using UZLLM.Modules.ApiKeys.Domain;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
@@ -50,7 +51,11 @@ public sealed class InferenceGateway(
                     "Project is unavailable."), cancellationToken);
                 return;
             }
-            var models = await catalog.ListActiveModelsAsync(clock.GetUtcNow(), cancellationToken);
+            var models = (await catalog.ListActiveModelsAsync(clock.GetUtcNow(), cancellationToken))
+                .Where(model => ApiKeyPermissionPolicy.AllowsModel(identity.Permissions, model.Model.CanonicalCode))
+                .Select(model => model with { ProviderMappings = model.ProviderMappings
+                    .Where(mapping => ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, mapping.Provider.Code)).ToArray() })
+                .ToArray();
             await context.Response.WriteAsJsonAsync(new
             {
                 @object = "list",
@@ -85,6 +90,9 @@ public sealed class InferenceGateway(
                 "Gateway dependency is unavailable."), CancellationToken.None);
         }
     }
+
+    private static GatewayError PermissionDenied() => new(403, "api_key_permission_denied", "permission_error",
+        "The API key does not permit the requested model or provider.");
 
     public async Task ChatAsync(HttpContext context, CancellationToken cancellationToken)
     {
@@ -171,6 +179,13 @@ public sealed class InferenceGateway(
                     "Model is unavailable."), cancellationToken);
                 return;
             }
+            if (!ApiKeyPermissionPolicy.AllowsModel(identity.Permissions, requestedCode)
+                || pinnedProvider is not null && !ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, pinnedProvider)
+                || (parsed.FallbackModels?.Any(code => !ApiKeyPermissionPolicy.AllowsModel(identity.Permissions, code)) ?? false))
+            {
+                await WriteErrorAsync(context, PermissionDenied(), cancellationToken);
+                return;
+            }
             var outputLimit = parsed.ProviderRequest.MaxOutputTokens ?? model.Model.MaxOutputTokens;
             var candidates = new List<RouteCandidate>();
             var constraintAllowed = false;
@@ -182,6 +197,14 @@ public sealed class InferenceGateway(
                 .OrderBy(value => ProviderPriority(value.Provider.Code))
                 .ThenBy(value => value.Mapping.Id).ToArray();
             GatewayByokCredential? byok = null;
+            if (mappings.Length != 0 && !mappings.Any(value =>
+                ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code)))
+            {
+                await WriteErrorAsync(context, PermissionDenied(), cancellationToken);
+                return;
+            }
+            mappings = mappings.Where(value => ApiKeyPermissionPolicy.AllowsProvider(
+                identity.Permissions, value.Provider.Code)).ToArray();
             FeePolicyVersion? byokFee = null;
             if (parsed.ProviderKeyId is { } providerKeyId)
             {
@@ -191,6 +214,12 @@ public sealed class InferenceGateway(
                 {
                     await WriteErrorAsync(context, new(403, "provider_key_unavailable", "permission_error",
                         "Provider key is unavailable for this project and model."), cancellationToken);
+                    return;
+                }
+                if (model.ProviderMappings.Any(value => value.Provider.Id == byok.ProviderId
+                    && !ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code)))
+                {
+                    await WriteErrorAsync(context, PermissionDenied(), cancellationToken);
                     return;
                 }
                 byokFee = await readStore.FindFeePolicyAsync(options.ByokFeePolicyCode,
@@ -335,11 +364,19 @@ public sealed class InferenceGateway(
                     if (fallbackModel is null)
                         throw new GatewayRequestException(
                             $"Fallback model {fallbackCode} is unavailable.", "fallback_model_unavailable");
+                    if (fallbackModel.ProviderMappings.Any(value => SupportedProvider(value.Provider.Code))
+                        && !fallbackModel.ProviderMappings.Any(value => SupportedProvider(value.Provider.Code)
+                            && ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code)))
+                    {
+                        await WriteErrorAsync(context, PermissionDenied(), cancellationToken);
+                        return;
+                    }
                     var fallbackOutput = parsed.ProviderRequest.MaxOutputTokens
                         ?? fallbackModel.Model.MaxOutputTokens;
                     var eligible = new List<RouteCandidate>();
                     foreach (var mapping in fallbackModel.ProviderMappings
-                        .Where(value => SupportedProvider(value.Provider.Code))
+                        .Where(value => SupportedProvider(value.Provider.Code)
+                            && ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code))
                         .OrderBy(value => ProviderPriority(value.Provider.Code))
                         .ThenBy(value => value.Mapping.Id))
                     {
@@ -408,6 +445,23 @@ public sealed class InferenceGateway(
                         "invalid_request_error", "Request exceeds model limits or capabilities.")
                     : new GatewayError(503, "provider_unavailable", "server_error",
                         "No eligible provider is available."), cancellationToken);
+                return;
+            }
+            // Routing may involve dependency I/O. Re-read the key at financial admission so
+            // changes committed during candidate construction cannot use the stale auth snapshot.
+            var admissionIdentity = await AuthenticateAsync(context, cancellationToken);
+            if (admissionIdentity is null || admissionIdentity.ApiKeyId != identity.ApiKeyId
+                || admissionIdentity.ProjectId != identity.ProjectId)
+            {
+                await WriteErrorAsync(context, new(401, "invalid_api_key", "authentication_error",
+                    "Invalid API key."), cancellationToken);
+                return;
+            }
+            if (candidates.Any(candidate => !ApiKeyPermissionPolicy.AllowsModel(admissionIdentity.Permissions,
+                    candidate.Model.CanonicalCode) || !ApiKeyPermissionPolicy.AllowsProvider(
+                    admissionIdentity.Permissions, candidate.Mapping.Provider.Code)))
+            {
+                await WriteErrorAsync(context, PermissionDenied(), cancellationToken);
                 return;
             }
             var maximum = new UsdMicroAmount(candidates.Max(value => value.MaximumCharge.Value));

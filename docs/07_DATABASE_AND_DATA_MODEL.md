@@ -80,6 +80,15 @@ organization use the project scope as a tenant guard.
 
 Never store plaintext gateway secret.
 
+`APIKEYS-004` adds nullable PostgreSQL `text[]` columns `allowed_models`,
+`denied_models`, `allowed_providers`, `denied_providers` on `gateway.api_key`.
+Legacy rows remain unrestricted (NULL); an empty allow array denies all.
+One UPDATE replaces the whole policy with its audit in the same transaction.
+Authentication uses untracked authoritative reads, not a Redis permission
+cache. No new table/index/FK is required: lookup is by existing key ID/prefix;
+catalog codes may be preconfigured before publication. Secret rotation updates
+only secret-generation fields. Downgrade refuses to discard existing restrictions.
+
 The fingerprint version selects the HMAC key used to verify that row. The
 active version is used for new keys and secret rotation; retaining older HMAC
 keys permits staged verification without recovering customer secrets.

@@ -6,11 +6,17 @@ public enum GatewayApiKeyStatus
     Disabled
 }
 
-public sealed record GatewayApiKey(Guid Id, Guid ProjectId, string Name, string Prefix, GatewayApiKeyStatus Status, DateTimeOffset? ExpiresAt, Guid CreatedByAccountId, DateTimeOffset CreatedAt, int Generation = 1);
+public sealed record GatewayApiKey(Guid Id, Guid ProjectId, string Name, string Prefix, GatewayApiKeyStatus Status, DateTimeOffset? ExpiresAt, Guid CreatedByAccountId, DateTimeOffset CreatedAt, int Generation = 1, ApiKeyPermissions? Permissions = null);
+
+/// <summary>Null allowlists are unrestricted; empty allowlists deny all. Deny rules take precedence.</summary>
+[System.Text.Json.Serialization.JsonUnmappedMemberHandling(System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow)]
+public sealed record ApiKeyPermissions(IReadOnlyList<string>? AllowedModels = null,
+    IReadOnlyList<string>? DeniedModels = null, IReadOnlyList<string>? AllowedProviders = null,
+    IReadOnlyList<string>? DeniedProviders = null);
 
 public sealed record IssuedGatewayApiKey(GatewayApiKey ApiKey, string Secret);
 
-public sealed record GatewayApiKeyAuthentication(Guid ApiKeyId, Guid ProjectId);
+public sealed record GatewayApiKeyAuthentication(Guid ApiKeyId, Guid ProjectId, ApiKeyPermissions? Permissions = null);
 
 public sealed record ApiKeySecret(string Value, string Prefix);
 
@@ -30,6 +36,8 @@ public interface IApiKeyStore
     Task<StoredGatewayApiKey?> FindAuthenticationCandidateAsync(string prefix, CancellationToken cancellationToken = default);
 
     Task<bool> TrySetStatusAsync(Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default);
+
+    Task<bool> TrySetPermissionsAsync(Guid apiKeyId, ApiKeyPermissions permissions, CancellationToken cancellationToken = default);
 
     Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration,
         string newPrefix, byte[] newFingerprint, int fingerprintKeyVersion, DateTimeOffset now,
@@ -59,6 +67,8 @@ public interface IApiKeyService
     Task<IReadOnlyList<GatewayApiKey>> ListAsync(Guid accountId, Guid projectId, CancellationToken cancellationToken = default);
 
     Task<bool> SetStatusAsync(Guid accountId, Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default);
+
+    Task<bool> SetPermissionsAsync(Guid accountId, Guid apiKeyId, ApiKeyPermissions permissions, CancellationToken cancellationToken = default);
 
     Task<IssuedGatewayApiKey?> RotateAsync(Guid accountId, Guid apiKeyId, CancellationToken cancellationToken = default);
 }

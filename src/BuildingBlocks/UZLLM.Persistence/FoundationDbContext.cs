@@ -269,6 +269,10 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
             entity.Property(apiKey => apiKey.CreatedByAccountId).HasColumnName("created_by");
             entity.Property(apiKey => apiKey.CreatedAt).HasColumnName("created_at");
             entity.Property(apiKey => apiKey.Generation).HasColumnName("generation").HasDefaultValue(1);
+            entity.Property(apiKey => apiKey.AllowedModels).HasColumnName("allowed_models");
+            entity.Property(apiKey => apiKey.DeniedModels).HasColumnName("denied_models");
+            entity.Property(apiKey => apiKey.AllowedProviders).HasColumnName("allowed_providers");
+            entity.Property(apiKey => apiKey.DeniedProviders).HasColumnName("denied_providers");
             entity.ToTable(table => table.HasCheckConstraint("CK_api_key_generation", "generation >= 1"));
             entity.ToTable(table => table.HasCheckConstraint("CK_api_key_fingerprint_key_version", "fingerprint_key_version >= 1"));
             entity.HasIndex(apiKey => apiKey.Prefix).IsUnique();

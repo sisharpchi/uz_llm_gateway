@@ -546,6 +546,23 @@ export interface paths {
         patch: operations["patch_management_v1_api_keys_apiKeyId"];
         trace?: never;
     };
+    "/management/v1/api-keys/{apiKeyId}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace model/provider permissions; null allowlists are unrestricted, empty lists deny all */
+        put: operations["SetGatewayApiKeyPermissions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/api-keys/{apiKeyId}/rotate": {
         parameters: {
             query?: never;
@@ -1845,6 +1862,12 @@ export interface components {
             threshold: number;
             type: string;
         }[];
+        ApiKeyPermissions: {
+            allowedModels?: null | string[];
+            allowedProviders?: null | string[];
+            deniedModels?: null | string[];
+            deniedProviders?: null | string[];
+        };
         BudgetPolicyResponse: {
             /** Format: uuid */
             apiKeyId: null | string;
@@ -2168,6 +2191,12 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+            permissions?: null | {
+                allowedModels?: null | string[];
+                allowedProviders?: null | string[];
+                deniedModels?: null | string[];
+                deniedProviders?: null | string[];
+            };
             prefix: string;
             /** Format: uuid */
             projectId: string;
@@ -2205,6 +2234,12 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 name: string;
+                permissions?: null | {
+                    allowedModels?: null | string[];
+                    allowedProviders?: null | string[];
+                    deniedModels?: null | string[];
+                    deniedProviders?: null | string[];
+                };
                 prefix: string;
                 /** Format: uuid */
                 projectId: string;
@@ -5221,6 +5256,69 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateApiKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted; empty body. */
+            204: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SetGatewayApiKeyPermissions: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                apiKeyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiKeyPermissions"];
             };
         };
         responses: {

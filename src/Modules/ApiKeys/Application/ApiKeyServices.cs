@@ -1,5 +1,6 @@
 using System.Text.Json;
 using UZLLM.Modules.ApiKeys.Contracts;
+using UZLLM.Modules.ApiKeys.Domain;
 using UZLLM.Modules.Audit.Contracts;
 using UZLLM.Modules.Organizations.Contracts;
 using UZLLM.Modules.Projects.Contracts;
@@ -83,6 +84,26 @@ public sealed class ApiKeyService(IApiKeyStore store, IProjectAccessService proj
         return true;
     }
 
+    public async Task<bool> SetPermissionsAsync(Guid accountId, Guid apiKeyId, ApiKeyPermissions permissions,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentifier(accountId, nameof(accountId));
+        ValidateIdentifier(apiKeyId, nameof(apiKeyId));
+        var apiKey = await store.FindByIdAsync(apiKeyId, cancellationToken);
+        if (apiKey is null) return false;
+        var project = await projectAccess.GetAuthorizedAsync(accountId, apiKey.ProjectId,
+            OrganizationPermission.ManageApiKeys, cancellationToken)
+            ?? throw new KeyNotFoundException("The project does not exist.");
+        var normalized = ApiKeyPermissionPolicy.Normalize(permissions);
+        await using var transaction = await transactionCoordinator.BeginAsync(cancellationToken);
+        if (!await store.TrySetPermissionsAsync(apiKeyId, normalized, cancellationToken)) return false;
+        await auditTrail.RecordAsync(new AuditEventInput(project.OrganizationId, accountId,
+            "api_key.permissions_changed", "api_key", apiKeyId, null,
+            JsonSerializer.Serialize(normalized)), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<IssuedGatewayApiKey?> RotateAsync(Guid accountId, Guid apiKeyId,
         CancellationToken cancellationToken = default)
     {
@@ -153,6 +174,7 @@ public sealed class ApiKeyAuthenticator(IApiKeyStore store, IApiKeySecretGenerat
             return null;
         }
 
-        return new GatewayApiKeyAuthentication(candidate.ApiKey.Id, candidate.ApiKey.ProjectId);
+        return new GatewayApiKeyAuthentication(candidate.ApiKey.Id, candidate.ApiKey.ProjectId,
+            candidate.ApiKey.Permissions);
     }
 }

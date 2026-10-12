@@ -65,6 +65,19 @@ public static class ApiKeyServiceCollectionExtensions
         }).RequireManagementCsrf();
 
         var keys = endpoints.MapGroup("/management/v1/api-keys");
+        keys.MapPut("/{apiKeyId:guid}/permissions", async (Guid apiKeyId, ApiKeyPermissions request,
+            HttpContext context, IApiKeyService service, CancellationToken cancellationToken) =>
+        {
+            if (!TryGetAccountId(context.User, out var accountId)) return Results.Unauthorized();
+            try { return await service.SetPermissionsAsync(accountId, apiKeyId, request, cancellationToken)
+                ? Results.NoContent() : Results.NotFound(); }
+            catch (TenantAccessDeniedException) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (ArgumentException exception) { return Results.ValidationProblem(new Dictionary<string, string[]>
+                { ["permissions"] = [exception.Message] }); }
+        }).RequireManagementCsrf().WithName("SetGatewayApiKeyPermissions")
+            .WithSummary("Replace model/provider permissions; null allowlists are unrestricted, empty lists deny all");
+
         keys.MapPatch("/{apiKeyId:guid}", async (Guid apiKeyId, UpdateApiKeyRequest request, HttpContext context, IApiKeyService service, CancellationToken cancellationToken) =>
         {
             if (!TryGetAccountId(context.User, out var accountId)) return Results.Unauthorized();

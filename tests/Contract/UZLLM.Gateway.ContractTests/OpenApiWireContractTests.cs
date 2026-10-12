@@ -65,6 +65,12 @@ public sealed class OpenApiWireContractTests : IDisposable
         const string org = "/management/v1/organizations/{organizationId}";
         Add("/management/v1/auth/session", "get", 200,
             new UZLLM.Modules.Identity.Infrastructure.IdentityServiceCollectionExtensions.SessionResponse(id, "example@example.test", true, false));
+        Add("/management/v1/projects/{projectId}/api-keys", "get", 200,
+            new[] { new UZLLM.Modules.ApiKeys.Contracts.GatewayApiKey(id, id, "Restricted", "123456abcdef",
+                UZLLM.Modules.ApiKeys.Contracts.GatewayApiKeyStatus.Active, null, id, now,
+                Permissions: new(AllowedModels: ["example-chat"], DeniedProviders: ["anthropic"])),
+                new UZLLM.Modules.ApiKeys.Contracts.GatewayApiKey(id, id, "Unrestricted", "abcdef123456",
+                    UZLLM.Modules.ApiKeys.Contracts.GatewayApiKeyStatus.Active, null, id, now) });
         Add(org + "/billing/wallet", "get", 200, new WalletResponse(id,
             "9007199254740993", "100", "9007199254740893", "0", false, 3));
         var intent = new PaymentIntentResponse(id, id, "Click", id, "Pending", "10000000", "10000",

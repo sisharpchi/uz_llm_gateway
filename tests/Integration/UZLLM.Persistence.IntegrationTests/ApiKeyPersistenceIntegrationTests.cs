@@ -18,6 +18,113 @@ namespace UZLLM.Persistence.IntegrationTests;
 public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     [Fact]
+    public async Task Concurrent_permissions_update_and_secret_rotation_preserve_the_new_policy()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var fingerprint = new HmacApiKeySecretFingerprint(RandomNumberGenerator.GetBytes(32));
+        Guid ownerId;
+        IssuedGatewayApiKey issued;
+        await using (var setup = fixture.CreateServiceProvider())
+        await using (var setupScope = setup.CreateAsyncScope())
+        {
+            var seeded = await SeedProjectAsync(setupScope.ServiceProvider.GetRequiredService<FoundationDbContext>());
+            ownerId = seeded.AccountId;
+            issued = await CreateService(setupScope.ServiceProvider, fingerprint).CreateAsync(ownerId, seeded.ProjectId, "Production", null);
+        }
+        await using var first = fixture.CreateServiceProvider();
+        await using var second = fixture.CreateServiceProvider();
+        await using var firstScope = first.CreateAsyncScope();
+        await using var secondScope = second.CreateAsyncScope();
+        var gate = new ConcurrentApiKeyReadGate();
+        var rotation = CreateService(firstScope.ServiceProvider, fingerprint,
+            new GatedApiKeyStore(new PostgreSqlApiKeyStore(firstScope.ServiceProvider.GetRequiredService<FoundationDbContext>()), gate))
+            .RotateAsync(ownerId, issued.ApiKey.Id);
+        var update = CreateService(secondScope.ServiceProvider, fingerprint,
+            new GatedApiKeyStore(new PostgreSqlApiKeyStore(secondScope.ServiceProvider.GetRequiredService<FoundationDbContext>()), gate))
+            .SetPermissionsAsync(ownerId, issued.ApiKey.Id, new(AllowedModels: ["gpt-test"], DeniedProviders: ["anthropic"]));
+        await Task.WhenAll(rotation, update);
+        Assert.True(await update);
+        var replacement = Assert.IsType<IssuedGatewayApiKey>(await rotation);
+        var authenticator = new ApiKeyAuthenticator(new PostgreSqlApiKeyStore(firstScope.ServiceProvider.GetRequiredService<FoundationDbContext>()),
+            new GatewayApiKeySecretGenerator(), fingerprint, TimeProvider.System);
+        Assert.Null(await authenticator.AuthenticateAsync(issued.Secret));
+        var current = Assert.IsType<GatewayApiKeyAuthentication>(await authenticator.AuthenticateAsync(replacement.Secret));
+        Assert.Equal(["gpt-test"], current.Permissions!.AllowedModels);
+        Assert.Equal(["anthropic"], current.Permissions.DeniedProviders);
+    }
+
+    [Fact]
+    public async Task Permissions_round_trip_refresh_authentication_preserve_rotation_and_rollback_with_audit()
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        var fingerprint = new HmacApiKeySecretFingerprint(RandomNumberGenerator.GetBytes(32));
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var (ownerId, projectId) = await SeedProjectAsync(db);
+        var service = CreateService(scope.ServiceProvider, fingerprint);
+        var issued = await service.CreateAsync(ownerId, projectId, "Restricted", null);
+        var authenticator = new ApiKeyAuthenticator(new PostgreSqlApiKeyStore(db),
+            new GatewayApiKeySecretGenerator(), fingerprint, TimeProvider.System);
+        Assert.Null((await authenticator.AuthenticateAsync(issued.Secret))!.Permissions!.AllowedModels);
+        await Assert.ThrowsAsync<UZLLM.Modules.Organizations.Contracts.TenantAccessDeniedException>(() =>
+            service.SetPermissionsAsync(Guid.NewGuid(), issued.ApiKey.Id, new(AllowedModels: [])));
+        Assert.True(await service.SetPermissionsAsync(ownerId, issued.ApiKey.Id,
+            new(AllowedModels: [" GPT-Test "], DeniedModels: ["other-test"],
+                AllowedProviders: ["openai", "anthropic"], DeniedProviders: ["anthropic"])));
+        var current = (await authenticator.AuthenticateAsync(issued.Secret))!.Permissions!;
+        Assert.Equal(["gpt-test"], current.AllowedModels);
+        Assert.Equal(["other-test"], current.DeniedModels);
+        Assert.Equal(["anthropic", "openai"], current.AllowedProviders);
+        Assert.Equal(["anthropic"], current.DeniedProviders);
+        var replacement = (await service.RotateAsync(ownerId, issued.ApiKey.Id))!;
+        Assert.Null(await authenticator.AuthenticateAsync(issued.Secret));
+        Assert.Equal(current.AllowedModels, (await authenticator.AuthenticateAsync(replacement.Secret))!.Permissions!.AllowedModels);
+        // A failure after the permission write but before audit/commit must restore both.
+        var failure = CreateService(scope.ServiceProvider, fingerprint, new FailingPermissionsStore(new PostgreSqlApiKeyStore(db)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => failure.SetPermissionsAsync(ownerId, issued.ApiKey.Id,
+            new(AllowedModels: [])));
+        Assert.Equal(current.AllowedModels, (await authenticator.AuthenticateAsync(replacement.Secret))!.Permissions!.AllowedModels);
+        Assert.Single(await db.Set<AuditEventEntity>().Where(value => value.Action == "api_key.permissions_changed").ToListAsync());
+        Assert.True(await service.SetPermissionsAsync(ownerId, issued.ApiKey.Id, new(AllowedModels: [])));
+        Assert.Empty((await authenticator.AuthenticateAsync(replacement.Secret))!.Permissions!.AllowedModels!);
+        Assert.True(await service.SetStatusAsync(ownerId, issued.ApiKey.Id, GatewayApiKeyStatus.Disabled));
+        Assert.Null(await authenticator.AuthenticateAsync(replacement.Secret));
+        Assert.DoesNotContain(replacement.Secret, string.Join(' ', await db.Set<AuditEventEntity>().Select(value => value.MetadataJson).ToListAsync()));
+    }
+
+    [Fact]
+    public async Task Permissions_migration_preserves_legacy_access_and_refuses_unsafe_downgrade()
+    {
+        await fixture.ResetMigrationsAsync();
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
+        await migrator.MigrateAsync("20261011103552_AddDurableUsageRollups");
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        var (ownerId, projectId) = await SeedProjectAsync(db);
+        var keyId = Guid.NewGuid();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO gateway.api_key (id, project_id, name, key_prefix, secret_fingerprint, status, created_by, created_at)
+            VALUES ({keyId}, {projectId}, {"Legacy"}, {"123456abcdef"}, {RandomNumberGenerator.GetBytes(32)},
+                {"Active"}, {ownerId}, {DateTimeOffset.UtcNow});
+            """);
+        await migrator.MigrateAsync();
+        var store = new PostgreSqlApiKeyStore(db);
+        var legacy = (await store.FindByIdAsync(keyId))!;
+        Assert.Null(legacy.Permissions!.AllowedModels);
+        Assert.Null(legacy.Permissions.DeniedModels);
+        Assert.Null(legacy.Permissions.AllowedProviders);
+        Assert.Null(legacy.Permissions.DeniedProviders);
+        Assert.True(await store.TrySetPermissionsAsync(keyId, new(AllowedProviders: [])));
+        var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync("20261011103552_AddDurableUsageRollups"));
+        Assert.Contains("permissions cannot be downgraded", downgrade.ToString(), StringComparison.Ordinal);
+        Assert.Empty((await store.FindByIdAsync(keyId))!.Permissions!.AllowedProviders!);
+    }
+
+    [Fact]
     public async Task Create_disable_and_authenticate_gateway_key_persist_only_a_fingerprint_and_audit_security_changes()
     {
         await fixture.ResetMigrationsAsync();
@@ -293,7 +400,10 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
         var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => verifyScope.ServiceProvider.GetRequiredService<IDatabaseMigrator>()
             .MigrateAsync("20260928211017_AddSettlementWalletRefunds"));
         Assert.Contains("rotated fingerprint keys cannot be downgraded", downgrade.ToString(), StringComparison.Ordinal);
-        Assert.Equal(2, (await verified.Set<GatewayApiKeyEntity>().SingleAsync(value => value.Id == issued.ApiKey.Id)).FingerprintKeyVersion);
+        // Newer reversible migrations may have downgraded before the historical
+        // fingerprint guard fails; inspect only the guarded column at this version.
+        Assert.Equal(2, await verified.Set<GatewayApiKeyEntity>().Where(value => value.Id == issued.ApiKey.Id)
+            .Select(value => value.FingerprintKeyVersion).SingleAsync());
     }
 
     private static ApiKeyService CreateService(IServiceProvider services, IApiKeySecretFingerprint fingerprint,
@@ -339,6 +449,22 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
     };
 }
 
+internal sealed class FailingPermissionsStore(IApiKeyStore inner) : IApiKeyStore
+{
+    public Task<bool> TryCreateAsync(StoredGatewayApiKey key, CancellationToken cancellationToken = default) => inner.TryCreateAsync(key, cancellationToken);
+    public Task<IReadOnlyList<GatewayApiKey>> ListForProjectAsync(Guid projectId, CancellationToken cancellationToken = default) => inner.ListForProjectAsync(projectId, cancellationToken);
+    public Task<GatewayApiKey?> FindByIdAsync(Guid apiKeyId, CancellationToken cancellationToken = default) => inner.FindByIdAsync(apiKeyId, cancellationToken);
+    public Task<StoredGatewayApiKey?> FindAuthenticationCandidateAsync(string prefix, CancellationToken cancellationToken = default) => inner.FindAuthenticationCandidateAsync(prefix, cancellationToken);
+    public Task<bool> TrySetStatusAsync(Guid apiKeyId, GatewayApiKeyStatus status, CancellationToken cancellationToken = default) => inner.TrySetStatusAsync(apiKeyId, status, cancellationToken);
+    public Task<ApiKeyRotationStoreResult> TryRotateAsync(Guid apiKeyId, int expectedGeneration, string newPrefix, byte[] fingerprint, int version,
+        DateTimeOffset now, CancellationToken cancellationToken = default) => inner.TryRotateAsync(apiKeyId, expectedGeneration, newPrefix, fingerprint, version, now, cancellationToken);
+    public async Task<bool> TrySetPermissionsAsync(Guid apiKeyId, ApiKeyPermissions permissions, CancellationToken cancellationToken = default)
+    {
+        Assert.True(await inner.TrySetPermissionsAsync(apiKeyId, permissions, cancellationToken));
+        throw new InvalidOperationException("Simulated failure before audit/commit");
+    }
+}
+
 internal sealed class ConcurrentApiKeyReadGate
 {
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -353,6 +479,8 @@ internal sealed class ConcurrentApiKeyReadGate
 
 internal sealed class GatedApiKeyStore(IApiKeyStore inner, ConcurrentApiKeyReadGate gate) : IApiKeyStore
 {
+    public Task<bool> TrySetPermissionsAsync(Guid apiKeyId, ApiKeyPermissions permissions, CancellationToken cancellationToken = default) =>
+        inner.TrySetPermissionsAsync(apiKeyId, permissions, cancellationToken);
     public Task<bool> TryCreateAsync(StoredGatewayApiKey key, CancellationToken cancellationToken = default) =>
         inner.TryCreateAsync(key, cancellationToken);
     public Task<IReadOnlyList<GatewayApiKey>> ListForProjectAsync(Guid projectId, CancellationToken cancellationToken = default) =>

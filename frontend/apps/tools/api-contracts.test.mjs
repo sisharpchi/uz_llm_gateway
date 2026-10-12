@@ -49,6 +49,24 @@ test('versioned documents cover implemented surfaces and resolve all schema refe
   assert.deepEqual(Object.keys(documents.gateway.paths).sort(), ['/v1/chat/completions', '/v1/models']);
 });
 
+test('API-key permission contract preserves null empty deny rules and authenticated replacement', () => {
+  const document = documents.management;
+  const operation = document.paths['/management/v1/api-keys/{apiKeyId}/permissions'].put;
+  assert.ok(operation.security.some(item => item.Session));
+  assert.ok(operation.parameters.some(item => item.name === 'X-CSRF-Token' && item.required));
+  for (const status of ['204', '400', '401', '403', '404']) assert.ok(operation.responses[status]);
+  const validate = validator(document, operation.requestBody.content['application/json'].schema);
+  for (const policy of [{}, { allowedModels: null }, { allowedModels: [] },
+    { allowedModels: ['example-chat'], deniedModels: ['example-chat'], allowedProviders: ['openai'], deniedProviders: ['anthropic'] }])
+    assert.ok(validate(policy), JSON.stringify(validate.errors));
+  assert.equal(validate({ allowedModels: [123] }), false);
+  assert.equal(validate({ allowModels: ['example-chat'] }), false);
+  assert.equal(validate({ allowedProviders: Array.from({ length: 129 }, () => 'openai') }), false);
+  const keys = read('examples.json').find(item => item.path.endsWith('/projects/{projectId}/api-keys')).body;
+  assert.equal(keys[0].permissions.allowedModels[0], 'example-chat');
+  assert.equal(keys[1].permissions, null);
+});
+
 test('serializer-derived examples match their actual status and media-type schema', () => {
   const examples = read('examples.json');
   assert.ok(examples.length >= 18);

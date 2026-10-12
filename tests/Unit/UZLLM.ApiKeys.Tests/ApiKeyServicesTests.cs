@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using UZLLM.Modules.ApiKeys.Application;
 using UZLLM.Modules.ApiKeys.Contracts;
+using UZLLM.Modules.ApiKeys.Domain;
 using UZLLM.Modules.ApiKeys.Infrastructure;
 using UZLLM.Modules.Audit.Contracts;
 using UZLLM.Modules.Organizations.Contracts;
@@ -12,6 +13,72 @@ namespace UZLLM.ApiKeys.Tests;
 
 public sealed class ApiKeyServicesTests
 {
+    [Fact]
+    public async Task Permissions_update_is_authorized_audited_and_visible_on_next_authentication_and_rotation()
+    {
+        var fixture = new ApiKeyFixture();
+        var issued = await fixture.Service.CreateAsync(fixture.OwnerAccountId, fixture.Project.Id, "Production", null);
+        await Assert.ThrowsAsync<TenantAccessDeniedException>(() => fixture.Service.SetPermissionsAsync(
+            Guid.NewGuid(), issued.ApiKey.Id, new(AllowedModels: [])));
+        Assert.Null((await fixture.Authenticator.AuthenticateAsync(issued.Secret))!.Permissions);
+        Assert.True(await fixture.Service.SetPermissionsAsync(fixture.OwnerAccountId, issued.ApiKey.Id,
+            new(AllowedModels: [" GPT-Test ", "gpt-test"], DeniedProviders: [" ANTHROPIC "])));
+        var identity = (await fixture.Authenticator.AuthenticateAsync(issued.Secret))!;
+        Assert.Equal(["gpt-test"], identity.Permissions!.AllowedModels);
+        Assert.Equal(["anthropic"], identity.Permissions.DeniedProviders);
+        Assert.Single(fixture.Audit.Events, value => value.Action == "api_key.permissions_changed");
+        var rotated = (await fixture.Service.RotateAsync(fixture.OwnerAccountId, issued.ApiKey.Id))!;
+        Assert.Equal(identity.Permissions, rotated.ApiKey.Permissions);
+        Assert.Equal(identity.Permissions, (await fixture.Authenticator.AuthenticateAsync(rotated.Secret))!.Permissions);
+        Assert.Null(await fixture.Authenticator.AuthenticateAsync(issued.Secret));
+        Assert.True(await fixture.Service.SetPermissionsAsync(fixture.OwnerAccountId, issued.ApiKey.Id, new()));
+        Assert.Null((await fixture.Authenticator.AuthenticateAsync(rotated.Secret))!.Permissions!.AllowedModels);
+        Assert.False(await fixture.Service.SetPermissionsAsync(fixture.OwnerAccountId, Guid.NewGuid(), new()));
+    }
+
+    [Fact]
+    public void Permissions_use_deny_precedence_intersection_and_distinguish_empty_from_null()
+    {
+        Assert.True(ApiKeyPermissionPolicy.AllowsModel(null, "gpt-test"));
+        Assert.True(ApiKeyPermissionPolicy.AllowsProvider(new(), "openai"));
+        Assert.False(ApiKeyPermissionPolicy.AllowsModel(new(AllowedModels: []), "gpt-test"));
+        Assert.False(ApiKeyPermissionPolicy.AllowsProvider(new(AllowedProviders: []), "openai"));
+        var policy = new ApiKeyPermissions(AllowedModels: ["gpt-test", "other-test"],
+            DeniedModels: ["other-test"], AllowedProviders: ["openai", "anthropic"], DeniedProviders: ["anthropic"]);
+        Assert.True(ApiKeyPermissionPolicy.AllowsModel(policy, "gpt-test"));
+        Assert.False(ApiKeyPermissionPolicy.AllowsModel(policy, "other-test"));
+        Assert.False(ApiKeyPermissionPolicy.AllowsModel(policy, "unknown"));
+        Assert.True(ApiKeyPermissionPolicy.AllowsProvider(policy, "openai"));
+        Assert.False(ApiKeyPermissionPolicy.AllowsProvider(policy, "anthropic"));
+        Assert.False(ApiKeyPermissionPolicy.AllowsProvider(policy, "google"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("*")]
+    [InlineData("openai/gpt-test")]
+    [InlineData("_test")]
+    [InlineData("gpt test")]
+    [InlineData("gpt\n-test")]
+    [InlineData(null)]
+    public void Permissions_reject_invalid_codes(string? code) =>
+        Assert.Throws<ArgumentException>(() => ApiKeyPermissionPolicy.Normalize(new(AllowedModels: [code!])));
+
+    [Fact]
+    public void Permissions_enforce_exact_list_and_code_bounds_and_copy_input()
+    {
+        var codes = Enumerable.Range(0, 128).Select(value => $"model-{value}").ToArray();
+        var policy = ApiKeyPermissionPolicy.Normalize(new(AllowedModels: codes));
+        Assert.Equal(128, policy.AllowedModels!.Count);
+        codes[0] = "changed";
+        Assert.DoesNotContain("changed", policy.AllowedModels);
+        Assert.Throws<ArgumentException>(() => ApiKeyPermissionPolicy.Normalize(new(DeniedModels: [.. codes, "extra"])));
+        Assert.Single(ApiKeyPermissionPolicy.Normalize(new(AllowedProviders: [new string('a', 200)])).AllowedProviders!);
+        Assert.Throws<ArgumentException>(() => ApiKeyPermissionPolicy.Normalize(new(DeniedProviders: [new string('a', 201)])));
+        Assert.Equal(["model:v1"], ApiKeyPermissionPolicy.Normalize(new(AllowedModels: ["Model:V1"])).AllowedModels);
+        Assert.Equal(["x"], ApiKeyPermissionPolicy.Normalize(new(AllowedModels: ["x"])).AllowedModels);
+    }
+
     [Fact]
     public void Gateway_key_generator_creates_parseable_high_entropy_keys_and_rejects_malformed_values()
     {
@@ -311,6 +378,14 @@ internal sealed class InMemoryApiKeyStore : IApiKeyStore
     {
         if (Stored.GetValueOrDefault(apiKeyId) is not { } stored || stored.ApiKey.Status == status) return Task.FromResult(false);
         stored.ApiKey = stored.ApiKey with { Status = status };
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> TrySetPermissionsAsync(Guid apiKeyId, ApiKeyPermissions permissions,
+        CancellationToken cancellationToken = default)
+    {
+        if (Stored.GetValueOrDefault(apiKeyId) is not { } stored) return Task.FromResult(false);
+        stored.ApiKey = stored.ApiKey with { Permissions = permissions };
         return Task.FromResult(true);
     }
 

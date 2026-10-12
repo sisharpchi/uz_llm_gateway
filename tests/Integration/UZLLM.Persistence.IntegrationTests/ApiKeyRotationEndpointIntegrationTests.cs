@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using UZLLM.Management.Api;
 using UZLLM.Modules.ApiKeys.Contracts;
 using UZLLM.Modules.ApiKeys.Infrastructure;
@@ -25,7 +26,7 @@ namespace UZLLM.Persistence.IntegrationTests;
 public sealed class ApiKeyRotationEndpointIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     [Fact]
-    public async Task Rotate_endpoint_requires_owner_and_csrf_and_shows_new_secret_once()
+    public async Task Key_permissions_and_rotation_endpoints_enforce_current_project_roles_csrf_and_show_once_secrets()
     {
         await fixture.ResetMigrationsAsync();
         await fixture.ApplyMigrationsAsync();
@@ -69,6 +70,62 @@ public sealed class ApiKeyRotationEndpointIntegrationTests(PersistenceIntegratio
             var keys = scope.ServiceProvider.GetRequiredService<IApiKeyService>();
             var initial = await keys.CreateAsync(owner.AccountId, project.Id, "Production", null);
             var path = $"/management/v1/api-keys/{initial.ApiKey.Id}/rotate";
+            var permissionsPath = $"/management/v1/api-keys/{initial.ApiKey.Id}/permissions";
+            HttpRequestMessage PermissionsRequest(BrowserSessionTokens? session, bool csrf, object body)
+            {
+                var request = session is null ? new HttpRequestMessage(HttpMethod.Put, permissionsPath)
+                    : Request(permissionsPath, session, csrf);
+                request.Method = HttpMethod.Put;
+                request.Content = JsonContent.Create(body);
+                return request;
+            }
+            using (var response = await client.SendAsync(PermissionsRequest(null, false, new ApiKeyPermissions())))
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            using (var response = await client.SendAsync(PermissionsRequest(outsiderSession, true, new ApiKeyPermissions())))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            db.Set<OrganizationMemberEntity>().Add(new OrganizationMemberEntity
+            {
+                OrganizationId = org.Id, AccountId = outsider.AccountId, Role = "Developer",
+                Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+            using (var response = await client.SendAsync(PermissionsRequest(outsiderSession, true, new ApiKeyPermissions())))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            db.Set<ProjectGrantEntity>().Add(new ProjectGrantEntity
+            {
+                OrganizationId = org.Id, AccountId = outsider.AccountId, ProjectId = project.Id,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+            using (var response = await client.SendAsync(PermissionsRequest(outsiderSession, true, new ApiKeyPermissions(AllowedModels: []))))
+                Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            foreach (var role in new[] { "ReadOnly", "BillingViewer" })
+            {
+                await db.Set<OrganizationMemberEntity>().Where(value => value.OrganizationId == org.Id && value.AccountId == outsider.AccountId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Role, role));
+                using var response = await client.SendAsync(PermissionsRequest(outsiderSession, true, new ApiKeyPermissions()));
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            }
+            using (var response = await client.SendAsync(PermissionsRequest(ownerSession, false, new ApiKeyPermissions())))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            foreach (var invalid in new object[] { new { allowedModels = new[] { "*" } },
+                new { allowModels = new[] { "gpt-test" } }, new { allowedProviders = new[] { "openai/gpt-test" } } })
+            {
+                using var response = await client.SendAsync(PermissionsRequest(ownerSession, true, invalid));
+                Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+                Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+            }
+            using (var response = await client.SendAsync(PermissionsRequest(ownerSession, true,
+                new ApiKeyPermissions(AllowedModels: ["GPT-Test"], DeniedProviders: ["anthropic"]))))
+            {
+                Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+                Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+            }
+            var permissions = (await scope.ServiceProvider.GetRequiredService<IApiKeyAuthenticator>()
+                .AuthenticateAsync(initial.Secret))!.Permissions!;
+            Assert.Equal(["gpt-test"], permissions.AllowedModels);
+            Assert.Equal(["anthropic"], permissions.DeniedProviders);
 
             using (var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Post,
                 $"/management/v1/projects/{project.Id}/api-keys")
@@ -109,6 +166,8 @@ public sealed class ApiKeyRotationEndpointIntegrationTests(PersistenceIntegratio
                 Assert.NotEqual(initial.Secret, replacementSecret);
                 Assert.Equal(initial.ApiKey.Id, body.GetProperty("apiKey").GetProperty("id").GetGuid());
                 Assert.Equal(2, body.GetProperty("apiKey").GetProperty("generation").GetInt32());
+                Assert.Equal("gpt-test", body.GetProperty("apiKey").GetProperty("permissions")
+                    .GetProperty("allowedModels")[0].GetString());
             }
             var authenticator = scope.ServiceProvider.GetRequiredService<IApiKeyAuthenticator>();
             Assert.Null(await authenticator.AuthenticateAsync(initial.Secret));

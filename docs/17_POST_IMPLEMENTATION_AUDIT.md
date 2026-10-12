@@ -97,7 +97,12 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
   and `FR-124`, with immutable counter-entry and idempotency. Cash payout,
   provider reversal and discretionary adjustment are different policies; the
   latter belongs to `REFUND-002`, while cash payout is external-policy gated.
-- Project/key permissions, customer limits/alerts/team/BYOK/routing UI,
+- `APIKEYS-004` delivers per-key canonical-model/provider allow/deny policies,
+  authoritative admission checks and tenant-scoped Management updates. FR-027's
+  optional maximum model price class still has no catalog taxonomy/ranking or
+  acceptance contract; it is not represented as implemented. Project defaults
+  and key lifecycle UI remain `PROJECTS-002`/`FRONTEND-006`.
+- Project defaults, customer limits/alerts/team/BYOK/routing UI,
   privacy metadata retention, SDK examples, and enterprise features
   remain incomplete or require a fresh contract before implementation.
 - `DX-002` now publishes the implemented Gateway/Management v1 OpenAPI surfaces,

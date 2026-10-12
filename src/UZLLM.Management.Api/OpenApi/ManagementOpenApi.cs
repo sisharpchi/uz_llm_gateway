@@ -31,6 +31,15 @@ public static class ManagementOpenApi
                 // Output numbers are JSON numbers. HTTP input coercion is not a client contract.
                 if (schema.Type is { } type && (type & (JsonSchemaType.Integer | JsonSchemaType.Number)) != 0)
                     schema.Type = type & ~JsonSchemaType.String;
+                if (context.JsonTypeInfo.Type == typeof(ApiKeyPermissions) && schema.Properties is not null)
+                    foreach (var property in schema.Properties.Values.OfType<OpenApiSchema>())
+                        property.MaxItems = 128;
+                // Optional record-constructor defaults must also accept the actual
+                // null serialized by newly issued/unrestricted keys.
+                if (context.JsonTypeInfo.Type == typeof(GatewayApiKey)
+                    && schema.Properties is { } properties && properties.TryGetValue("permissions", out var permissionSchema)
+                    && permissionSchema is OpenApiSchema permissions)
+                    permissions.Type = JsonSchemaType.Object | JsonSchemaType.Null;
                 return Task.CompletedTask;
             });
             options.AddDocumentTransformer((document, _, _) =>
@@ -212,6 +221,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Read<GatewayApiKey[]>("/projects/{projectId}/api-keys", 404);
         Write<IssuedGatewayApiKey>("POST", "/projects/{projectId}/api-keys", 201, 404, 409);
         Empty("PATCH", "/api-keys/{apiKeyId}", 404);
+        Empty("PUT", "/api-keys/{apiKeyId}/permissions", 404);
         Write<IssuedGatewayApiKey>("POST", "/api-keys/{apiKeyId}/rotate", 200, 404, 409);
         Read<BudgetPolicyResponse[]>("/projects/{projectId}/budgets", 404);
         Write<BudgetPolicyResponse>("PUT", "/projects/{projectId}/budgets/{period}", 200, 404, 409);

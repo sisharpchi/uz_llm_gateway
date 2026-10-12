@@ -23,6 +23,143 @@ namespace UZLLM.Gateway.ContractTests;
 public sealed class GatewayExecutionTests
 {
     [Fact]
+    public async Task Api_key_excluded_expensive_provider_does_not_inflate_the_hold()
+    {
+        var scenario = new Scenario(twoProviders: true);
+        scenario.Authenticator.Permissions = new(AllowedProviders: ["openai"]);
+        await scenario.RunAsync();
+        Assert.Equal(200, scenario.Context.Response.StatusCode);
+        Assert.Equal(9, scenario.Finance.LastMaximum!.Value.Value);
+        Assert.Equal(1, scenario.Adapter.CompleteCalls);
+        Assert.Equal(0, scenario.AnthropicAdapter.CompleteCalls);
+    }
+
+    [Fact]
+    public async Task Api_key_denied_stream_never_starts_sse_or_upstream_io()
+    {
+        var scenario = new Scenario(stream: true, fallbackModel: true);
+        scenario.UseFallbackModel(stream: true);
+        scenario.Authenticator.Permissions = new(DeniedModels: ["other-test"]);
+        await scenario.RunAsync();
+        Assert.Equal(403, scenario.Context.Response.StatusCode);
+        Assert.Equal(0, scenario.Finance.Reserves);
+        Assert.Equal(0, scenario.Adapter.StreamCalls);
+        Assert.Equal(0, scenario.AnthropicAdapter.StreamCalls);
+        Assert.NotEqual("text/event-stream", scenario.Context.Response.ContentType);
+    }
+
+    [Theory]
+    [InlineData(false, 403)]
+    [InlineData(true, 401)]
+    public async Task Api_key_changes_during_routing_apply_before_financial_admission(bool revoke, int status)
+    {
+        var scenario = new Scenario();
+        scenario.Authenticator.ChangeAtAdmission = true;
+        scenario.Authenticator.RevokeAtAdmission = revoke;
+        await scenario.RunAsync();
+        Assert.Equal(status, scenario.Context.Response.StatusCode);
+        Assert.Equal(0, scenario.Finance.Reserves);
+        Assert.Equal(0, scenario.Adapter.CompleteCalls);
+        Assert.Equal(0, scenario.Usage.Attempts);
+    }
+
+    [Theory]
+    [InlineData("model")]
+    [InlineData("provider")]
+    [InlineData("empty-model")]
+    [InlineData("empty-provider")]
+    [InlineData("pinned-provider")]
+    [InlineData("fallback-model")]
+    [InlineData("fallback-provider")]
+    [InlineData("byok")]
+    [InlineData("hybrid")]
+    public async Task Api_key_denied_route_never_reserves_or_dispatches(string denial)
+    {
+        var scenario = new Scenario(twoProviders: denial is "pinned-provider" or "byok" or "hybrid",
+            modelCode: denial == "pinned-provider" ? "openai/gpt-test" : "gpt-test",
+            fallbackModel: denial.StartsWith("fallback", StringComparison.Ordinal));
+        scenario.Authenticator.Permissions = denial switch
+        {
+            "model" => new(DeniedModels: ["gpt-test"]),
+            "empty-model" => new(AllowedModels: []),
+            "empty-provider" => new(AllowedProviders: []),
+            "fallback-model" => new(AllowedModels: ["gpt-test"]),
+            "fallback-provider" => new(AllowedProviders: ["openai"]),
+            _ => new(DeniedProviders: ["openai"])
+        };
+        if (denial.StartsWith("fallback", StringComparison.Ordinal)) scenario.UseFallbackModel();
+        if (denial is "byok" or "hybrid") scenario.UseByok(denial == "hybrid");
+
+        await scenario.RunAsync();
+
+        Assert.Equal(403, scenario.Context.Response.StatusCode);
+        Assert.Contains("api_key_permission_denied", await ResponseBodyAsync(scenario.Context));
+        Assert.Equal(0, scenario.Finance.Reserves);
+        Assert.Equal(0, scenario.Adapter.CompleteCalls + scenario.Adapter.StreamCalls);
+        Assert.Equal(0, scenario.AnthropicAdapter.CompleteCalls + scenario.AnthropicAdapter.StreamCalls);
+        Assert.Equal(0, scenario.Usage.Attempts);
+    }
+
+    [Theory]
+    [InlineData("default")]
+    [InlineData("price")]
+    [InlineData("latency")]
+    public async Task Api_key_filters_providers_before_ranking_and_reservation(string routing)
+    {
+        var scenario = new Scenario(twoProviders: true);
+        scenario.Authenticator.Permissions = new(AllowedModels: ["gpt-test"], AllowedProviders: ["anthropic"]);
+        if (routing == "price") scenario.UsePriceRouting();
+        if (routing == "latency") scenario.UsePerformanceRouting("latency");
+        await scenario.RunAsync();
+        Assert.Equal(200, scenario.Context.Response.StatusCode);
+        Assert.Equal(0, scenario.Adapter.CompleteCalls);
+        Assert.Equal(1, scenario.AnthropicAdapter.CompleteCalls);
+        Assert.Equal(1, scenario.Finance.Reserves);
+        Assert.Equal("anthropic", scenario.Context.Response.Headers["X-Uzllm-Provider"]);
+    }
+
+    [Fact]
+    public async Task Api_key_denied_provider_is_never_a_same_model_or_hybrid_failover()
+    {
+        foreach (var hybrid in new[] { false, true })
+        {
+            var scenario = new Scenario(twoProviders: true);
+            scenario.Authenticator.Permissions = new(DeniedProviders: ["anthropic"]);
+            if (hybrid) scenario.UseByok(true);
+            scenario.Adapter.Error = new ProviderError(ProviderErrorCategory.RateLimited,
+                ProviderExecutionCertainty.RejectedBeforeExecution, true, true, 429, null, "capacity");
+            await scenario.RunAsync();
+            Assert.Equal(hybrid ? 2 : 1, scenario.Adapter.CompleteCalls);
+            Assert.Equal(0, scenario.AnthropicAdapter.CompleteCalls);
+            Assert.Equal(hybrid ? 2 : 1, scenario.Usage.Attempts);
+        }
+    }
+
+    [Fact]
+    public async Task Model_listing_applies_key_permissions_to_models_and_price_summary()
+    {
+        var scenario = new Scenario(twoProviders: true, fallbackModel: true);
+        scenario.Authenticator.Permissions = new(AllowedModels: ["gpt-test"], AllowedProviders: ["openai"]);
+        await scenario.ListAsync();
+        using var body = JsonDocument.Parse(await ResponseBodyAsync(scenario.Context));
+        var model = Assert.Single(body.RootElement.GetProperty("data").EnumerateArray());
+        Assert.Equal("gpt-test", model.GetProperty("id").GetString());
+        Assert.Equal(1000, model.GetProperty("pricing").GetProperty("input_micro_usd_per_million").GetInt64());
+        Assert.Equal(0, scenario.Finance.Reserves);
+        var empty = new Scenario();
+        empty.Authenticator.Permissions = new(AllowedModels: []);
+        await empty.ListAsync();
+        using var emptyBody = JsonDocument.Parse(await ResponseBodyAsync(empty.Context));
+        Assert.Empty(emptyBody.RootElement.GetProperty("data").EnumerateArray());
+    }
+
+    private static async Task<string> ResponseBodyAsync(HttpContext context)
+    {
+        context.Response.Body.Position = 0;
+        return await new StreamReader(context.Response.Body, leaveOpen: true).ReadToEndAsync();
+    }
+
+    [Fact]
     public async Task Telemetry_success_records_request_tokens_ttft_and_redacted_bounded_trace_tags()
     {
         using var probe = new TelemetryProbe();
@@ -1048,6 +1185,7 @@ public sealed class GatewayExecutionTests
         public readonly FakeWriter Writer = new();
         private readonly CancellationTokenSource abort = new();
         public readonly FakeReadStore Reads;
+        public readonly FakeAuthenticator Authenticator;
         private readonly InferenceGateway gateway;
 
         public Scenario(bool stream = false, bool twoProviders = false,
@@ -1137,7 +1275,8 @@ public sealed class GatewayExecutionTests
             Context.Response.Body = new MemoryStream();
             Context.RequestAborted = abort.Token;
             Writer.AbortSource = abort;
-            gateway = new InferenceGateway(new FakeAuthenticator(apiKeyId, projectId), Reads,
+            Authenticator = new FakeAuthenticator(apiKeyId, projectId);
+            gateway = new InferenceGateway(Authenticator, Reads,
                 catalog, Limiter, new FakeQuota(), new RequestConstraintValidator(), Finance,
                 Usage, PayloadRetention, new FakeAdapterSelector(Adapter, AnthropicAdapter,
                     GoogleAdapter, DeepSeekAdapter), Health, Performance,
@@ -1234,10 +1373,20 @@ public sealed class GatewayExecutionTests
 
     private sealed class FakeAuthenticator(Guid keyId, Guid projectId) : IApiKeyAuthenticator
     {
+        public ApiKeyPermissions? Permissions;
+        public bool ChangeAtAdmission, RevokeAtAdmission;
+        private int authentications;
         public Task<GatewayApiKeyAuthentication?> AuthenticateAsync(string? presentedKey,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<GatewayApiKeyAuthentication?>(presentedKey == "valid"
-                ? new GatewayApiKeyAuthentication(keyId, projectId) : null);
+            CancellationToken cancellationToken = default)
+        {
+            if (++authentications > 1 && ChangeAtAdmission)
+            {
+                if (RevokeAtAdmission) return Task.FromResult<GatewayApiKeyAuthentication?>(null);
+                Permissions = new(AllowedModels: []);
+            }
+            return Task.FromResult<GatewayApiKeyAuthentication?>(presentedKey == "valid"
+                ? new GatewayApiKeyAuthentication(keyId, projectId, Permissions) : null);
+        }
     }
 
     private sealed class FakeReadStore(GatewayTenantScope tenant, FeePolicyVersion fee, Guid credentialId)

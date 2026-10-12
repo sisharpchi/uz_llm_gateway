@@ -174,6 +174,7 @@ This creates clear boundaries without paying the operational cost of many micros
 20. `20_CUSTOMER_QUICKSTART.md`
 21. `21_USAGE_ROLLUPS.md`
 22. `22_USAGE_EXPORT.md`
+23. `23_API_KEY_PERMISSIONS.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

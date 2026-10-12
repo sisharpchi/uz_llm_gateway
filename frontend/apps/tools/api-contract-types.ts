@@ -25,6 +25,12 @@ const csvDownload: CsvResult = new Blob(['csv'], { type: 'text/csv' });
 const invalidCsvDownload: CsvResult = 'csv';
 // @ts-expect-error Only the documented CSV kinds are supported.
 const invalidCsvKind: Parameters<typeof management.exportUsage>[1] = 'summary';
+type KeyPermissions = Parameters<typeof management.setKeyPermissions>[1];
+const unrestrictedModels: KeyPermissions = { allowedModels: null, allowedProviders: ['openai'] };
+const denyAllModels: KeyPermissions = { allowedModels: [] };
+// @ts-expect-error Permission rules are canonical codes, not catalog numeric IDs.
+const invalidPermission: KeyPermissions = { allowedModels: [123] };
 
 void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
-  exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind];
+  exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind,
+  unrestrictedModels, denyAllModels, invalidPermission];
