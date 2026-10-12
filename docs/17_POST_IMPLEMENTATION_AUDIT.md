@@ -105,6 +105,12 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 - Project defaults, customer limits/alerts/team/BYOK/routing UI,
   privacy metadata retention, SDK examples, and enterprise features
   remain incomplete or require a fresh contract before implementation.
+- `LIMITS-002` adds bounded tenant-managed project/key admission overrides,
+  transactional audit, live PostgreSQL policy reads and shared Redis enforcement
+  without resetting counters or leases. Existing financial budgets remain
+  authoritative. [Contract and validation evidence](24_TENANT_LIMITS.md) separates
+  this backend capability from the still-pending FRONTEND-006 screens and OPS-006
+  production qualification.
 - `DX-002` now publishes the implemented Gateway/Management v1 OpenAPI surfaces,
   serializer-derived examples and generated client wire types with CI drift checks
   (see [API artifact guide](api/README.md)). This does not implement Responses,

@@ -24,6 +24,10 @@ Activity and Analytics can download bounded, tenant-authorized CSV with the
 same filters, UTC windows and unknown/lag semantics as the API. See
 [export limits, schema and spreadsheet handling](docs/22_USAGE_EXPORT.md).
 
+Management can configure bounded per-project/per-key RPM and concurrency while
+preserving shared Redis counters and PostgreSQL financial budgets. See
+[tenant limits, failure semantics and operator ceilings](docs/24_TENANT_LIMITS.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

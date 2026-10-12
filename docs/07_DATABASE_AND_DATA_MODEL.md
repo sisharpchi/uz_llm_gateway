@@ -64,6 +64,14 @@ are unique within their organization. Later tables that carry both project and
 organization use the project scope as a tenant guard.
 
 ### `gateway.api_key`
+
+`LIMITS-002` adds nullable integer `requests_per_minute` and `concurrency_limit`
+on both `gateway.project` and `gateway.api_key`. NULL inherits bounded operator
+defaults. CHECK constraints require RPM 1–1,000,000 and concurrency 1–10,000 when
+present. Existing PK/FKs support the joined tenant-scoped admission read; no
+additional table/index is needed. Whole-policy UPDATE and audit commit together.
+Down refuses to discard overrides. See [tenant limits](24_TENANT_LIMITS.md).
+
 - id
 - project_id
 - name

@@ -87,6 +87,21 @@ test('serializer-derived examples match their actual status and media-type schem
   assert.ok(unknown, 'Unknown usage must remain nullable, never zero-filled');
 });
 
+test('tenant admission limits have bounded nullable numeric controls and protected wire operations', () => {
+  for (const resource of ['projects/{projectId}', 'api-keys/{apiKeyId}']) {
+    const operation = documents.management.paths['/management/v1/' + resource + '/limits'].put;
+    assert.deepEqual(operation.security, [{ Session: [] }]);
+    assert.ok(operation.parameters.some(item => item.name === 'X-CSRF-Token' && item.required));
+    for (const status of ['200', '400', '401', '403', '404']) assert.ok(operation.responses[status]);
+    const validate = validator(documents.management, operation.requestBody.content['application/json'].schema);
+    for (const value of [{}, { requestsPerMinute: null, concurrency: null }, { requestsPerMinute: 1, concurrency: 1 },
+      { requestsPerMinute: 1000000, concurrency: 10000 }]) assert.ok(validate(value), JSON.stringify(validate.errors));
+    for (const value of [{ requestsPerMinute: 0 }, { concurrency: -1 }, { concurrency: 1.5 }, { leaseSeconds: 1 },
+      { requestsPerMinute: 1000001 }, { concurrency: 10001 }, { requestsPerMinute: '10' }])
+      assert.equal(validate(value), false, JSON.stringify(value));
+  }
+});
+
 test('gateway request example and rejection boundaries agree with the bounded chat contract', () => {
   const media = documents.gateway.paths['/v1/chat/completions'].post.requestBody.content['application/json'];
   const validate = validator(documents.gateway, media.schema);

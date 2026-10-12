@@ -436,7 +436,17 @@ POST /billing/topups
 GET  /billing/payments
 ```
 
-### Budgets
+### Admission limits
+
+`GET/PUT /management/v1/projects/{projectId}/limits` and
+`GET/PUT /management/v1/api-keys/{apiKeyId}/limits` expose nullable positive integer
+`requestsPerMinute`/`concurrency` overrides. PUT replaces both fields; null or
+omission inherits a bounded operator default, never unlimited. Results contain
+`configured`, `effective`, and `ceiling`. Key and project limits both gate new
+admission. Writes require current permission and CSRF and are audited atomically.
+See [LIMITS-002 contract and failure semantics](24_TENANT_LIMITS.md).
+
+### Financial budgets
 
 ```text
 GET /management/v1/projects/{projectId}/budgets

@@ -121,7 +121,9 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
         Assert.True(await store.TrySetPermissionsAsync(keyId, new(AllowedProviders: [])));
         var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync("20261011103552_AddDurableUsageRollups"));
         Assert.Contains("permissions cannot be downgraded", downgrade.ToString(), StringComparison.Ordinal);
-        Assert.Empty((await store.FindByIdAsync(keyId))!.Permissions!.AllowedProviders!);
+        // Newer reversible migrations may have downgraded before the permissions guard fails.
+        Assert.Empty((await db.Set<GatewayApiKeyEntity>().Where(value => value.Id == keyId)
+            .Select(value => value.AllowedProviders).SingleAsync())!);
     }
 
     [Fact]
@@ -431,8 +433,12 @@ public sealed class ApiKeyPersistenceIntegrationTests(PersistenceIntegrationFixt
         dbContext.Set<IdentityAccountEntity>().Add(new IdentityAccountEntity { Id = accountId, Email = $"apikey-{accountId:N}@example.uz", PasswordHash = "not-a-password", Status = "Active", CreatedAt = now, UpdatedAt = now });
         dbContext.Set<OrganizationEntity>().Add(new OrganizationEntity { Id = organizationId, Name = "API key tenant", Status = "Active", CreatedAt = now });
         dbContext.Set<OrganizationMemberEntity>().Add(new OrganizationMemberEntity { OrganizationId = organizationId, AccountId = accountId, Role = "Owner", Status = "Active", CreatedAt = now });
-        dbContext.Set<ProjectEntity>().Add(new ProjectEntity { Id = projectId, OrganizationId = organizationId, Name = "Production", Status = "Active", SettingsJson = "{}", CreatedAt = now });
         await dbContext.SaveChangesAsync();
+        // Migration tests also seed schemas predating tenant-limit columns in the current model.
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO gateway.project (id, organization_id, name, status, settings_json, created_at)
+            VALUES ({projectId}, {organizationId}, 'Production', 'Active', {"{}"}::jsonb, {now})
+            """);
         return (accountId, projectId);
     }
 

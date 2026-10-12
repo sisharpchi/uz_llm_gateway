@@ -31,6 +31,14 @@ const denyAllModels: KeyPermissions = { allowedModels: [] };
 // @ts-expect-error Permission rules are canonical codes, not catalog numeric IDs.
 const invalidPermission: KeyPermissions = { allowedModels: [123] };
 
+type Limits = Parameters<typeof management.setProjectLimits>[1];
+const inheritedLimits: Limits = { requestsPerMinute: null, concurrency: null };
+const finiteLimits: Limits = { requestsPerMinute: 10, concurrency: 2 };
+// @ts-expect-error Limit knobs are JSON numbers, not numeric strings.
+const stringLimit: Limits = { requestsPerMinute: '10' };
+// @ts-expect-error Tenant configuration cannot change lease/recovery safety windows.
+const unsafeLease: Limits = { leaseSeconds: 1 };
+
 void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
   exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind,
-  unrestrictedModels, denyAllModels, invalidPermission];
+  unrestrictedModels, denyAllModels, invalidPermission, inheritedLimits, finiteLimits, stringLimit, unsafeLease];

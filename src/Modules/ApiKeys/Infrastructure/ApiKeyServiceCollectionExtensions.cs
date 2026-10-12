@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UZLLM.Modules.ApiKeys.Application;
 using UZLLM.Modules.ApiKeys.Contracts;
+using UZLLM.Modules.ApiKeys.Domain;
 using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Organizations.Contracts;
 
@@ -17,6 +18,7 @@ public static class ApiKeyServiceCollectionExtensions
     {
         services.AddUzllmGatewayApiKeys(configuration);
         services.AddScoped<IApiKeyService, ApiKeyService>();
+        services.AddScoped<ITenantLimitService, TenantLimitService>();
         return services;
     }
 
@@ -24,6 +26,15 @@ public static class ApiKeyServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.AddScoped<IApiKeyStore, PostgreSqlApiKeyStore>();
+        services.AddScoped<ITenantLimitStore, PostgreSqlTenantLimitStore>();
+        TenantLimits Ceiling(string scope, int rpm, int concurrency)
+        {
+            var value = new TenantLimits(configuration.GetValue<int?>($"Gateway:Limits:{scope}Rpm") ?? rpm,
+                configuration.GetValue<int?>($"Gateway:Limits:{scope}Concurrency") ?? concurrency);
+            TenantLimitPolicy.Validate(value, new(TenantLimitPolicy.MaximumRpm, TenantLimitPolicy.MaximumConcurrency));
+            return value;
+        }
+        services.AddSingleton(new TenantLimitCeilings(Ceiling("Project", 600, 64), Ceiling("ApiKey", 60, 8)));
         services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
         services.AddSingleton<IApiKeySecretGenerator, GatewayApiKeySecretGenerator>();
         services.AddSingleton<IApiKeySecretFingerprint>(HmacApiKeySecretFingerprint.FromConfiguration(configuration));
@@ -33,7 +44,8 @@ public static class ApiKeyServiceCollectionExtensions
         services.AddSingleton(new LimitRecoveryOptions(TimeSpan.FromSeconds(maxLeaseSeconds)));
         services.AddSingleton<IRedisEpochSource, RedisServerEpochSource>();
         services.AddSingleton<RedisAdmissionLimiter>();
-        services.AddSingleton<IDistributedAdmissionLimiter>(provider => provider.GetRequiredService<RedisAdmissionLimiter>());
+        services.AddScoped<IDistributedAdmissionLimiter>(provider => new TenantAdmissionLimiter(
+            provider.GetRequiredService<ITenantLimitStore>(), provider.GetRequiredService<RedisAdmissionLimiter>()));
         services.AddSingleton<IProviderQuotaProtection>(provider => provider.GetRequiredService<RedisAdmissionLimiter>());
         services.AddSingleton<IRequestConstraintValidator, RequestConstraintValidator>();
         return services;
@@ -41,6 +53,7 @@ public static class ApiKeyServiceCollectionExtensions
 
     public static IEndpointRouteBuilder MapUzllmApiKeyEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapUzllmTenantLimitEndpoints();
         var projectKeys = endpoints.MapGroup("/management/v1/projects/{projectId:guid}/api-keys");
         projectKeys.MapGet("", async (Guid projectId, HttpContext context, IApiKeyService service, CancellationToken cancellationToken) =>
         {

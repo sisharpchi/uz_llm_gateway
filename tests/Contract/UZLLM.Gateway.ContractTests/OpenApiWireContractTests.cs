@@ -73,6 +73,12 @@ public sealed class OpenApiWireContractTests : IDisposable
                     UZLLM.Modules.ApiKeys.Contracts.GatewayApiKeyStatus.Active, null, id, now) });
         Add(org + "/billing/wallet", "get", 200, new WalletResponse(id,
             "9007199254740993", "100", "9007199254740893", "0", false, 3));
+        foreach (var resource in new[] { "projects/{projectId}", "api-keys/{apiKeyId}" })
+        {
+            var path = "/management/v1/" + resource + "/limits";
+            Add(path, "get", 200, new UZLLM.Modules.ApiKeys.Contracts.TenantLimitView(new(), new(60, 8), new(60, 8)));
+            Add(path, "put", 200, new UZLLM.Modules.ApiKeys.Contracts.TenantLimitView(new(12, 2), new(12, 2), new(60, 8)));
+        }
         var intent = new PaymentIntentResponse(id, id, "Click", id, "Pending", "10000000", "10000",
             "7500000", id, "133200000", null, now, null, null, null);
         Add(org + "/billing/quotes", "post", 200, new PaymentQuoteResponse(id, id, "Click",

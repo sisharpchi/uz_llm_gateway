@@ -2,6 +2,9 @@ namespace UZLLM.Persistence;
 
 public sealed class GatewayApiKeyEntity
 {
+    public int? RequestsPerMinute { get; set; }
+    public int? Concurrency { get; set; }
+
     public Guid Id { get; set; }
     public Guid ProjectId { get; set; }
     public string Name { get; set; } = null!;

@@ -34,6 +34,16 @@ public static class ManagementOpenApi
                 if (context.JsonTypeInfo.Type == typeof(ApiKeyPermissions) && schema.Properties is not null)
                     foreach (var property in schema.Properties.Values.OfType<OpenApiSchema>())
                         property.MaxItems = 128;
+                if (context.JsonTypeInfo.Type == typeof(TenantLimits) && schema.Properties is { } limitProperties)
+                {
+                    schema.AdditionalPropertiesAllowed = false;
+                    foreach (var (name, property) in limitProperties)
+                        if (property is OpenApiSchema value)
+                        {
+                            value.Minimum = "1";
+                            value.Maximum = name == "requestsPerMinute" ? "1000000" : "10000";
+                        }
+                }
                 // Optional record-constructor defaults must also accept the actual
                 // null serialized by newly issued/unrestricted keys.
                 if (context.JsonTypeInfo.Type == typeof(GatewayApiKey)
@@ -222,6 +232,10 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Write<IssuedGatewayApiKey>("POST", "/projects/{projectId}/api-keys", 201, 404, 409);
         Empty("PATCH", "/api-keys/{apiKeyId}", 404);
         Empty("PUT", "/api-keys/{apiKeyId}/permissions", 404);
+        Read<TenantLimitView>("/projects/{projectId}/limits", 404);
+        Write<TenantLimitView>("PUT", "/projects/{projectId}/limits", 200, 404);
+        Read<TenantLimitView>("/api-keys/{apiKeyId}/limits", 404);
+        Write<TenantLimitView>("PUT", "/api-keys/{apiKeyId}/limits", 200, 404);
         Write<IssuedGatewayApiKey>("POST", "/api-keys/{apiKeyId}/rotate", 200, 404, 409);
         Read<BudgetPolicyResponse[]>("/projects/{projectId}/budgets", 404);
         Write<BudgetPolicyResponse>("PUT", "/projects/{projectId}/budgets/{period}", 200, 404, 409);

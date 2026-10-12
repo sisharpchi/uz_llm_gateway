@@ -293,6 +293,90 @@
   },
   {
     "body": {
+      "ceiling": {
+        "concurrency": 8,
+        "requestsPerMinute": 60
+      },
+      "configured": {
+        "concurrency": null,
+        "requestsPerMinute": null
+      },
+      "effective": {
+        "concurrency": 8,
+        "requestsPerMinute": 60
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/projects/{projectId}/limits",
+    "status": 200
+  },
+  {
+    "body": {
+      "ceiling": {
+        "concurrency": 8,
+        "requestsPerMinute": 60
+      },
+      "configured": {
+        "concurrency": 2,
+        "requestsPerMinute": 12
+      },
+      "effective": {
+        "concurrency": 2,
+        "requestsPerMinute": 12
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "put",
+    "path": "/management/v1/projects/{projectId}/limits",
+    "status": 200
+  },
+  {
+    "body": {
+      "ceiling": {
+        "concurrency": 8,
+        "requestsPerMinute": 60
+      },
+      "configured": {
+        "concurrency": null,
+        "requestsPerMinute": null
+      },
+      "effective": {
+        "concurrency": 8,
+        "requestsPerMinute": 60
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/api-keys/{apiKeyId}/limits",
+    "status": 200
+  },
+  {
+    "body": {
+      "ceiling": {
+        "concurrency": 8,
+        "requestsPerMinute": 60
+      },
+      "configured": {
+        "concurrency": 2,
+        "requestsPerMinute": 12
+      },
+      "effective": {
+        "concurrency": 2,
+        "requestsPerMinute": 12
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "put",
+    "path": "/management/v1/api-keys/{apiKeyId}/limits",
+    "status": 200
+  },
+  {
+    "body": {
       "amountTiyin": "10000000",
       "createdAt": "2026-10-01T00:00:00+00:00",
       "creditMicroUsd": "7500000",

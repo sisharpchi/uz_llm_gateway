@@ -314,6 +314,12 @@ Prevent one provider hanging all gateway connections.
 
 ## 11. Redis failure behavior
 
+Tenant RPM/concurrency overrides are read from PostgreSQL on every new admission
+and clamped by Gateway ceilings. Updates never reset Redis counters/leases or
+change recovery timing. PostgreSQL policy loss also fails closed; releasing an
+existing lease does not read that policy. See [tenant limits](24_TENANT_LIMITS.md)
+for update races and configuration.
+
 New managed inference fails closed when distributed admission is unavailable;
 there is no per-node fallback. A Redis instance change starts a recovery window
 equal to the maximum configured concurrency lease. Until it elapses, new managed

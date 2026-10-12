@@ -383,6 +383,17 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // Disposable fixture only: production rollback refuses to discard tenant limits.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'gateway'
+                      AND table_name = 'project' AND column_name = 'requests_per_minute') THEN
+                    UPDATE gateway.project SET requests_per_minute = NULL, concurrency_limit = NULL;
+                    UPDATE gateway.api_key SET requests_per_minute = NULL, concurrency_limit = NULL;
+                  END IF;
+                END $$;
+                """);
         // Disposable test database only: production Down refuses to discard refunds.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
             .Database.ExecuteSqlRawAsync("""

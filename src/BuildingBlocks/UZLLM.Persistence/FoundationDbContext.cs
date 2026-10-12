@@ -220,6 +220,10 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
         modelBuilder.Entity<ProjectEntity>(entity =>
         {
             entity.ToTable("project", "gateway");
+            entity.Property(project => project.RequestsPerMinute).HasColumnName("requests_per_minute");
+            entity.Property(project => project.Concurrency).HasColumnName("concurrency_limit");
+            entity.ToTable(table => table.HasCheckConstraint("CK_project_admission_limits",
+                "(requests_per_minute IS NULL OR requests_per_minute BETWEEN 1 AND 1000000) AND (concurrency_limit IS NULL OR concurrency_limit BETWEEN 1 AND 10000)"));
             entity.HasKey(project => project.Id);
             entity.Property(project => project.Id).HasColumnName("id");
             entity.Property(project => project.OrganizationId).HasColumnName("organization_id");
@@ -257,6 +261,10 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
         modelBuilder.Entity<GatewayApiKeyEntity>(entity =>
         {
             entity.ToTable("api_key", "gateway", table => table.HasCheckConstraint("CK_api_key_status", "status IN ('Active', 'Disabled')"));
+            entity.Property(key => key.RequestsPerMinute).HasColumnName("requests_per_minute");
+            entity.Property(key => key.Concurrency).HasColumnName("concurrency_limit");
+            entity.ToTable(table => table.HasCheckConstraint("CK_api_key_admission_limits",
+                "(requests_per_minute IS NULL OR requests_per_minute BETWEEN 1 AND 1000000) AND (concurrency_limit IS NULL OR concurrency_limit BETWEEN 1 AND 10000)"));
             entity.HasKey(apiKey => apiKey.Id);
             entity.Property(apiKey => apiKey.Id).HasColumnName("id");
             entity.Property(apiKey => apiKey.ProjectId).HasColumnName("project_id");

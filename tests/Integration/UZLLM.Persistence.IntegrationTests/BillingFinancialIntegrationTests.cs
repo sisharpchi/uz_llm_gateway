@@ -685,6 +685,13 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         var budgets = await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId);
         Assert.Equal(4, budgets.Count);
         Assert.All(budgets, value => Assert.Equal(20_000, value.Reserved.Value));
+        // A tenant may tighten a cap below existing exposure, never erase the holds.
+        Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
+            null, BudgetPeriod.Monthly, new UsdMicroAmount(0)));
+        Assert.Equal(AdmissionStatus.ProjectBudgetExceeded,
+            (await financial.ReserveAsync(Admission(seed, 1, payload: [18]))).Status);
+        Assert.All(await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId),
+            value => Assert.Equal(20_000, value.Reserved.Value));
         Assert.Equal(FinalizationStatus.Released,
             (await financial.ReleaseUndispatchedAsync(hold.Reservation!.Id)).Status);
         Assert.All(await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId),

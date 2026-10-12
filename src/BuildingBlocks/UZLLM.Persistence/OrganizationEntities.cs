@@ -63,6 +63,9 @@ public sealed class ProjectGrantEntity
 
 public sealed class ProjectEntity
 {
+    public int? RequestsPerMinute { get; set; }
+    public int? Concurrency { get; set; }
+
     public Guid Id { get; set; }
 
     public Guid OrganizationId { get; set; }

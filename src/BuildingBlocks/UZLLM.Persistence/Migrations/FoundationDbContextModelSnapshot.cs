@@ -1165,6 +1165,10 @@ namespace UZLLM.Persistence.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("allowed_providers");
 
+                    b.Property<int?>("Concurrency")
+                        .HasColumnType("integer")
+                        .HasColumnName("concurrency_limit");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1213,6 +1217,10 @@ namespace UZLLM.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<int?>("RequestsPerMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("requests_per_minute");
+
                     b.Property<byte[]>("SecretFingerprint")
                         .IsRequired()
                         .HasColumnType("bytea")
@@ -1236,6 +1244,8 @@ namespace UZLLM.Persistence.Migrations
 
                     b.ToTable("api_key", "gateway", t =>
                         {
+                            t.HasCheckConstraint("CK_api_key_admission_limits", "(requests_per_minute IS NULL OR requests_per_minute BETWEEN 1 AND 1000000) AND (concurrency_limit IS NULL OR concurrency_limit BETWEEN 1 AND 10000)");
+
                             t.HasCheckConstraint("CK_api_key_fingerprint_key_version", "fingerprint_key_version >= 1");
 
                             t.HasCheckConstraint("CK_api_key_generation", "generation >= 1");
@@ -2284,6 +2294,10 @@ namespace UZLLM.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("archived_at");
 
+                    b.Property<int?>("Concurrency")
+                        .HasColumnType("integer")
+                        .HasColumnName("concurrency_limit");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -2297,6 +2311,10 @@ namespace UZLLM.Persistence.Migrations
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
+
+                    b.Property<int?>("RequestsPerMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("requests_per_minute");
 
                     b.Property<string>("SettingsJson")
                         .IsRequired()
@@ -2317,7 +2335,10 @@ namespace UZLLM.Persistence.Migrations
                     b.HasIndex("OrganizationId", "Name")
                         .IsUnique();
 
-                    b.ToTable("project", "gateway");
+                    b.ToTable("project", "gateway", t =>
+                        {
+                            t.HasCheckConstraint("CK_project_admission_limits", "(requests_per_minute IS NULL OR requests_per_minute BETWEEN 1 AND 1000000) AND (concurrency_limit IS NULL OR concurrency_limit BETWEEN 1 AND 10000)");
+                        });
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.ProjectGrantEntity", b =>
