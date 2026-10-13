@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Task"
+  short_description: "Implement and commit one ready UZLLM backlog task"
+  default_prompt: "Use $implement-task to implement one ready backlog task, validate it, update its status, commit only that task, and stop for my approval."
