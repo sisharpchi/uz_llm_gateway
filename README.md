@@ -32,6 +32,10 @@ Project routing defaults, hard model/provider allowlists and metadata-only
 environment tags use the existing project settings storage. Existing budget
 policies remain authoritative. See [precedence and safety](docs/25_PROJECT_DEFAULTS.md).
 
+The customer dashboard exposes project settings/archive, show-once key
+creation/rotation/revocation, model/provider permissions, request limits and
+spend budgets through those existing APIs. See [lifecycle screens and validation](docs/26_CUSTOMER_LIFECYCLE.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

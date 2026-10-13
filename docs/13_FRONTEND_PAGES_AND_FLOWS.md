@@ -122,7 +122,15 @@ Actions:
 - disable/enable;
 - rotate;
 - edit limits;
-- delete.
+- edit model/provider permissions.
+
+FRONTEND-006 implements create with optional UTC expiry, show-once copy,
+confirmation-gated rotate/disable/enable, permissions and separate request/spend
+limits. Key deletion, renaming and changing an existing expiry are not exposed
+by the current backend and are not simulated in the UI. Disable preserves
+history (FR-022). Last-used timestamps and nonexistent summary fields are not
+fabricated. Key usage reads the existing scoped 30-day summary with unsettled
+counts and aggregation freshness. See [implemented lifecycle scope](26_CUSTOMER_LIFECYCLE.md).
 
 ---
 
@@ -373,6 +381,13 @@ Progress bars:
 - current use;
 - threshold;
 - reset date.
+
+FRONTEND-006 supports project and key Lifetime/Daily/Weekly/Monthly budgets.
+Current-window captured spend and holds are shown separately; UTC reset is
+server-provided. Zero is a hard deny-new-spend cap, not unlimited. RPM/concurrency
+blank fields inherit finite operator ceilings; configured and effective values
+are distinguished. Budget updates require billing permission, independent of key
+management. No budget deletion or new per-request cost ceiling is introduced.
 
 ---
 

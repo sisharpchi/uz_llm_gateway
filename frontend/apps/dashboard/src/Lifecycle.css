@@ -1,0 +1,47 @@
+.lifecycle-page { display: grid; gap: 1.5rem; }
+.sidebar { min-width: 0; }
+.topbar { gap: .75rem; }
+.topbar > div { min-width: 0; flex-wrap: wrap; gap: .4rem 1rem; }
+.topbar-project { overflow-wrap: anywhere; }
+.environment { flex-shrink: 0; max-width: 45%; overflow-wrap: anywhere; }
+.lifecycle-page .page-heading { margin-bottom: 0; }
+.lifecycle-overview { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(240px, 1fr); gap: 1rem; align-items: start; }
+.lifecycle-page .panel { min-width: 0; }
+.lifecycle-page h2, .lifecycle-page h3, .lifecycle-dialog h2 { margin: 0 0 .6rem; }
+.lifecycle-page h4 { margin: 0; color: #b7c8d3; font-weight: 500; }
+.section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.section-title h2 { margin: 0; }
+.lifecycle-callout { margin: 0; padding: 1rem 1.25rem; border: 1px solid #31534e; border-left: 3px solid #7fe2c3; border-radius: .75rem; background: #102522; color: #c3ddd5; line-height: 1.6; }
+.project-controls { display: grid; gap: 1rem; padding-top: .8rem; border-top: 1px solid #2a3c48; }
+.project-controls > h2 { margin-bottom: 0; overflow-wrap: anywhere; }
+.lifecycle-tabs { display: flex; gap: .5rem; flex-wrap: wrap; }
+.lifecycle-tabs [aria-pressed=true] { background: #1d3b35; border-color: #7fe2c3; color: #a0f3d8; }
+.lifecycle-section { margin: 0; }
+.lifecycle-section > p { line-height: 1.65; }
+.control-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; align-items: start; }
+.lifecycle-page label { display: grid; gap: .45rem; color: #d6e2e9; min-width: 0; }
+.lifecycle-page label small { color: #a8bac8; font-weight: 400; line-height: 1.5; }
+.lifecycle-page textarea { resize: vertical; width: 100%; background: #0b1721; color: #e8eef2; border: 1px solid #38505e; border-radius: .6rem; padding: .75rem; font: inherit; }
+.lifecycle-page :is(input,select,textarea) { min-width: 0; width: 100%; }
+.lifecycle-page :is(button,a.button), .lifecycle-dialog button { min-height: 44px; }
+.lifecycle-page :is(button,input,select,textarea,a):focus-visible, .lifecycle-dialog button:focus-visible { outline: 2px solid #91f1d1; outline-offset: 3px; }
+.lifecycle-page .row-list li { align-items: start; gap: 1rem; flex-wrap: wrap; }
+.lifecycle-page .row-list li > div:first-child { min-width: 0; flex: 1 1 180px; }
+.lifecycle-page .row-list strong, .lifecycle-page .row-list small { display: block; overflow-wrap: anywhere; }
+.lifecycle-page .row-list small { color: #a8bac8; font-size: .78rem; line-height: 1.6; margin-top: .3rem; }
+.lifecycle-page .row-actions { flex-wrap: wrap; justify-content: flex-end; }
+.lifecycle-page .row-actions .text-button { padding: .5rem; }
+.lifecycle-page .status-active { background: #173b32; color: #a0f3d8; border: 1px solid #2a6653; }
+.lifecycle-page .danger-text { color: #ffb6b6; }
+.button.danger { background: #50262d; color: #ffe0e0; border: 1px solid #b65c6a; }
+.button.danger:hover { background: #68313b; }
+.budget-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: .75rem; margin: 1rem 0; }
+.budget-card { display: grid; align-content: start; gap: .6rem; border: 1px solid #2c434f; border-radius: .8rem; background: #0b1821; padding: 1rem; min-width: 0; }
+.budget-card strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.budget-card small { color: #adbfcb; line-height: 1.5; overflow-wrap: anywhere; }
+.budget-card progress { width: 100%; height: .55rem; accent-color: #7fe2c3; }
+.budget-form { border-top: 1px solid #2a3c48; padding-top: 1rem; }
+.lifecycle-dialog { width: min(560px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
+.lifecycle-dialog p { line-height: 1.65; }
+@media (max-width: 1000px) { .lifecycle-overview { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .control-pair { grid-template-columns: 1fr; } .topbar { height: auto; min-height: 72px; padding-block: .75rem; } .lifecycle-page .section-title { flex-wrap: wrap; } .lifecycle-page .row-actions { justify-content: flex-start; } .lifecycle-page .panel { padding: 1rem; } }

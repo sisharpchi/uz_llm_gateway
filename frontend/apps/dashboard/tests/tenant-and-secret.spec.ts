@@ -41,10 +41,10 @@ async function mockManagement(page: Page) {
 test('tenant switch changes project and key data without displaying the prior tenant', async ({ page }) => {
   const calls = await mockManagement(page);
   await page.goto(`/organizations/${orgOne}/keys`);
-  await expect(page.getByText('Alpha only key')).toBeVisible();
+  await expect(page.getByText('Alpha only key', { exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: 'Organization' }).selectOption(orgTwo);
   await page.getByRole('link', { name: 'API keys' }).click();
-  await expect(page.getByText('Beta only key')).toBeVisible();
+  await expect(page.getByText('Beta only key', { exact: true })).toBeVisible();
   await expect(page.getByText('Alpha only key')).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Project' })).toHaveValue(projectTwo);
   expect(calls).toContain(`GET /management/v1/projects/${projectTwo}/api-keys`);
@@ -62,7 +62,7 @@ test('issued secret is shown once and never retained in browser storage or key m
   await expect(page.getByText(secret)).toHaveCount(0);
   expect(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))).not.toContain(secret);
   await page.reload();
-  await expect(page.getByText('New key')).toBeVisible();
+  await expect(page.getByText('New key', { exact: true })).toBeVisible();
   await expect(page.getByText(secret)).toHaveCount(0);
   expect(calls.filter(call => call === `POST /management/v1/projects/${projectOne}/api-keys`)).toHaveLength(1);
 });

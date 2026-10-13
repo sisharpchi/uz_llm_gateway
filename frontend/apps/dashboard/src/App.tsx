@@ -5,6 +5,8 @@ import { ApiError, management, tiyinFromWholeUzs, usdFromMicro, uzsFromTiyin,
   type Organization, type Project, type PaymentQuote, type CreatedTopUp, type PaymentIntent } from '@uzllm/api-client';
 import { ActivityPage, AnalyticsPage } from './UsagePages';
 import { CatalogPage } from './CatalogPage';
+import { ProjectsPage } from './ProjectsPage';
+import { KeysPage } from './KeysPage';
 
 type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics';
 const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics'];
@@ -166,17 +168,18 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
         {!projects.data?.length && <option value="">No projects</option>}
         {projects.data?.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       <nav aria-label="Main navigation" className="nav-list">{validPages.map(item => <Link key={item} to={pageUrl(item)} aria-current={page === item ? 'page' : undefined}>
-        <span className="nav-icon">{item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'models' ? '◇' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
+        <span className="nav-icon" aria-hidden="true">{item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'models' ? '◇' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
       <div className="sidebar-bottom"><p>Managed credits</p><strong>{wallet.data ? usdFromMicro(wallet.data.availableBalanceMicroUsd) : '—'}</strong>
         <button onClick={signOut} className="text-button">Sign out</button></div>
     </aside>
     <div className="workspace"><header className="topbar"><div><span className="eyebrow">{organization.name}</span><span className="topbar-project">{page === 'activity' && !activityProject ? 'All projects' : selectedProject?.name ?? 'No project selected'}</span></div>
-      <span className="environment">Production</span></header>
+      <span className="environment">{projectEnvironment(selectedProject)}</span></header>
       <main id="main-content" className="content">
         {projects.isError && <ErrorState error={projects.error} />}
         {page === 'overview' && <Overview organization={organization} project={selectedProject} wallet={wallet.data?.availableBalanceMicroUsd} />}
-        {page === 'projects' && <ProjectsPanel organization={organization} projects={projects.data ?? []} />}
-        {page === 'keys' && <KeysPanel organizationId={organization.id} project={selectedProject} />}
+        {page === 'projects' && !projects.isPending && !projects.isError && <ProjectsPage key={organization.id} organization={organization} projects={projects.data ?? []} selected={selectedProject} />}
+        {page === 'keys' && !projects.isPending && !projects.isError && <KeysPage key={`${organization.id}:${selectedProject?.id ?? 'none'}`} organizationId={organization.id} project={selectedProject} />}
+        {(page === 'projects' || page === 'keys') && projects.isPending && <p role="status">Loading projects…</p>}
         {page === 'models' && <CatalogPage organizationId={organization.id} projectId={selectedProject?.id} />}
         {page === 'billing' && <BillingPanel organizationId={organization.id} />}
         {page === 'activity' && <ActivityPage key={`${organization.id}:${activityProject?.id ?? 'all'}`} organizationId={organization.id} projectId={activityProject?.id} projects={projects.data ?? []} />}
@@ -196,49 +199,17 @@ function Overview({ organization, project, wallet }: { organization: Organizatio
   </>;
 }
 
-function ProjectsPanel({ organization, projects }: { organization: Organization; projects: Project[] }) {
-  const client = useQueryClient(); const [name, setName] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); setError('');
-    try { await management.createProject(organization.id, name); setName(''); await client.invalidateQueries({ queryKey: ['projects', organization.id] }); }
-    catch (cause) { setError(message(cause)); } finally { setBusy(false); } }
-  return <><div className="page-heading"><span className="eyebrow">{organization.name}</span><h1>Projects</h1><p>Keep API keys and usage scoped to the correct environment.</p></div>
-    <div className="two-column"><section className="panel"><h2>Your projects</h2>{projects.length ? <ul className="row-list">{projects.map(project =>
-      <li key={project.id}><strong>{project.name}</strong><span className="tag">{project.status === 0 ? 'Active' : 'Archived'}</span></li>)}</ul> : <p className="muted">No projects yet.</p>}</section>
-      <form onSubmit={submit} className="panel stack"><h2>Create a project</h2><label>Project name<input value={name} onChange={event => setName(event.target.value)} required minLength={2} maxLength={100} /></label>
-        {error && <p role="alert" className="error">{error}</p>}<button disabled={busy} className="button primary">Create project</button></form></div></>;
-}
-
-function SecretDialog({ secret, onClose }: { secret: string; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const closedByUser = useRef(false);
-  useEffect(() => { const node = ref.current; node?.showModal(); return () => node?.close(); }, []);
-  return <dialog ref={ref} onCancel={() => { closedByUser.current = true; }}
-    onClose={() => { if (closedByUser.current) onClose(); }} className="secret-dialog"><div className="stack"><span className="eyebrow">SHOW ONCE</span><h2>Your new API key</h2>
-    <p>Copy this key now. It will never be shown again.</p><code className="secret-value">{secret}</code>
-    <button className="button primary" onClick={() => navigator.clipboard.writeText(secret)}>Copy key</button>
-    <button className="button secondary" onClick={() => { closedByUser.current = true; ref.current?.close(); }}>I saved it</button></div></dialog>;
-}
-
-function KeysPanel({ organizationId, project }: { organizationId: string; project?: Project }) {
-  const client = useQueryClient(); const [name, setName] = useState(''); const [secret, setSecret] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  const keys = useQuery({ queryKey: ['keys', organizationId, project?.id], queryFn: () => management.keys(project!.id), enabled: !!project });
-  async function create(event: FormEvent) { event.preventDefault(); if (!project) return; setBusy(true); setError('');
-    try { const issued = await management.createKey(project.id, name); setName(''); setSecret(issued.secret);
-      await client.invalidateQueries({ queryKey: ['keys', organizationId, project.id] }); }
-    catch (cause) { setError(message(cause)); } finally { setBusy(false); } }
-  async function disable(id: string) { if (!project) return;
-    try { await management.disableKey(id); await client.invalidateQueries({ queryKey: ['keys', organizationId, project.id] }); }
-    catch (cause) { setError(message(cause)); } }
-  if (!project) return <EmptyProject />;
-  return <><div className="page-heading"><span className="eyebrow">{project.name}</span><h1>API keys</h1><p>Issue a key for this project. Secrets are visible only at creation.</p></div>
-    <div className="two-column"><section className="panel"><h2>Keys</h2>{keys.isError && <ErrorState error={keys.error} />}
-      {keys.data?.length ? <ul className="row-list">{keys.data.map(key => <li key={key.id}><div><strong>{key.name}</strong><small className="key-prefix">{key.prefix}••••••••</small></div>
-        <div className="row-actions"><span className="tag">{key.status === 0 ? 'Active' : 'Disabled'}</span>{key.status === 0 && <button className="text-button" onClick={() => disable(key.id)}>Disable</button>}</div></li>)}</ul>
-        : <p className="muted">No API keys for this project.</p>}</section>
-      <form onSubmit={create} className="panel stack"><h2>Create an API key</h2><label>Key name<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={100} required /></label>
-        {error && <p role="alert" className="error">{error}</p>}<button disabled={busy} className="button primary">Create key</button><p className="muted">The secret is never stored by this browser.</p></form></div>
-    {secret && <SecretDialog secret={secret} onClose={() => setSecret(null)} />}</>;
+function projectEnvironment(project?: Project): string {
+  if (!project) return 'No project';
+  if (project.status !== 0) return 'Archived';
+  try {
+    const settings: unknown = JSON.parse(project.settingsJson);
+    if (settings && typeof settings === 'object' && 'defaults' in settings) {
+      const defaults = settings.defaults;
+      if (defaults && typeof defaults === 'object' && 'environment' in defaults && typeof defaults.environment === 'string') return defaults.environment;
+    }
+  } catch { /* Older fixtures or absent metadata do not imply Production. */ }
+  return 'Environment not tagged';
 }
 
 function BillingPanel({ organizationId }: { organizationId: string }) {

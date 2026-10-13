@@ -46,7 +46,16 @@ const unsafeSettings: Settings = { max_cost_usd: 1 };
 // @ts-expect-error Strategies must match the supported wire enum.
 const invalidStrategy: Settings = { routing: 'random' };
 
+type KeyStatus = Parameters<typeof management.setKeyStatus>[1];
+const enabledKey: KeyStatus = 0;
+// @ts-expect-error Key deletion is not a status transition.
+const deletedKey: KeyStatus = 2;
+type BudgetWindow = Parameters<typeof management.setBudget>[1];
+const monthlyBudget: BudgetWindow = 'Monthly';
+// @ts-expect-error Only authoritative financial windows are supported.
+const yearlyBudget: BudgetWindow = 'Yearly';
+
 void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
   exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind,
   unrestrictedModels, denyAllModels, invalidPermission, inheritedLimits, finiteLimits, stringLimit, unsafeLease,
-  projectSettings, unsafeSettings, invalidStrategy];
+  projectSettings, unsafeSettings, invalidStrategy, enabledKey, deletedKey, monthlyBudget, yearlyBudget];

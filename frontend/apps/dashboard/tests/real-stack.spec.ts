@@ -17,14 +17,14 @@ async function csrf(context: BrowserContext) {
   expect(cookie?.value).toBeTruthy();
   return { 'X-CSRF-Token': cookie!.value };
 }
-async function verificationToken(email: string) {
+async function verificationToken(email: string, kind: 'Verify' | 'invitation' = 'Verify') {
   for (let attempt = 0; attempt < 60; attempt++) {
     const list = await fetch(`${mailbox}/api/v1/messages`).then(response => response.json()).catch(() => null);
     const message = list?.messages?.find((item: { To: { Address: string }[]; Subject: string }) =>
-      item.To?.some(person => person.Address.toLowerCase() === email) && item.Subject.includes('Verify'));
+      item.To?.some(person => person.Address.toLowerCase() === email) && item.Subject.includes(kind));
     if (message) {
       const body = await fetch(`${mailbox}/view/${message.ID}.txt`).then(response => response.text());
-      const token = body.match(/verification page:\s*\n\s*([A-Za-z0-9_-]+)/)?.[1];
+      const token = body.match(/(?:verification page|this token):\s*\n\s*([A-Za-z0-9_-]+)/)?.[1];
       if (token) return token;
     }
     await new Promise(resolveDelay => setTimeout(resolveDelay, 1000));
@@ -44,7 +44,7 @@ function clickFields(intentId: string, transactionId: string, amount: string, ac
   return fields;
 }
 
-test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async ({ page, browser }) => {
+test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async ({ page, browser }, testInfo) => {
   const email = `acceptance-${randomUUID()}@example.invalid`;
   await page.goto('/register');
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
@@ -198,6 +198,103 @@ test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async
   await page.goto(`/organizations/${orgId}/billing`);
   await expect(page.getByText('$10.99').first()).toBeVisible();
 
+  // FRONTEND-006: real UI commands through TLS edge/session/CSRF/PostgreSQL.
+  // No route interception. Secret values stay only in test memory; screenshots
+  // below are deliberately taken after the show-once dialog has been destroyed.
+  await page.goto(`/organizations/${orgId}/projects?project=${projectId}`);
+  await page.getByLabel('Default routing').selectOption('price');
+  await page.getByLabel('Environment tag').fill('Staging');
+  await page.getByRole('combobox', { name: 'Allowed models', exact: true }).selectOption('selected');
+  await page.getByLabel('Allowed models codes').fill('fixture-model');
+  await page.getByRole('button', { name: 'Save project settings' }).click();
+  await expect(page.getByRole('status')).toContainText('Project settings saved');
+  const settingsPath = `/management/v1/organizations/${orgId}/projects/${projectId}/settings`;
+  expect((await json(request, 'get', settingsPath)).body).toEqual({ routing: 'price', environment: 'Staging', allowedModels: ['fixture-model'], allowedProviders: null });
+  await page.getByRole('button', { name: 'Limits & budgets', exact: true }).click();
+  await page.getByLabel('Requests per minute').fill('120');
+  await page.getByLabel('Concurrent requests').fill('4');
+  await page.getByRole('button', { name: 'Save request limits' }).click();
+  await expect(page.getByText('Effective 120 · ceiling 600')).toBeVisible();
+  await page.getByLabel('Budget amount (USD)').fill('5.000001');
+  await page.getByRole('button', { name: 'Save spend budget' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Budget saved' })).toBeVisible();
+  expect((await json(request, 'get', `/management/v1/projects/${projectId}/budgets`)).body)
+    .toEqual(expect.arrayContaining([expect.objectContaining({ period: 'Monthly', apiKeyId: null, limitMicroUsd: 5000001 })]));
+  await page.reload();
+  await expect(page.getByLabel('Environment tag')).toHaveValue('Staging');
+  await page.screenshot({ path: testInfo.outputPath('project-controls.png'), fullPage: true });
+
+  await page.goto(`/organizations/${orgId}/keys?project=${projectId}`);
+  await page.getByLabel('Key name').fill('Lifecycle key');
+  await page.getByLabel('Expiry (UTC, optional)').fill('2099-01-01T12:30');
+  const createdResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api-keys'));
+  await page.getByRole('button', { name: 'Create key', exact: true }).click();
+  const created = await (await createdResponse).json();
+  const lifecycleKeyId: string = created.apiKey.id;
+  const originalSecret: string = created.secret;
+  await expect(page.getByRole('dialog')).toContainText(originalSecret);
+  await page.getByRole('button', { name: 'I saved it' }).click();
+  await page.reload();
+  await expect(page.getByText(originalSecret)).toHaveCount(0);
+  expect(JSON.stringify((await json(request, 'get', `/management/v1/projects/${projectId}/api-keys`)).body)).not.toContain(originalSecret);
+  expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain(originalSecret);
+  await page.getByRole('button', { name: 'Configure Lifecycle key' }).click();
+  await page.getByRole('combobox', { name: 'Allowed models', exact: true }).selectOption('selected');
+  await page.getByLabel('Allowed models codes').fill('fixture-model');
+  await page.getByLabel('Denied provider codes').fill('anthropic');
+  await page.getByRole('button', { name: 'Save key permissions' }).click();
+  await expect(page.getByRole('status')).toContainText('Key permissions saved');
+  expect((await json(request, 'get', `/management/v1/projects/${projectId}/api-keys`)).body.find((item: { id: string }) => item.id === lifecycleKeyId).permissions)
+    .toEqual({ allowedModels: ['fixture-model'], allowedProviders: null, deniedModels: [], deniedProviders: ['anthropic'] });
+  await page.getByRole('button', { name: 'Limits & budgets', exact: true }).click();
+  await page.getByLabel('Requests per minute').fill('30');
+  await page.getByLabel('Concurrent requests').fill('2');
+  await page.getByRole('button', { name: 'Save request limits' }).click();
+  await expect(page.getByText('Effective 30 · ceiling 60')).toBeVisible();
+  await page.getByLabel('Budget period').selectOption('Daily');
+  await page.getByLabel('Budget amount (USD)').fill('0');
+  await page.getByRole('button', { name: 'Save spend budget' }).click();
+  await expect(page.getByText('$0.000000', { exact: true })).toBeVisible();
+  const zeroBudget = await json(request, 'post', '/v1/chat/completions', { data: { model: 'fixture-model', messages: [{ role: 'user', content: 'Budget denial' }] },
+    headers: { Authorization: `Bearer ${originalSecret}` } });
+  expect(zeroBudget.response.status()).toBe(402);
+  await page.getByLabel('Budget amount (USD)').fill('1');
+  await page.getByRole('button', { name: 'Save spend budget' }).click();
+  await expect(page.getByText('$1.000000', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Rotate Lifecycle key' }).click();
+  const rotationResponse = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`/${lifecycleKeyId}/rotate`));
+  await page.getByRole('button', { name: 'Confirm rotate' }).click();
+  const rotated = await (await rotationResponse).json();
+  const replacement: string = rotated.secret;
+  expect(rotated.apiKey.id).toBe(lifecycleKeyId);
+  await expect(page.getByRole('dialog')).toContainText(replacement);
+  await page.getByRole('button', { name: 'I saved it' }).click();
+  expect((await json(request, 'get', '/v1/models', { headers: { Authorization: `Bearer ${originalSecret}` } })).response.status()).toBe(401);
+  expect((await json(request, 'get', '/v1/models', { headers: { Authorization: `Bearer ${replacement}` } })).response.status()).toBe(200);
+  await page.getByRole('button', { name: 'Disable Lifecycle key' }).click();
+  await page.getByRole('button', { name: 'Confirm disable' }).click();
+  await expect(page.getByRole('button', { name: 'Enable Lifecycle key' })).toBeVisible();
+  expect((await json(request, 'get', '/v1/models', { headers: { Authorization: `Bearer ${replacement}` } })).response.status()).toBe(401);
+  await page.getByRole('button', { name: 'Enable Lifecycle key' }).click();
+  await page.getByRole('button', { name: 'Confirm enable' }).click();
+  await expect(page.getByRole('button', { name: 'Disable Lifecycle key' })).toBeVisible();
+  expect((await json(request, 'get', '/v1/models', { headers: { Authorization: `Bearer ${replacement}` } })).response.status()).toBe(200);
+  await page.getByRole('button', { name: 'Key usage', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Key usage · last 30 days' })).toBeVisible();
+  await expect(page.getByText(/As of .* requests unsettled/)).toBeVisible();
+  await expect(page.getByText('$0.000000', { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('key-controls.png'), fullPage: true });
+
+  // A disposable second project exercises real create/open/archive without
+  // archiving the project needed by subsequent role-denial assertions.
+  await page.goto(`/organizations/${orgId}/projects`);
+  await page.getByLabel('Project name', { exact: true }).fill('Archive lifecycle');
+  await page.getByRole('button', { name: 'Create project', exact: true }).click();
+  await page.getByRole('link', { name: 'Open Archive lifecycle', exact: true }).click();
+  await page.getByRole('button', { name: 'Archive Archive lifecycle', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm archive' }).click();
+  await expect(page.getByText('This project is archived.', { exact: false })).toBeVisible();
+
   const other = await browser.newContext({ ignoreHTTPSErrors: true });
   try {
     const outsider = `outsider-${randomUUID()}@example.invalid`;
@@ -216,5 +313,47 @@ test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async
     const hidden = await json(other.request, 'get',
       `/management/v1/organizations/${orgId}/usage/requests/${activity.body.items[0].requestId}`);
     expect([403, 404]).toContain(hidden.response.status());
+    expect((await json(other.request, 'get', settingsPath)).response.status()).toBe(403);
+    expect((await json(other.request, 'get', `/management/v1/api-keys/${lifecycleKeyId}/limits`)).response.status()).toBe(403);
+
+    // Granted Developer can read keys; after a live downgrade the stale screen
+    // cannot mutate them. Team setup is fixture-only, not new team UI.
+    const invitation = await json(request, 'post', `/management/v1/organizations/${orgId}/team/invitations`,
+      { data: { email: outsider, role: 'Developer' }, headers: auth });
+    expect(invitation.response.status()).toBe(201);
+    const accepted = await json(other.request, 'post', '/management/v1/team/invitations/accept',
+      { data: { token: await verificationToken(outsider, 'invitation') }, headers: await csrf(other) });
+    expect(accepted.response.status()).toBe(200);
+    const grant = await request.put(base + `/management/v1/organizations/${orgId}/team/members/${accepted.body.accountId}/projects/${projectId}`, { headers: auth });
+    expect(grant.status()).toBe(204);
+    const reader = await other.newPage();
+    await reader.goto(base + `/organizations/${orgId}/projects?project=${projectId}`);
+    await reader.getByLabel('Environment tag').fill('Forbidden');
+    await reader.getByRole('button', { name: 'Save project settings' }).click();
+    await expect(reader.getByRole('alert')).toContainText('Permission denied');
+    expect((await json(request, 'get', settingsPath)).body.environment).toBe('Staging');
+    await reader.goto(base + `/organizations/${orgId}/keys?project=${projectId}`);
+    await expect(reader.getByRole('button', { name: 'Disable Lifecycle key' })).toBeVisible();
+    const downgrade = await request.patch(base + `/management/v1/organizations/${orgId}/team/members/${accepted.body.accountId}/role`,
+      { data: { role: 'ReadOnly' }, headers: auth });
+    expect(downgrade.status()).toBe(204);
+    await reader.getByLabel('Key name').fill('Forbidden creation');
+    await reader.getByRole('button', { name: 'Create key', exact: true }).click();
+    await expect(reader.getByRole('alert')).toContainText('Permission denied');
+    await reader.getByRole('button', { name: 'Disable Lifecycle key' }).click();
+    await reader.getByRole('button', { name: 'Confirm disable' }).click();
+    await expect(reader.getByRole('dialog').getByRole('alert')).toContainText('Permission denied');
+    await reader.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await reader.getByRole('button', { name: 'Configure Lifecycle key' }).click();
+    await reader.getByRole('button', { name: 'Save key permissions' }).click();
+    await expect(reader.getByRole('form', { name: 'Key permissions' }).getByRole('alert')).toContainText('Permission denied');
+    await reader.getByRole('button', { name: 'Limits & budgets', exact: true }).click();
+    await reader.getByLabel('Requests per minute').fill('1');
+    await reader.getByRole('button', { name: 'Save request limits' }).click();
+    await expect(reader.getByRole('form', { name: 'Request limits' }).getByRole('alert')).toContainText('Permission denied');
+    expect((await json(request, 'get', `/management/v1/api-keys/${lifecycleKeyId}/limits`)).body.configured.requestsPerMinute).toBe(30);
+    await reader.reload();
+    await expect(reader.getByRole('alert')).toContainText('Permission denied');
+    await expect(reader.getByRole('button', { name: 'Create key', exact: true })).toBeDisabled();
   } finally { await other.close(); }
 });

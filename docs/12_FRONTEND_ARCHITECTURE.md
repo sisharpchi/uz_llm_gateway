@@ -266,12 +266,19 @@ and payload retention controls remain hidden until their backend tasks complete.
 FOUNDATION-002 will narrow the current `packages` ignore rule before workspace
 source is added.
 
-FRONTEND-001 keeps the existing root `frontend/` mock prototype
-untouched. The production dashboard and operator shell are npm workspaces
-under `frontend/apps/`, with a shared typed client in
-`frontend/packages/api-client/`. This client is maintained against the current
-Management API endpoints until that API publishes an OpenAPI document; it is
-not generated yet. Browser queries include tenant scope, and the show-once key
-secret lives only in a dialog-local state variable. Privileged operator controls
-remain absent until ADMIN-001. Build and browser test commands are in
-`frontend/apps/README.md`.
+The root `frontend/` mock prototype remains untouched. The production dashboard
+and operator application are npm workspaces under `frontend/apps/`, sharing
+the DX-002 OpenAPI-derived wire types and typed transport in
+`frontend/packages/api-client/`. Operator controls are a separate application.
+Build and browser test commands are in `frontend/apps/README.md`.
+
+FRONTEND-006 adds lifecycle controls at
+`/organizations/:orgId/projects?project=:projectId` and
+`/organizations/:orgId/keys?project=:projectId`. Settings, permissions, request
+limits and financial budgets use existing separate APIs, not a combined atomic
+save. Queries include organization/project/key scope. Scoped components unmount
+on selection changes; late commands cannot reveal an old scope's secret or
+write its feedback into the new scope. Creation/rotation use imperative calls
+and ephemeral local secret state, never Query/Mutation caches or browser storage.
+Budget Int64 JSON numbers outside JavaScript's safe integer range are explicitly
+refused, never rounded. See [lifecycle evidence and boundaries](26_CUSTOMER_LIFECYCLE.md).

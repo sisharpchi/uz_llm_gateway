@@ -32,7 +32,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | PROVIDER-001–002, PROVIDER-006–009 | Completed | OpenAI, Anthropic, Gemini and DeepSeek adapters, normalized errors, contract fixtures and SSE paths exist. | Live agreement/quota/usage qualification external; BYOK supports only OpenAI/Anthropic. `BYOK-003`. |
 | GATEWAY-001, ROUTING-003–006 | Completed | Managed admission, chat/SSE, deterministic/advanced selection, bounded fallback and credential-isolated health with cross-node half-open probes exist. | Responses/embeddings not implemented. `GATEWAY-005–007`. |
 | PAYMENT-001 | Completed | Payme/CLICK protocol handlers, signatures, callback idempotency and contract fixtures exist. | Deployment edge omits callback routes; reconciliation is primarily local, live merchant verification external. `LAUNCH-001`, `PAYMENT-002`. |
-| FRONTEND-001, ADMIN-001 | Completed | Dashboard/admin applications, shell and mocked browser coverage exist. | Audit finding: top-up unit, recovery, financial state and customer catalog gaps. `FRONTEND-002–005` and `DX-001` addressed top-up, financial, catalog, recovery and P0 activity UX gaps; remaining product flows are `FRONTEND-006–010`. |
+| FRONTEND-001, ADMIN-001 | Completed | Dashboard/admin applications, shell and mocked browser coverage exist. | Audit finding: top-up unit, recovery, financial state and customer catalog gaps. `FRONTEND-002–005` and `DX-001` addressed top-up, financial, catalog, recovery and P0 activity UX gaps. `FRONTEND-006` subsequently adds project/key/limits lifecycle controls with real API evidence; remaining customer flows are `FRONTEND-007–010`. |
 | NOTIFY-001–003 | Completed | Email, webhook, Telegram integrations and transport fixtures exist. | `OPS-004` adds the missing operational alert consumer and delivery status. Live on-call mailbox/SMTP receipt verification remains external. |
 | BYOK-001–002, PRIVACY-001 | Completed | Tenant-scoped encrypted keys, BYOK execution and opt-in bounded payload retention exist. | `SECURITY-006` added bounded, audited platform/BYOK KEK and operator key-ring rotation; its live multi-node drill remains a launch gate. Metadata lifecycle and additional provider parity remain `PRIVACY-002`, `BYOK-003`. |
 
@@ -101,7 +101,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
   authoritative admission checks and tenant-scoped Management updates. FR-027's
   optional maximum model price class still has no catalog taxonomy/ranking or
   acceptance contract; it is not represented as implemented. Key lifecycle UI
-  remains `FRONTEND-006`.
+  is subsequently delivered by `FRONTEND-006`; see [scope and real API evidence](26_CUSTOMER_LIFECYCLE.md).
 - `PROJECTS-002` adds project routing defaults, intersected hard model/provider
   allowlists and metadata-only environment tags. Its user-confirmed spend scope
   reuses existing financial budgets, not per-request max cost or implicit execution
@@ -113,8 +113,8 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
   transactional audit, live PostgreSQL policy reads and shared Redis enforcement
   without resetting counters or leases. Existing financial budgets remain
   authoritative. [Contract and validation evidence](24_TENANT_LIMITS.md) separates
-  this backend capability from the still-pending FRONTEND-006 screens and OPS-006
-  production qualification.
+  this backend capability from the subsequently delivered FRONTEND-006 screens
+  and still-blocked OPS-006 production qualification.
 - `DX-002` now publishes the implemented Gateway/Management v1 OpenAPI surfaces,
   serializer-derived examples and generated client wire types with CI drift checks
   (see [API artifact guide](api/README.md)). This does not implement Responses,
