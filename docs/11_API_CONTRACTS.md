@@ -420,6 +420,16 @@ Members/invitations are visible only to Owner/Admin. Team mutations return
 `403` for insufficient privilege, `404` for missing targets, and `409` for
 duplicate invitation, last-owner or invalid role-transition conflicts.
 
+FRONTEND-007 consumes these existing routes at `/organizations/:orgId/team`
+and `/accept-invitation`; no wire changes. Invitation metadata never includes
+the token. The current Worker email supplies a token to paste, not an acceptance
+link. The dashboard does not forward tokens through sign-in URLs or persist
+them. There is no invitation cancel/resend endpoint. A new invitation may
+replace an expired one; a pending duplicate conflicts. Admins cannot invite,
+change or revoke Owner/Admin members. Developer/ReadOnly project grants are
+individual audited PUT/DELETE operations, not a bulk replacement. See
+[team behavior and real-stack evidence](27_TEAM_MEMBERSHIP.md).
+
 ### API Keys
 
 ```text

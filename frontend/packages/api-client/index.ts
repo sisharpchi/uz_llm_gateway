@@ -4,6 +4,9 @@ export type Id = string;
 export type DecimalString = string;
 type Schema = components['schemas'];
 export type Session = Schema['SessionResponse'];
+export type TeamMember = Schema['TeamMemberResponse'];
+export type TeamInvitation = Schema['TeamInvitationResponse'];
+export type TeamRole = 'Owner' | 'Admin' | 'Developer' | 'BillingViewer' | 'ReadOnly';
 export type Organization = Schema['Organization'];
 export type Project = Schema['Project'];
 export type ProjectSettings = Schema['ProjectSettings'];
@@ -97,6 +100,14 @@ async function call<P extends keyof paths, M extends Verb & keyof paths[P]>(
 
 const org = '/management/v1/organizations/{organizationId}' as const;
 export const management = {
+  teamMembers: (organizationId: Id, signal?: AbortSignal) => call(`${org}/team/members`, 'get', { path: { organizationId }, signal }),
+  teamInvitations: (organizationId: Id, signal?: AbortSignal) => call(`${org}/team/invitations`, 'get', { path: { organizationId }, signal }),
+  inviteMember: (organizationId: Id, email: string, role: Exclude<TeamRole, 'Owner'>) => call(`${org}/team/invitations`, 'post', { path: { organizationId }, body: { email, role } }),
+  acceptInvitation: (token: string) => call('/management/v1/team/invitations/accept', 'post', { body: { token } }),
+  changeMemberRole: (organizationId: Id, accountId: Id, role: TeamRole) => call(`${org}/team/members/{accountId}/role`, 'patch', { path: { organizationId, accountId }, body: { role } }),
+  revokeMember: (organizationId: Id, accountId: Id) => call(`${org}/team/members/{accountId}`, 'delete', { path: { organizationId, accountId } }),
+  grantMemberProject: (organizationId: Id, accountId: Id, projectId: Id) => call(`${org}/team/members/{accountId}/projects/{projectId}`, 'put', { path: { organizationId, accountId, projectId } }),
+  revokeMemberProject: (organizationId: Id, accountId: Id, projectId: Id) => call(`${org}/team/members/{accountId}/projects/{projectId}`, 'delete', { path: { organizationId, accountId, projectId } }),
   projectSettings: (organizationId: Id, projectId: Id) => call('/management/v1/organizations/{organizationId}/projects/{projectId}/settings', 'get', { path: { organizationId, projectId } }),
   setProjectSettings: (organizationId: Id, projectId: Id, settings: ProjectSettings) => call('/management/v1/organizations/{organizationId}/projects/{projectId}/settings', 'put', { path: { organizationId, projectId }, body: settings }),
   session: () => call('/management/v1/auth/session', 'get'),

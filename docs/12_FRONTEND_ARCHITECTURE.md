@@ -282,3 +282,12 @@ write its feedback into the new scope. Creation/rotation use imperative calls
 and ephemeral local secret state, never Query/Mutation caches or browser storage.
 Budget Int64 JSON numbers outside JavaScript's safe integer range are explicitly
 refused, never rounded. See [lifecycle evidence and boundaries](26_CUSTOMER_LIFECYCLE.md).
+
+FRONTEND-007 exposes the organization-scoped Team page and standalone
+`/accept-invitation` page. Team reads include account and organization in their
+query keys; current Owner/Admin membership gates metadata and controls. Scoped
+unmounts discard drafts/feedback, and committed commands refresh only their
+scope. Invitation tokens stay in masked ephemeral form state, never Query/
+Mutation caches, browser storage or sign-in URLs. Commands remain independently
+authorized by Management; UI restrictions are not security boundaries. See
+[team scope and validation](27_TEAM_MEMBERSHIP.md).

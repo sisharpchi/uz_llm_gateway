@@ -178,6 +178,7 @@ This creates clear boundaries without paying the operational cost of many micros
 24. `24_TENANT_LIMITS.md`
 25. `25_PROJECT_DEFAULTS.md`
 26. `26_CUSTOMER_LIFECYCLE.md`
+27. `27_TEAM_MEMBERSHIP.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

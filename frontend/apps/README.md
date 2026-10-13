@@ -35,3 +35,14 @@ credentials, fee policy and operator-published FX snapshot before accepting
 payments. Registration verification and password-recovery tokens are delivered
 by the configured Worker SMTP transport. Local preview still needs a mail
 catcher or test SMTP service; registration responses never contain tokens.
+
+Team management is at `/organizations/:orgId/team` for Owner/Admin; recipients
+paste the Worker-emailed invitation token at `/accept-invitation` after signing
+in with their verified invited email. Tokens are never returned by the invite
+API. See [Team scope and validation](../../docs/27_TEAM_MEMBERSHIP.md).
+Run focused browser checks with
+`npm run test:e2e --workspace @uzllm/dashboard --prefix frontend/apps -- team.spec.ts --workers=1`.
+The repository-root `node deploy/tests/run-launch-acceptance.mjs` runs both
+launch/lifecycle and Team real-stack scenarios against disposable services;
+the Team expiry fixture refuses non-harness environments. It honors production
+edge throttling rather than disabling limits.

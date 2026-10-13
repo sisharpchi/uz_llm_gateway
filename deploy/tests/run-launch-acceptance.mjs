@@ -21,6 +21,7 @@ const secret = () => randomBytes(32).toString('base64');
 const env = {
   ...process.env,
   COMPOSE_PROJECT_NAME: project,
+  UZLLM_ACCEPTANCE_ALLOW_TEAM_EXPIRY_FIXTURE: 'disposable-stack',
   UZLLM_ACCEPTANCE_TMP: scratch.replaceAll('\\', '/'),
   UZLLM_ACCEPTANCE_DB_PASSWORD: randomBytes(20).toString('hex'),
   UZLLM_ACCEPTANCE_PFX_PASSWORD: randomBytes(20).toString('hex'),

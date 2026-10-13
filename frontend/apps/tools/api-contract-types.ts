@@ -54,8 +54,15 @@ type BudgetWindow = Parameters<typeof management.setBudget>[1];
 const monthlyBudget: BudgetWindow = 'Monthly';
 // @ts-expect-error Only authoritative financial windows are supported.
 const yearlyBudget: BudgetWindow = 'Yearly';
+type InvitationRole = Parameters<typeof management.inviteMember>[2];
+const developerInvite: InvitationRole = 'Developer';
+// @ts-expect-error Invitations cannot grant Owner.
+const ownerInvite: InvitationRole = 'Owner';
+// @ts-expect-error Display labels are not API role codes.
+const financeRole: Parameters<typeof management.changeMemberRole>[2] = 'Billing Viewer';
 
 void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
   exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind,
   unrestrictedModels, denyAllModels, invalidPermission, inheritedLimits, finiteLimits, stringLimit, unsafeLease,
-  projectSettings, unsafeSettings, invalidStrategy, enabledKey, deletedKey, monthlyBudget, yearlyBudget];
+  projectSettings, unsafeSettings, invalidStrategy, enabledKey, deletedKey, monthlyBudget, yearlyBudget,
+  developerInvite, ownerInvite, financeRole];

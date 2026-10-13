@@ -36,6 +36,11 @@ The customer dashboard exposes project settings/archive, show-once key
 creation/rotation/revocation, model/provider permissions, request limits and
 spend budgets through those existing APIs. See [lifecycle screens and validation](docs/26_CUSTOMER_LIFECYCLE.md).
 
+Organization Team screens support emailed invitations, role changes, membership
+revocation and explicit project grants. Recipients sign in with the verified
+invited email and paste the one-time token at `/accept-invitation`.
+See [team permissions and validation](docs/27_TEAM_MEMBERSHIP.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

@@ -32,7 +32,7 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 | PROVIDER-001–002, PROVIDER-006–009 | Completed | OpenAI, Anthropic, Gemini and DeepSeek adapters, normalized errors, contract fixtures and SSE paths exist. | Live agreement/quota/usage qualification external; BYOK supports only OpenAI/Anthropic. `BYOK-003`. |
 | GATEWAY-001, ROUTING-003–006 | Completed | Managed admission, chat/SSE, deterministic/advanced selection, bounded fallback and credential-isolated health with cross-node half-open probes exist. | Responses/embeddings not implemented. `GATEWAY-005–007`. |
 | PAYMENT-001 | Completed | Payme/CLICK protocol handlers, signatures, callback idempotency and contract fixtures exist. | Deployment edge omits callback routes; reconciliation is primarily local, live merchant verification external. `LAUNCH-001`, `PAYMENT-002`. |
-| FRONTEND-001, ADMIN-001 | Completed | Dashboard/admin applications, shell and mocked browser coverage exist. | Audit finding: top-up unit, recovery, financial state and customer catalog gaps. `FRONTEND-002–005` and `DX-001` addressed top-up, financial, catalog, recovery and P0 activity UX gaps. `FRONTEND-006` subsequently adds project/key/limits lifecycle controls with real API evidence; remaining customer flows are `FRONTEND-007–010`. |
+| FRONTEND-001, ADMIN-001 | Completed | Dashboard/admin applications, shell and mocked browser coverage exist. | Audit finding: top-up unit, recovery, financial state and customer catalog gaps. `FRONTEND-002–005` and `DX-001` addressed top-up, financial, catalog, recovery and P0 activity UX gaps. `FRONTEND-006` adds project/key/limits lifecycle controls; `FRONTEND-007` adds Team controls. See their task evidence; remaining customer flows are `FRONTEND-008–010`. |
 | NOTIFY-001–003 | Completed | Email, webhook, Telegram integrations and transport fixtures exist. | `OPS-004` adds the missing operational alert consumer and delivery status. Live on-call mailbox/SMTP receipt verification remains external. |
 | BYOK-001–002, PRIVACY-001 | Completed | Tenant-scoped encrypted keys, BYOK execution and opt-in bounded payload retention exist. | `SECURITY-006` added bounded, audited platform/BYOK KEK and operator key-ring rotation; its live multi-node drill remains a launch gate. Metadata lifecycle and additional provider parity remain `PRIVACY-002`, `BYOK-003`. |
 
@@ -106,7 +106,9 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
   allowlists and metadata-only environment tags. Its user-confirmed spend scope
   reuses existing financial budgets, not per-request max cost or implicit execution
   modes. [Precedence, admission boundaries and evidence](25_PROJECT_DEFAULTS.md).
-- Customer limits/alerts/team/BYOK/routing UI,
+- `FRONTEND-007` adds invitation acceptance, role/revocation and project-grant
+  screens on the existing transactional Team APIs; [scope and evidence](27_TEAM_MEMBERSHIP.md).
+- Customer alerts/BYOK/routing UI,
   privacy metadata retention, SDK examples, and enterprise features
   remain incomplete or require a fresh contract before implementation.
 - `LIMITS-002` adds bounded tenant-managed project/key admission overrides,

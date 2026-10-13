@@ -415,16 +415,22 @@ Rule list:
 
 ## 16. Team [P1]
 
-Members:
-- name/email;
-- role;
-- project access;
-- status.
+Implemented by FRONTEND-007 at `/organizations/:orgId/team`:
 
-Actions:
-- invite;
-- change role;
-- remove.
+- Search email/role/status; show joined date, active/revoked membership and
+  explicit project grants. No display-name contract is invented.
+- Owner/Admin invite permitted roles; invitation list shows Pending/Expired/
+  Accepted/Revoked and UTC expiry, not delivery confirmation or raw tokens.
+- Confirm role changes and soft membership revocation. Admin cannot manage
+  Owner/Admin; the last active Owner cannot be demoted/revoked.
+- Grant/remove one project at a time for Developer/ReadOnly. Role changes to
+  organization-wide permissions clear grants; returning needs fresh grants.
+- `/accept-invitation`: sign in with the verified invited email, paste the
+  emailed one-use token and explicitly accept. Invalid/expired/replayed/
+  revoked/mismatched tokens share the same error. No URL token forwarding,
+  invitation cancel/resend or automatic acceptance is implemented.
+
+Every operation rechecks server permissions. See [scope and real API evidence](27_TEAM_MEMBERSHIP.md).
 
 ---
 

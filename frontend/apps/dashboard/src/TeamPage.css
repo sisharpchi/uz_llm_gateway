@@ -1,0 +1,13 @@
+.team-toolbar { display: flex; flex-wrap: wrap; gap: .75rem; }
+.team-page .team-members .row-actions { flex: 1 1 100%; justify-content: flex-start; }
+.team-page .row-list strong { overflow-wrap: anywhere; }
+.team-page .row-list .tag { flex-shrink: 0; }
+.team-page button:disabled { opacity: .5; cursor: not-allowed; }
+.team-page .control-pair > button { align-self: end; }
+.team-page select, .lifecycle-dialog select { min-height: 44px; }
+.team-accept { max-width: 700px; margin: 8vh auto; padding: 1.25rem; }
+.team-accept .panel { margin-top: 1.5rem; }
+.team-accept h1 { font-size: clamp(1.8rem, 6vw, 3rem); }
+.team-accept p { line-height: 1.65; }
+.team-accept input, .team-accept .button { min-height: 44px; }
+.team-accept .auth-links { font-size: .85rem; }

@@ -7,9 +7,11 @@ import { ActivityPage, AnalyticsPage } from './UsagePages';
 import { CatalogPage } from './CatalogPage';
 import { ProjectsPage } from './ProjectsPage';
 import { KeysPage } from './KeysPage';
+import { TeamPage } from './TeamPage';
+import { AcceptInvitationPage } from './AcceptInvitationPage';
 
-type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics';
-const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics'];
+type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics' | 'team';
+const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics', 'team'];
 
 export function App() {
   return <Routes>
@@ -18,6 +20,7 @@ export function App() {
     <Route path="/verify-email" element={<AuthPage key="verify" kind="verify" />} />
     <Route path="/recover" element={<AuthPage key="recover" kind="recover" />} />
     <Route path="/reset-password" element={<AuthPage key="reset" kind="reset" />} />
+    <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
     <Route path="/organizations/:orgId/:page" element={<WorkspaceGate />} />
     <Route path="*" element={<WorkspaceGate />} />
   </Routes>;
@@ -38,7 +41,7 @@ function WorkspaceGate() {
     : <Onboarding />;
   const current = organizations.data.find(org => org.id === orgId);
   if (!current) return <NotFound />;
-  return <Dashboard organization={current} organizations={organizations.data}
+  return <Dashboard organization={current} organizations={organizations.data} accountId={session.data.accountId}
     page={validPages.includes(page as Page) ? page as Page : 'overview'} />;
 }
 
@@ -113,7 +116,7 @@ function AuthPage({ kind }: { kind: AuthKind }) {
           {error && <p role="alert" className="error">{error}</p>}
           <button className="button primary" disabled={busy}>{busy ? 'Please wait…' : title}</button>
         </form>}
-      <nav aria-label="Account links" className="auth-links"><Link to="/login">Sign in</Link><Link to="/register">Register</Link><Link to="/verify-email">Verify email</Link><Link to="/recover">Forgot password?</Link></nav>
+      <nav aria-label="Account links" className="auth-links"><Link to="/login">Sign in</Link><Link to="/register">Register</Link><Link to="/verify-email">Verify email</Link><Link to="/recover">Forgot password?</Link><Link to="/accept-invitation">Accept an invitation</Link></nav>
     </main>
   </div>;
 }
@@ -133,12 +136,13 @@ function Onboarding() {
   }
   return <main className="onboard"><span className="eyebrow">WELCOME TO UZLLM</span><h1>Start with your organization.</h1>
     <p>Create a workspace, then add a project, top up, and issue your first API key.</p>
+    <Link to="/accept-invitation">Have an invitation? Accept it here</Link>
     <form onSubmit={submit} className="panel stack"><label>Organization name<input value={name} onChange={event => setName(event.target.value)} minLength={2} maxLength={100} required /></label>
       {error && <p role="alert" className="error">{error}</p>}<button disabled={busy} className="button primary">Create organization</button></form>
   </main>;
 }
 
-function Dashboard({ organization, organizations, page }: { organization: Organization; organizations: Organization[]; page: Page }) {
+function Dashboard({ organization, organizations, page, accountId }: { organization: Organization; organizations: Organization[]; page: Page; accountId: string }) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
@@ -168,7 +172,7 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
         {!projects.data?.length && <option value="">No projects</option>}
         {projects.data?.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       <nav aria-label="Main navigation" className="nav-list">{validPages.map(item => <Link key={item} to={pageUrl(item)} aria-current={page === item ? 'page' : undefined}>
-        <span className="nav-icon" aria-hidden="true">{item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'models' ? '◇' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
+        <span className="nav-icon" aria-hidden="true">{item === 'team' ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2" /></svg> : item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'models' ? '◇' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
       <div className="sidebar-bottom"><p>Managed credits</p><strong>{wallet.data ? usdFromMicro(wallet.data.availableBalanceMicroUsd) : '—'}</strong>
         <button onClick={signOut} className="text-button">Sign out</button></div>
     </aside>
@@ -179,6 +183,7 @@ function Dashboard({ organization, organizations, page }: { organization: Organi
         {page === 'overview' && <Overview organization={organization} project={selectedProject} wallet={wallet.data?.availableBalanceMicroUsd} />}
         {page === 'projects' && !projects.isPending && !projects.isError && <ProjectsPage key={organization.id} organization={organization} projects={projects.data ?? []} selected={selectedProject} />}
         {page === 'keys' && !projects.isPending && !projects.isError && <KeysPage key={`${organization.id}:${selectedProject?.id ?? 'none'}`} organizationId={organization.id} project={selectedProject} />}
+        {page === 'team' && <TeamPage key={`${accountId}:${organization.id}`} organization={organization} accountId={accountId} projects={projects.data ?? []} />}
         {(page === 'projects' || page === 'keys') && projects.isPending && <p role="status">Loading projects…</p>}
         {page === 'models' && <CatalogPage organizationId={organization.id} projectId={selectedProject?.id} />}
         {page === 'billing' && <BillingPanel organizationId={organization.id} />}
