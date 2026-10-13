@@ -34,7 +34,7 @@ Users shall create isolated projects such as:
 - Staging
 - Client A
 
-### FR-011 — Project isolation [P0]
+### FR-011 — Project isolatfon [P0]
 API keys, budgets, usage and routing configuration shall be attributable to a project.
 
 ### FR-012 — Project status [P0]
