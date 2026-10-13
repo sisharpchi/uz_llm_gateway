@@ -63,6 +63,9 @@ public sealed class OpenApiWireContractTests : IDisposable
         }
 
         const string org = "/management/v1/organizations/{organizationId}";
+        Add(org + "/projects/{projectId}/settings", "get", 200, new UZLLM.Modules.Projects.Contracts.ProjectSettings());
+        Add(org + "/projects/{projectId}/settings", "put", 200,
+            new UZLLM.Modules.Projects.Contracts.ProjectSettings("price", "Production", ["example-chat"], ["openai"]));
         Add("/management/v1/auth/session", "get", 200,
             new UZLLM.Modules.Identity.Infrastructure.IdentityServiceCollectionExtensions.SessionResponse(id, "example@example.test", true, false));
         Add("/management/v1/projects/{projectId}/api-keys", "get", 200,

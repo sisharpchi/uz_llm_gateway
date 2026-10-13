@@ -102,6 +102,21 @@ test('tenant admission limits have bounded nullable numeric controls and protect
   }
 });
 
+test('project settings expose only defaults metadata and hard allowlists with protected operations', () => {
+  const path = '/management/v1/organizations/{organizationId}/projects/{projectId}/settings';
+  const operation = documents.management.paths[path].put;
+  assert.deepEqual(operation.security, [{ Session: [] }]);
+  assert.ok(operation.parameters.some(item => item.name === 'X-CSRF-Token' && item.required));
+  for (const status of ['200', '400', '401', '403', '404']) assert.ok(operation.responses[status]);
+  const validate = validator(documents.management, operation.requestBody.content['application/json'].schema);
+  for (const value of [{}, { routing: null, environment: null, allowedModels: null, allowedProviders: [] },
+    { routing: 'priority', environment: 'Production', allowedProviders: ['openai'] }])
+    assert.ok(validate(value), JSON.stringify(validate.errors));
+  for (const value of [{ routing: 'random' }, { environment: '' }, { environment: 'a'.repeat(33) },
+    { provider_key_id: 'secret' }, { max_cost_usd: 1 }, { allow_managed_fallback: true }, { budget: 1 },
+    { allowedModels: Array(129).fill('gpt') }]) assert.equal(validate(value), false, JSON.stringify(value));
+});
+
 test('gateway request example and rejection boundaries agree with the bounded chat contract', () => {
   const media = documents.gateway.paths['/v1/chat/completions'].post.requestBody.content['application/json'];
   const validate = validator(documents.gateway, media.schema);

@@ -6,6 +6,7 @@ type Schema = components['schemas'];
 export type Session = Schema['SessionResponse'];
 export type Organization = Schema['Organization'];
 export type Project = Schema['Project'];
+export type ProjectSettings = Schema['ProjectSettings'];
 export type ApiKey = Schema['IssuedGatewayApiKey']['apiKey'];
 export type IssuedApiKey = Schema['IssuedGatewayApiKey'];
 export type ApiKeyPermissions = Schema['ApiKeyPermissions'];
@@ -94,6 +95,8 @@ async function call<P extends keyof paths, M extends Verb & keyof paths[P]>(
 
 const org = '/management/v1/organizations/{organizationId}' as const;
 export const management = {
+  projectSettings: (organizationId: Id, projectId: Id) => call('/management/v1/organizations/{organizationId}/projects/{projectId}/settings', 'get', { path: { organizationId, projectId } }),
+  setProjectSettings: (organizationId: Id, projectId: Id, settings: ProjectSettings) => call('/management/v1/organizations/{organizationId}/projects/{projectId}/settings', 'put', { path: { organizationId, projectId }, body: settings }),
   session: () => call('/management/v1/auth/session', 'get'),
   register: (email: string, password: string) => call('/management/v1/auth/register', 'post', { body: { email, password } }),
   verifyEmail: (token: string) => call('/management/v1/auth/verify-email', 'post', { body: { token } }),

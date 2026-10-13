@@ -39,6 +39,14 @@ const stringLimit: Limits = { requestsPerMinute: '10' };
 // @ts-expect-error Tenant configuration cannot change lease/recovery safety windows.
 const unsafeLease: Limits = { leaseSeconds: 1 };
 
+type Settings = Parameters<typeof management.setProjectSettings>[2];
+const projectSettings: Settings = { routing: 'priority', environment: 'Production', allowedModels: null, allowedProviders: [] };
+// @ts-expect-error Project settings cannot store financial or execution-mode knobs.
+const unsafeSettings: Settings = { max_cost_usd: 1 };
+// @ts-expect-error Strategies must match the supported wire enum.
+const invalidStrategy: Settings = { routing: 'random' };
+
 void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
   exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind,
-  unrestrictedModels, denyAllModels, invalidPermission, inheritedLimits, finiteLimits, stringLimit, unsafeLease];
+  unrestrictedModels, denyAllModels, invalidPermission, inheritedLimits, finiteLimits, stringLimit, unsafeLease,
+  projectSettings, unsafeSettings, invalidStrategy];

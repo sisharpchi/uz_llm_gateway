@@ -89,6 +89,11 @@ For huge context/output values, cap by:
 Future feature:
 `max_cost` request option.
 
+`PROJECTS-002` does not implement that future option (including `max_cost_usd`).
+Its confirmed spend scope reuses existing project Lifetime/Daily/Weekly/Monthly
+budget policies. Routing/default/environment changes cannot reset captured spend,
+holds or caps and cannot alter Managed/BYOK/Hybrid consent or wallet admission.
+
 ---
 
 ## 6. Managed vs BYOK billing

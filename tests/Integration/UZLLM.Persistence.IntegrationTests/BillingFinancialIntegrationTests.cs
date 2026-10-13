@@ -667,6 +667,9 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
 
         var hold = await financial.ReserveAsync(Admission(seed, 20_000, payload: [10]));
         Assert.Equal(AdmissionStatus.Reserved, hold.Status);
+        var settings = new UZLLM.Modules.Projects.Infrastructure.PostgreSqlProjectSettingsStore(
+            scope.ServiceProvider.GetRequiredService<FoundationDbContext>());
+        Assert.True(await settings.ReplaceAsync(seed.OrganizationId, seed.ProjectId, new("price", "Production")));
         Assert.Equal(AdmissionStatus.ProjectBudgetExceeded,
             (await financial.ReserveAsync(Admission(seed, 1, payload: [11]))).Status);
         Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
@@ -685,6 +688,7 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         var budgets = await financial.ListBudgetsAsync(seed.OrganizationId, seed.ProjectId);
         Assert.Equal(4, budgets.Count);
         Assert.All(budgets, value => Assert.Equal(20_000, value.Reserved.Value));
+        Assert.True(await settings.ReplaceAsync(seed.OrganizationId, seed.ProjectId, new("priority", "Development")));
         // A tenant may tighten a cap below existing exposure, never erase the holds.
         Assert.NotNull(await financial.SetBudgetAsync(seed.OrganizationId, seed.ProjectId,
             null, BudgetPeriod.Monthly, new UsdMicroAmount(0)));

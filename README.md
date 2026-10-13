@@ -28,6 +28,10 @@ Management can configure bounded per-project/per-key RPM and concurrency while
 preserving shared Redis counters and PostgreSQL financial budgets. See
 [tenant limits, failure semantics and operator ceilings](docs/24_TENANT_LIMITS.md).
 
+Project routing defaults, hard model/provider allowlists and metadata-only
+environment tags use the existing project settings storage. Existing budget
+policies remain authoritative. See [precedence and safety](docs/25_PROJECT_DEFAULTS.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

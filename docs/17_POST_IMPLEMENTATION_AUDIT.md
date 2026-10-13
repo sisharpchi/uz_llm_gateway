@@ -100,9 +100,13 @@ real-stack, multi-node, HA/PITR, or live merchant qualification.
 - `APIKEYS-004` delivers per-key canonical-model/provider allow/deny policies,
   authoritative admission checks and tenant-scoped Management updates. FR-027's
   optional maximum model price class still has no catalog taxonomy/ranking or
-  acceptance contract; it is not represented as implemented. Project defaults
-  and key lifecycle UI remain `PROJECTS-002`/`FRONTEND-006`.
-- Project defaults, customer limits/alerts/team/BYOK/routing UI,
+  acceptance contract; it is not represented as implemented. Key lifecycle UI
+  remains `FRONTEND-006`.
+- `PROJECTS-002` adds project routing defaults, intersected hard model/provider
+  allowlists and metadata-only environment tags. Its user-confirmed spend scope
+  reuses existing financial budgets, not per-request max cost or implicit execution
+  modes. [Precedence, admission boundaries and evidence](25_PROJECT_DEFAULTS.md).
+- Customer limits/alerts/team/BYOK/routing UI,
   privacy metadata retention, SDK examples, and enterprise features
   remain incomplete or require a fresh contract before implementation.
 - `LIMITS-002` adds bounded tenant-managed project/key admission overrides,

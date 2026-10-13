@@ -20,7 +20,7 @@ using UZLLM.Persistence;
 
 namespace UZLLM.Gateway.ContractTests;
 
-public sealed class GatewayExecutionTests
+public sealed partial class GatewayExecutionTests
 {
     [Fact]
     public async Task Api_key_excluded_expensive_provider_does_not_inflate_the_hold()
@@ -1318,11 +1318,11 @@ public sealed class GatewayExecutionTests
             Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
         }
 
-        public void UsePerformanceRouting(string strategy)
+        public void UsePerformanceRouting(string strategy, string model = "gpt-test")
         {
             var json = JsonSerializer.SerializeToUtf8Bytes(new
             {
-                model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
+                model, messages = new[] { new { role = "user", content = "Hello" } },
                 max_completion_tokens = 100, uzllm = new { routing = strategy }
             });
             Context.Request.Body = new MemoryStream(json);
@@ -1394,10 +1394,13 @@ public sealed class GatewayExecutionTests
     {
         public bool Active = true;
         public bool RetainPayload;
+        public UZLLM.Modules.Projects.Contracts.ProjectSettings? Settings, AdmissionSettings;
+        private int tenantReads;
         public GatewayByokCredential? Byok;
         public Task<GatewayTenantScope?> FindTenantAsync(Guid projectId, CancellationToken cancellationToken) =>
             Task.FromResult<GatewayTenantScope?>(Active && projectId == tenant.ProjectId
-                ? tenant with { RetainPayload = RetainPayload } : null);
+                ? tenant with { RetainPayload = RetainPayload, Settings = ++tenantReads > 1
+                    ? AdmissionSettings ?? Settings : Settings } : null);
         public Task<FeePolicyVersion?> FindFeePolicyAsync(string policyCode, DateTimeOffset at,
             CancellationToken cancellationToken) => Task.FromResult<FeePolicyVersion?>(fee);
         public Task<Guid?> FindPlatformCredentialAsync(Guid providerId, CancellationToken cancellationToken) =>

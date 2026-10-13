@@ -7,6 +7,8 @@ using UZLLM.Modules.ApiKeys.Domain;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Modules.Catalog.Contracts;
 using UZLLM.Modules.Providers.Contracts;
+using UZLLM.Modules.Projects.Domain;
+using UZLLM.Modules.Projects.Contracts;
 using UZLLM.Modules.Routing.Contracts;
 using UZLLM.Modules.Routing.Domain;
 using UZLLM.Modules.Routing.Infrastructure;
@@ -45,16 +47,20 @@ public sealed class InferenceGateway(
                     "Invalid API key."), cancellationToken);
                 return;
             }
-            if (await readStore.FindTenantAsync(identity.ProjectId, cancellationToken) is null)
+            var tenant = await readStore.FindTenantAsync(identity.ProjectId, cancellationToken);
+            if (tenant is null)
             {
                 await WriteErrorAsync(context, new(403, "project_unavailable", "permission_error",
                     "Project is unavailable."), cancellationToken);
                 return;
             }
+            var projectSettings = tenant.Settings ?? new ProjectSettings();
             var models = (await catalog.ListActiveModelsAsync(clock.GetUtcNow(), cancellationToken))
-                .Where(model => ApiKeyPermissionPolicy.AllowsModel(identity.Permissions, model.Model.CanonicalCode))
+                .Where(model => ApiKeyPermissionPolicy.AllowsModel(identity.Permissions, model.Model.CanonicalCode)
+                    && ProjectSettingsPolicy.AllowsModel(projectSettings, model.Model.CanonicalCode))
                 .Select(model => model with { ProviderMappings = model.ProviderMappings
-                    .Where(mapping => ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, mapping.Provider.Code)).ToArray() })
+                    .Where(mapping => ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, mapping.Provider.Code)
+                        && ProjectSettingsPolicy.AllowsProvider(projectSettings, mapping.Provider.Code)).ToArray() })
                 .ToArray();
             await context.Response.WriteAsJsonAsync(new
             {
@@ -94,6 +100,9 @@ public sealed class InferenceGateway(
     private static GatewayError PermissionDenied() => new(403, "api_key_permission_denied", "permission_error",
         "The API key does not permit the requested model or provider.");
 
+    private static GatewayError ProjectPermissionDenied() => new(403, "project_permission_denied", "permission_error",
+        "The project does not permit the requested model or provider.");
+
     public async Task ChatAsync(HttpContext context, CancellationToken cancellationToken)
     {
         using var activity = UzllmTelemetry.ActivitySource.StartActivity("gateway.chat");
@@ -122,6 +131,8 @@ public sealed class InferenceGateway(
                 throw new GatewayRequestException("Content-Type must be application/json.", "unsupported_media_type");
             var raw = await ReadRequestBodyAsync(context.Request, options.MaximumRequestBytes, cancellationToken);
             var parsed = ChatRequestParser.Parse(raw);
+            var projectSettings = tenant.Settings ?? new ProjectSettings();
+            parsed = parsed with { Routing = ProjectSettingsPolicy.ResolveRouting(projectSettings, parsed.Routing) };
             var managedEnabled = await platformControls.IsEnabledAsync(PlatformFeature.ManagedTraffic,
                 cancellationToken);
             if (parsed.ProviderKeyId is null && !managedEnabled)
@@ -187,6 +198,13 @@ public sealed class InferenceGateway(
                 return;
             }
             var outputLimit = parsed.ProviderRequest.MaxOutputTokens ?? model.Model.MaxOutputTokens;
+            if (!ProjectSettingsPolicy.AllowsModel(projectSettings, requestedCode)
+                || pinnedProvider is not null && !ProjectSettingsPolicy.AllowsProvider(projectSettings, pinnedProvider)
+                || (parsed.FallbackModels?.Any(code => !ProjectSettingsPolicy.AllowsModel(projectSettings, code)) ?? false))
+            {
+                await WriteErrorAsync(context, ProjectPermissionDenied(), cancellationToken);
+                return;
+            }
             var candidates = new List<RouteCandidate>();
             var constraintAllowed = false;
             RequestConstraintOutcome? constraintFailure = null;
@@ -205,6 +223,13 @@ public sealed class InferenceGateway(
             }
             mappings = mappings.Where(value => ApiKeyPermissionPolicy.AllowsProvider(
                 identity.Permissions, value.Provider.Code)).ToArray();
+            if (mappings.Length != 0 && !mappings.Any(value =>
+                ProjectSettingsPolicy.AllowsProvider(projectSettings, value.Provider.Code)))
+            {
+                await WriteErrorAsync(context, ProjectPermissionDenied(), cancellationToken);
+                return;
+            }
+            mappings = mappings.Where(value => ProjectSettingsPolicy.AllowsProvider(projectSettings, value.Provider.Code)).ToArray();
             FeePolicyVersion? byokFee = null;
             if (parsed.ProviderKeyId is { } providerKeyId)
             {
@@ -220,6 +245,12 @@ public sealed class InferenceGateway(
                     && !ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code)))
                 {
                     await WriteErrorAsync(context, PermissionDenied(), cancellationToken);
+                    return;
+                }
+                if (model.ProviderMappings.Any(value => value.Provider.Id == byok.ProviderId
+                    && !ProjectSettingsPolicy.AllowsProvider(projectSettings, value.Provider.Code)))
+                {
+                    await WriteErrorAsync(context, ProjectPermissionDenied(), cancellationToken);
                     return;
                 }
                 byokFee = await readStore.FindFeePolicyAsync(options.ByokFeePolicyCode,
@@ -373,10 +404,20 @@ public sealed class InferenceGateway(
                     }
                     var fallbackOutput = parsed.ProviderRequest.MaxOutputTokens
                         ?? fallbackModel.Model.MaxOutputTokens;
+                    if (fallbackModel.ProviderMappings.Any(value => SupportedProvider(value.Provider.Code)
+                            && ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code))
+                        && !fallbackModel.ProviderMappings.Any(value => SupportedProvider(value.Provider.Code)
+                            && ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code)
+                            && ProjectSettingsPolicy.AllowsProvider(projectSettings, value.Provider.Code)))
+                    {
+                        await WriteErrorAsync(context, ProjectPermissionDenied(), cancellationToken);
+                        return;
+                    }
                     var eligible = new List<RouteCandidate>();
                     foreach (var mapping in fallbackModel.ProviderMappings
                         .Where(value => SupportedProvider(value.Provider.Code)
-                            && ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code))
+                            && ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, value.Provider.Code)
+                            && ProjectSettingsPolicy.AllowsProvider(projectSettings, value.Provider.Code))
                         .OrderBy(value => ProviderPriority(value.Provider.Code))
                         .ThenBy(value => value.Mapping.Id))
                     {
@@ -465,6 +506,16 @@ public sealed class InferenceGateway(
                 return;
             }
             var maximum = new UsdMicroAmount(candidates.Max(value => value.MaximumCharge.Value));
+            // Recheck hard project restrictions after routing I/O, never reuse a stale policy for financial admission.
+            var admissionTenant = await readStore.FindTenantAsync(identity.ProjectId, cancellationToken);
+            if (admissionTenant is null || admissionTenant.OrganizationId != tenant.OrganizationId
+                || admissionTenant.ProjectId != tenant.ProjectId
+                || candidates.Any(candidate => !ProjectSettingsPolicy.AllowsModel(admissionTenant.Settings ?? new(), candidate.Model.CanonicalCode)
+                    || !ProjectSettingsPolicy.AllowsProvider(admissionTenant.Settings ?? new(), candidate.Mapping.Provider.Code)))
+            {
+                await WriteErrorAsync(context, ProjectPermissionDenied(), cancellationToken);
+                return;
+            }
             var prepare = new PrepareUsageRequest(tenant.OrganizationId, identity.ProjectId,
                 identity.ApiKeyId, model.Model.Id, parsed.Stream, "chat.completions",
                 idempotencyKey, payloadHash, System.Diagnostics.Activity.Current?.TraceId.ToString());

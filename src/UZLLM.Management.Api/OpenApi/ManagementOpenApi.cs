@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
+using System.Text.Json.Nodes;
 using UZLLM.Management.Api.Administration;
 using UZLLM.Management.Api.Budgets;
 using UZLLM.Management.Api.Catalog;
@@ -43,6 +44,23 @@ public static class ManagementOpenApi
                             value.Minimum = "1";
                             value.Maximum = name == "requestsPerMinute" ? "1000000" : "10000";
                         }
+                }
+                if (context.JsonTypeInfo.Type == typeof(ProjectSettings) && schema.Properties is { } settingsProperties)
+                {
+                    schema.AdditionalPropertiesAllowed = false;
+                    foreach (var name in new[] { "allowedModels", "allowedProviders" })
+                        if (settingsProperties[name] is OpenApiSchema list) list.MaxItems = 128;
+                    if (settingsProperties["routing"] is OpenApiSchema routing)
+                    {
+                        routing.Type = JsonSchemaType.String | JsonSchemaType.Null;
+                        routing.Enum = new[] { "priority", "price", "latency", "throughput", "auto" }
+                            .Select(value => (JsonNode)JsonValue.Create(value)!).Append(null!).ToList();
+                    }
+                    if (settingsProperties["environment"] is OpenApiSchema environment)
+                    {
+                        environment.MinLength = 1; environment.MaxLength = 32;
+                        environment.Pattern = "^[A-Za-z0-9_-]+$";
+                    }
                 }
                 // Optional record-constructor defaults must also accept the actual
                 // null serialized by newly issued/unrestricted keys.
@@ -227,6 +245,8 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Read<Project[]>(org + "/projects");
         Write<Project>("POST", org + "/projects", 201, 409);
         Read<Project>(project, 404);
+        Read<ProjectSettings>(project + "/settings", 404);
+        Write<ProjectSettings>("PUT", project + "/settings", 200, 404);
         Empty("POST", project + "/archive", 404);
         Read<GatewayApiKey[]>("/projects/{projectId}/api-keys", 404);
         Write<IssuedGatewayApiKey>("POST", "/projects/{projectId}/api-keys", 201, 404, 409);

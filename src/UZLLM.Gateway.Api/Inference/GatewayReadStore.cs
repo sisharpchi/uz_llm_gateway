@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using UZLLM.Modules.Billing.Contracts;
+using UZLLM.Modules.Projects.Contracts;
+using UZLLM.Modules.Projects.Domain;
 using UZLLM.Persistence;
 
 namespace UZLLM.Gateway.Api.Inference;
 
-public sealed record GatewayTenantScope(Guid OrganizationId, Guid ProjectId, bool RetainPayload = false);
+public sealed record GatewayTenantScope(Guid OrganizationId, Guid ProjectId, bool RetainPayload = false,
+    ProjectSettings? Settings = null);
 public sealed record GatewayByokCredential(Guid Id, Guid ProviderId);
 
 public interface IGatewayReadStore
@@ -21,15 +24,19 @@ public interface IGatewayReadStore
 
 public sealed class PostgreSqlGatewayReadStore(FoundationDbContext db) : IGatewayReadStore
 {
-    public Task<GatewayTenantScope?> FindTenantAsync(Guid projectId, CancellationToken cancellationToken) =>
-        db.Set<ProjectEntity>().AsNoTracking()
+    public async Task<GatewayTenantScope?> FindTenantAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        var value = await db.Set<ProjectEntity>().AsNoTracking()
             .Where(project => project.Id == projectId && project.Status == "Active"
                 && project.Organization.Status == "Active")
-            .Select(project => new GatewayTenantScope(project.OrganizationId, project.Id,
-                db.Set<UsagePayloadRetentionPolicyEntity>().Any(policy =>
+            .Select(project => new { project.OrganizationId, project.Id, project.SettingsJson,
+                RetainPayload = db.Set<UsagePayloadRetentionPolicyEntity>().Any(policy =>
                     policy.OrganizationId == project.OrganizationId && policy.ProjectId == project.Id
-                    && policy.Enabled)))
+                    && policy.Enabled) })
             .SingleOrDefaultAsync(cancellationToken);
+        return value is null ? null : new(value.OrganizationId, value.Id, value.RetainPayload,
+            ProjectSettingsPolicy.Read(value.SettingsJson));
+    }
 
     public async Task<FeePolicyVersion?> FindFeePolicyAsync(string policyCode, DateTimeOffset at,
         CancellationToken cancellationToken) =>

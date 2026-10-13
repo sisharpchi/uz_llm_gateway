@@ -43,10 +43,19 @@ Project shall support Active / Archived.
 ### FR-013 — Project defaults [P1]
 Project may define:
 - default routing strategy;
-- cache policy;
 - allowed providers;
 - allowed models;
-- logging/data-retention preference.
+- an environment tag (metadata only).
+
+`PROJECTS-002` decision confirmed 2026-10-13: explicit request routing overrides
+only the strategy, never project allowlists, key permissions, wallet, budget or
+operator limits. Null strategy inherits deterministic priority; null allowlists
+are unrestricted and empty allowlists deny all. Spend controls reuse existing
+Lifetime/Daily/Weekly/Monthly project budget policies, not a new cost ceiling or
+duplicate financial state. Managed remains the default; BYOK and Hybrid require
+explicit per-request selection/consent. Environment never changes safety or
+billing. Cache policy remains future routing/cache work; payload retention uses
+its separate opt-in API, not these defaults. See [project settings](25_PROJECT_DEFAULTS.md).
 
 ---
 

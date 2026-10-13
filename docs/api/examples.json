@@ -222,6 +222,36 @@
   },
   {
     "body": {
+      "allowedModels": null,
+      "allowedProviders": null,
+      "environment": null,
+      "routing": null
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/organizations/{organizationId}/projects/{projectId}/settings",
+    "status": 200
+  },
+  {
+    "body": {
+      "allowedModels": [
+        "example-chat"
+      ],
+      "allowedProviders": [
+        "openai"
+      ],
+      "environment": "Production",
+      "routing": "price"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "put",
+    "path": "/management/v1/organizations/{organizationId}/projects/{projectId}/settings",
+    "status": 200
+  },
+  {
+    "body": {
       "accountId": "11111111-1111-4111-8111-111111111111",
       "email": "example@example.test",
       "emailVerified": true,

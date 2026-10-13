@@ -115,7 +115,7 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
         var output = Integer(); output.Format = "int32"; output.Minimum = "1"; output.Maximum = int.MaxValue.ToString();
         var extensions = Object(("provider_key_id", new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid" }),
             ("allow_managed_fallback", new OpenApiSchema { Type = JsonSchemaType.Boolean }),
-            ("routing", Enum("price", "latency", "throughput", "auto")),
+            ("routing", Enum("priority", "price", "latency", "throughput", "auto")),
             ("fallback_models", new OpenApiSchema { Type = JsonSchemaType.Array, Items = String(), MinItems = 1, MaxItems = 2, UniqueItems = true }));
         extensions.AdditionalPropertiesAllowed = false;
         extensions.Description = "provider_key_id must be non-empty. Managed fallback opt-in requires provider_key_id. "

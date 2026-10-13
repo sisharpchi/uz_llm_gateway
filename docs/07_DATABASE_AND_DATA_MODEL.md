@@ -63,6 +63,11 @@ clear grants. Member role/status checks constrain stored values.
 are unique within their organization. Later tables that carry both project and
 organization use the project scope as a tenant guard.
 
+`PROJECTS-002` stores the typed routing/environment/allowlist group under
+`settings_json.defaults`, preserving sibling JSON groups by atomic JSONB update.
+No new financial state or schema migration; legacy `{}` inherits unchanged defaults.
+See [project defaults](25_PROJECT_DEFAULTS.md).
+
 ### `gateway.api_key`
 
 `LIMITS-002` adds nullable integer `requests_per_minute` and `concurrency_limit`

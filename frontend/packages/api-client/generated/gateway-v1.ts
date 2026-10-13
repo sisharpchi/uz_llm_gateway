@@ -146,7 +146,7 @@ export interface operations {
                         /** Format: uuid */
                         provider_key_id?: string;
                         /** @enum {string} */
-                        routing?: "price" | "latency" | "throughput" | "auto";
+                        routing?: "priority" | "price" | "latency" | "throughput" | "auto";
                     };
                 };
             };

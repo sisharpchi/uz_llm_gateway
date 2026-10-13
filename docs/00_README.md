@@ -176,6 +176,7 @@ This creates clear boundaries without paying the operational cost of many micros
 22. `22_USAGE_EXPORT.md`
 23. `23_API_KEY_PERMISSIONS.md`
 24. `24_TENANT_LIMITS.md`
+25. `25_PROJECT_DEFAULTS.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

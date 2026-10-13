@@ -196,14 +196,18 @@ Prefer namespace-like extension to reduce collision risk:
   "messages": [],
   "uzllm": {
     "routing": "price",
-    "allowed_providers": ["provider-a", "provider-b"],
-    "fallback_models": ["model-y"],
-    "max_cost_usd": 0.05
+    "fallback_models": ["model-y"]
   }
 }
 ```
 
 P0 can omit most extensions and use project defaults.
+`PROJECTS-002` applies a project strategy when `uzllm.routing` is absent.
+`priority` explicitly restores deterministic routing; other accepted values
+are `price`, `latency`, `throughput`, `auto`. This overrides only strategy,
+not hard project allowlists, API-key permissions, financial or operator gates.
+`max_cost`, `max_cost_usd` and request `allowed_providers` remain unsupported
+and return 400; the old illustrative cost field was not an implemented feature.
 `ROUTING-003` accepts `{"uzllm":{"routing":"price"}}` without a BYOK key.
 `ROUTING-004` additionally accepts `latency`, `throughput`, and `auto`; unknown routing values return
 `400 unsupported_parameter`. The strategy ranks eligible same-model Managed
@@ -369,8 +373,28 @@ POST   /management/v1/organizations/{organizationId}/projects/{projectId}/archiv
 ```
 
 Every project operation is authorized against its path organization. `POST`
-archive is a P0 terminal state transition; project settings and unarchive are
-not part of the initial contract.
+archive is a terminal state transition; unarchive remains unsupported.
+
+`GET/PUT /management/v1/organizations/{organizationId}/projects/{projectId}/settings`
+reads/replaces `{routing, environment, allowedModels, allowedProviders}`.
+Fields are optional/nullable; `{}` resets this settings group. `routing` is
+`priority|price|latency|throughput|auto` or null. `environment` is 1–32 ASCII
+letters/digits/`_`/`-`, or null, and is metadata only. Allowlists accept at most
+128 canonical codes per list; null is unrestricted, empty denies all.
+Codes trim/lowercase/deduplicate like key permissions. Unknown fields are 400.
+No budget, cost, provider credential, managed-fallback or retention controls
+are accepted. Existing project budget endpoints remain the authoritative
+Lifetime/Daily/Weekly/Monthly financial controls.
+
+Session and current ReadProjects permission are required for reads; writes
+require ManageProjects (Owner/Admin), CSRF and atomic audit. Foreign tenant
+returns 403, wrong path organization/missing/archived project 404, invalid input
+400; responses are no-store. Whole-group updates are last-commit-wins and
+preserve other JSON groups and budget/limit state. Gateway intersects project
+and key restrictions before routing and rechecks hard restrictions before
+financial admission. Defaults already snapshotted by an admitted request need
+not be reranked; updates do not revoke active streams. See [complete semantics
+and evidence](25_PROJECT_DEFAULTS.md).
 
 ### Team (P1)
 

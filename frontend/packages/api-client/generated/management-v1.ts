@@ -1045,6 +1045,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/organizations/{organizationId}/projects/{projectId}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReadProjectSettings"];
+        put: operations["SetProjectSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/organizations/{organizationId}/provider-keys": {
         parameters: {
             query?: never;
@@ -2454,6 +2470,13 @@ export interface components {
             settingsJson: string;
             status: number;
         }[];
+        ProjectSettings: {
+            allowedModels?: null | string[];
+            allowedProviders?: null | string[];
+            environment?: null | string;
+            /** @enum {null|string} */
+            routing?: "priority" | "price" | "latency" | "throughput" | "auto" | null;
+        };
         ProviderObservationResult: {
             caseReasons: string[];
             duplicate: boolean;
@@ -7425,6 +7448,120 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetainedPayload"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ReadProjectSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSettings"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SetProjectSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                organizationId: string;
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectSettings"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSettings"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
             /** @description Missing, expired or invalid session/credentials; empty body. */

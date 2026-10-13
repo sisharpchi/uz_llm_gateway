@@ -47,6 +47,12 @@ Filter candidates by:
 
 Only then score candidates.
 
+`PROJECTS-002` intersects project model/provider allowlists with API-key policies
+before scoring/discovery and rechecks hard project restrictions before financial
+admission. Explicit request routing overrides the project default strategy only;
+`priority` restores deterministic ordering. Environment is metadata, not a policy
+switch. See [project defaults](25_PROJECT_DEFAULTS.md).
+
 ---
 
 ## 3. MVP routing [P0]

@@ -17,11 +17,14 @@ public static class ProjectServiceCollectionExtensions
         services.AddScoped<IProjectStore, PostgreSqlProjectStore>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IProjectAccessService, ProjectAccessService>();
+        services.AddScoped<IProjectSettingsStore, PostgreSqlProjectSettingsStore>();
+        services.AddScoped<IProjectSettingsService, ProjectSettingsService>();
         return services;
     }
 
     public static IEndpointRouteBuilder MapUzllmProjectEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapUzllmProjectSettingsEndpoints();
         var projects = endpoints.MapGroup("/management/v1/organizations/{organizationId:guid}/projects");
         projects.MapGet("", async (Guid organizationId, HttpContext context, IProjectService service, CancellationToken cancellationToken) =>
             await ExecuteAsync(context, organizationId, accountId => service.ListAsync(accountId, organizationId, cancellationToken)));
