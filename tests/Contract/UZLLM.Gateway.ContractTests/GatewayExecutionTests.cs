@@ -305,6 +305,104 @@ public sealed partial class GatewayExecutionTests
         Assert.Equal(0, fixture.Adapter.CompleteCalls);
     }
 
+    [Theory]
+    [InlineData("google", false)]
+    [InlineData("google", true)]
+    [InlineData("deepseek", false)]
+    [InlineData("deepseek", true)]
+    public async Task New_provider_byok_chat_and_sse_keep_tenant_context_and_settle_once(string provider, bool stream)
+    {
+        var fixture = new Scenario(googleProvider: provider == "google", deepSeekProvider: provider == "deepseek");
+        fixture.UseByok(false, providerCode: provider, stream: stream);
+        fixture.PlatformControls.Enabled = false;
+        var adapter = provider == "google" ? fixture.GoogleAdapter : fixture.DeepSeekAdapter;
+        adapter.StreamItems = [new(ProviderStreamKind.TextDelta, Text: "ok"),
+            new(ProviderStreamKind.Finish, FinishReason: "stop"),
+            new(ProviderStreamKind.Usage, Usage: new ProviderUsage(2, 1, 0, null))];
+        await fixture.RunAsync();
+        Assert.Equal(200, fixture.Context.Response.StatusCode);
+        Assert.Equal(1, adapter.CompleteCalls + adapter.StreamCalls);
+        Assert.Equal(fixture.ByokCredentialId, adapter.LastContext!.CredentialId);
+        Assert.NotNull(adapter.LastContext.OrganizationId);
+        Assert.NotNull(adapter.LastContext.ProjectId);
+        Assert.Equal(0, fixture.Adapter.CompleteCalls + fixture.Adapter.StreamCalls);
+        Assert.Equal(1, fixture.Finance.ByokReserves);
+        Assert.Equal(0, fixture.Finance.ManagedReserves);
+        Assert.Equal(0, fixture.Finance.LastMaximum!.Value.Value);
+        Assert.True(fixture.Finance.LastByokInput!.MaximumExternalSpend.Value > 0);
+        Assert.Equal(1, fixture.Usage.VerifiedEvidence);
+        Assert.Equal(1, fixture.Finance.Finalizes);
+        Assert.Equal("byok", fixture.Context.Response.Headers["X-Uzllm-Billing-Mode"]);
+    }
+
+    [Theory]
+    [InlineData("google", ProviderErrorCategory.Authentication, true)]
+    [InlineData("deepseek", ProviderErrorCategory.Authentication, true)]
+    [InlineData("google", ProviderErrorCategory.QuotaExhausted, true)]
+    [InlineData("deepseek", ProviderErrorCategory.QuotaExhausted, true)]
+    [InlineData("google", ProviderErrorCategory.RateLimited, false)]
+    [InlineData("deepseek", ProviderErrorCategory.RateLimited, false)]
+    [InlineData("google", ProviderErrorCategory.RateLimited, true)]
+    [InlineData("deepseek", ProviderErrorCategory.RateLimited, true)]
+    public async Task New_provider_byok_rejections_scope_health_and_require_explicit_safe_fallback(
+        string provider, ProviderErrorCategory category, bool optIn)
+    {
+        var fixture = new Scenario(googleProvider: provider == "google", deepSeekProvider: provider == "deepseek");
+        fixture.UseByok(optIn, providerCode: provider);
+        var adapter = provider == "google" ? fixture.GoogleAdapter : fixture.DeepSeekAdapter;
+        adapter.ByokError = new ProviderError(category, ProviderExecutionCertainty.RejectedBeforeExecution,
+            category == ProviderErrorCategory.RateLimited, category == ProviderErrorCategory.RateLimited,
+            category == ProviderErrorCategory.Authentication ? 401 : category == ProviderErrorCategory.QuotaExhausted ? 402 : 429,
+            null, "Credential rejected.");
+        await fixture.RunAsync();
+        var fallback = optIn && category == ProviderErrorCategory.RateLimited;
+        Assert.Equal(fallback ? 2 : 1, adapter.CompleteCalls);
+        var rejection = Assert.Single(fixture.Health.Outcomes, value => value.Outcome != ProviderHealthOutcome.Success);
+        Assert.Equal(fixture.ByokCredentialId, rejection.Target.CredentialId);
+        Assert.NotNull(rejection.Target.OrganizationId);
+        Assert.Equal(category == ProviderErrorCategory.Authentication ? ProviderHealthOutcome.CredentialRejected
+            : ProviderHealthOutcome.CredentialThrottled, rejection.Outcome);
+        Assert.Equal(fallback ? "managed" : "byok", fixture.Context.Response.Headers["X-Uzllm-Billing-Mode"]);
+        Assert.Equal(fallback ? 1 : 0, fixture.Finance.Finalizes);
+        Assert.Equal(fallback ? 0 : 1, fixture.Finance.Releases);
+    }
+
+    [Theory]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task New_provider_byok_spend_denial_never_dispatches(string provider)
+    {
+        var fixture = new Scenario(googleProvider: provider == "google", deepSeekProvider: provider == "deepseek");
+        fixture.UseByok(false, providerCode: provider);
+        fixture.Finance.NextAdmission = AdmissionStatus.ByokSpendExceeded;
+        await fixture.RunAsync();
+        Assert.Equal(402, fixture.Context.Response.StatusCode);
+        Assert.Equal(1, fixture.Finance.ByokReserves);
+        Assert.Equal(0, fixture.GoogleAdapter.CompleteCalls + fixture.DeepSeekAdapter.CompleteCalls);
+        Assert.Equal(0, fixture.Usage.Attempts);
+        Assert.Equal(0, fixture.Finance.Finalizes);
+    }
+
+    [Theory]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task New_provider_byok_partial_stream_never_replays_or_releases_unknown_cost(string provider)
+    {
+        var fixture = new Scenario(googleProvider: provider == "google", deepSeekProvider: provider == "deepseek");
+        fixture.UseByok(true, providerCode: provider, stream: true);
+        var adapter = provider == "google" ? fixture.GoogleAdapter : fixture.DeepSeekAdapter;
+        adapter.StreamItems = [new(ProviderStreamKind.TextDelta, Text: "partial")];
+        adapter.FailAfterStreamItems = true;
+        await fixture.RunAsync();
+        Assert.Equal(1, adapter.StreamCalls);
+        Assert.Equal(0, adapter.CompleteCalls);
+        Assert.Equal(1, fixture.Usage.UnknownEvidence);
+        Assert.Equal(0, fixture.Usage.VerifiedEvidence);
+        Assert.Equal(0, fixture.Finance.Releases);
+        Assert.Equal(1, fixture.Finance.Finalizes);
+        Assert.Equal("byok", fixture.Context.Response.Headers["X-Uzllm-Billing-Mode"]);
+    }
+
     [Fact]
     public async Task Hybrid_opt_in_falls_back_to_managed_only_after_verified_preexecution_rejection()
     {
@@ -1160,6 +1258,7 @@ public sealed partial class GatewayExecutionTests
         private readonly Guid projectId = Guid.NewGuid();
         private readonly Guid apiKeyId = Guid.NewGuid();
         private readonly Guid providerId = Guid.NewGuid();
+        private readonly Dictionary<string, Guid> byokProviders = [];
         private readonly Guid mappingId = Guid.NewGuid();
         private readonly Guid anthropicMappingId = Guid.NewGuid();
         private readonly Guid googleMappingId = Guid.NewGuid();
@@ -1206,6 +1305,7 @@ public sealed partial class GatewayExecutionTests
             var mapping = new ProviderModel(mappingId, providerId, model.Id, "gpt-test", null,
                 CatalogStatus.Active, openAiTools ? [CatalogCapability.Tools] : [], now);
             var provider = new CatalogProvider(providerId, "openai", "OpenAI", CatalogStatus.Active, now);
+            byokProviders["openai"] = providerId;
             var mappings = new List<CatalogProviderModelSummary>
             { new(mapping, provider, price) };
             var prices = new Dictionary<Guid, ModelPrice> { [mappingId] = price };
@@ -1224,6 +1324,7 @@ public sealed partial class GatewayExecutionTests
             if (googleProvider)
             {
                 var googleId = Guid.NewGuid();
+                byokProviders["google"] = googleId;
                 var googleMapping = new ProviderModel(googleMappingId, googleId, model.Id,
                     "gemini-test", null, CatalogStatus.Active, [], now);
                 var googlePrice = new ModelPrice(Guid.NewGuid(), googleMappingId,
@@ -1236,6 +1337,7 @@ public sealed partial class GatewayExecutionTests
             if (deepSeekProvider)
             {
                 var deepSeekId = Guid.NewGuid();
+                byokProviders["deepseek"] = deepSeekId;
                 var deepSeekMapping = new ProviderModel(deepSeekMappingId, deepSeekId, model.Id,
                     "deepseek-flash", null, CatalogStatus.Active, [], now);
                 var deepSeekPrice = new ModelPrice(Guid.NewGuid(), deepSeekMappingId,
@@ -1289,20 +1391,22 @@ public sealed partial class GatewayExecutionTests
 
         public Task RunAsync() => gateway.ChatAsync(Context, Context.RequestAborted);
         public Task ListAsync() => gateway.ListModelsAsync(Context, Context.RequestAborted);
-        public void UseByok(bool allowManagedFallback, bool priceRouting = false)
+        public void UseByok(bool allowManagedFallback, bool priceRouting = false,
+            string providerCode = "openai", bool stream = false)
         {
-            Reads.Byok = new GatewayByokCredential(ByokCredentialId, providerId);
+            Reads.Byok = new GatewayByokCredential(ByokCredentialId, byokProviders[providerCode]);
+            var modelCode = providerCode == "openai" ? "gpt-test" : providerCode + "/gpt-test";
             var request = priceRouting
                 ? JsonSerializer.SerializeToUtf8Bytes(new
                 {
-                    model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
+                    model = modelCode, stream, messages = new[] { new { role = "user", content = "Hello" } },
                     max_completion_tokens = 100,
                     uzllm = new { provider_key_id = ByokCredentialId,
                         allow_managed_fallback = allowManagedFallback, routing = "price" }
                 })
                 : JsonSerializer.SerializeToUtf8Bytes(new
                 {
-                    model = "gpt-test", messages = new[] { new { role = "user", content = "Hello" } },
+                    model = modelCode, stream, messages = new[] { new { role = "user", content = "Hello" } },
                     max_completion_tokens = 100,
                     uzllm = new { provider_key_id = ByokCredentialId,
                         allow_managed_fallback = allowManagedFallback }
@@ -1619,6 +1723,7 @@ public sealed partial class GatewayExecutionTests
             ProviderExecutionContext context, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             StreamCalls++;
+            LastContext = context;
             ObservedStreamToken = cancellationToken;
             try
             {

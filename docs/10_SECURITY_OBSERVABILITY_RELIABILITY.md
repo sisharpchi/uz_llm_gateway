@@ -92,6 +92,14 @@ disabled; upstream bodies are discarded. Credential mutations and safe test
 outcomes are audited in the same database transaction. Managed/Hybrid
 execution is not enabled by this storage/control-plane task.
 
+`BYOK-003` extends fixed verification to Google/Gemini and DeepSeek. Keys travel
+only in the native auth header, never a query string. Redirects/cookies remain
+disabled; a five-second total deadline bounds headers and any body read. Google
+400 parses at most 16 KiB of structured ErrorInfo for `API_KEY_INVALID`; generic,
+malformed or oversized errors remain Unavailable. Bodies are never returned,
+persisted or logged. Verification does not prove model-specific access, quota,
+supplier billing, or reset inference health circuits. See [parity boundaries](28_BYOK_PROVIDER_PARITY.md).
+
 The P0 platform credential store uses AES-GCM envelope encryption bound to the
 credential and provider IDs. Configure `ProviderSecrets:ActiveKeyVersion` and
 `ProviderSecrets:Keys:<version>` (base64-encoded 32-byte KEKs) through a secret

@@ -404,7 +404,9 @@ must be flat per-token input/output with an optional cached-input rate;
 nonempty extra pricing dimensions (including long-context tiers) fail closed
 at reservation. Operators must verify live model eligibility and the published
 [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) before enabling
-Managed traffic. Google BYOK verification remains separate work.
+Managed traffic. `BYOK-003` subsequently enables Google API-key verification
+and tenant-key execution on this same bounded adapter; see
+[provider parity and evidence](28_BYOK_PROVIDER_PARITY.md).
 
 `PROVIDER-007` adds native
 [streamGenerateContent SSE](https://ai.google.dev/api/generate-content) for the
@@ -427,7 +429,8 @@ non-thinking mode for predictable sampling, and provider-specific
 `prompt_tokens`. Reasoning tokens, if reported, are a subset of output tokens
 and never added again. Missing or inconsistent counters remain unknown
 financial evidence. The bounded adapter supports text and JSON object mode;
-tools, vision, JSON Schema, and DeepSeek BYOK are not advertised. It requests
+tools, vision and JSON Schema are not advertised. DeepSeek BYOK is subsequently
+enabled by `BYOK-003` on the same bounded adapter. It requests
 non-thinking mode; because DeepSeek ignores `top_p` in that mode, non-default
 `top_p` requests are rejected before dispatch rather than silently altered.
 

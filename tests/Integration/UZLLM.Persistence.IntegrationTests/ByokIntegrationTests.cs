@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -18,14 +19,88 @@ using UZLLM.Modules.Projects.Infrastructure;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Persistence;
+using UZLLM.Provider.Google;
+using UZLLM.Provider.DeepSeek;
 
 namespace UZLLM.Persistence.IntegrationTests;
 
 [Collection(nameof(PersistenceIntegrationCollection))]
 public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
 {
-    [Fact]
-    public async Task Restrictions_accept_only_provider_models_and_audited_lifetime_spend_cap()
+    [Theory]
+    [InlineData("google", false)]
+    [InlineData("google", true)]
+    [InlineData("deepseek", false)]
+    [InlineData("deepseek", true)]
+    public async Task New_native_adapters_resolve_encrypted_tenant_keys_for_chat_and_sse_only(
+        string providerCode, bool stream)
+    {
+        await fixture.ResetMigrationsAsync();
+        await fixture.ApplyMigrationsAsync();
+        await using var provider = CreateProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var owner = await RegisterAsync(scope, "byok-native@example.uz");
+        var org = await scope.ServiceProvider.GetRequiredService<IOrganizationService>()
+            .CreateAsync(owner, "Native BYOK");
+        var project = await scope.ServiceProvider.GetRequiredService<IProjectService>()
+            .CreateAsync(owner, org.Id, "Granted");
+        var upstream = await scope.ServiceProvider.GetRequiredService<ICatalogService>()
+            .AddProviderAsync(providerCode, "Native provider");
+        var byok = scope.ServiceProvider.GetRequiredService<IByokCredentialService>();
+        const string secret = "tenant-only-native-secret-1234";
+        var key = await byok.CreateAsync(owner, org.Id, upstream.Id, "Native", secret);
+        Assert.True(await byok.SetProjectGrantAsync(owner, org.Id, key.Id, project.Id, true));
+        var resolver = scope.ServiceProvider.GetRequiredService<IProviderCredentialResolver>();
+        var handler = new NativeByokHandler(providerCode, stream);
+        using var client = new HttpClient(handler) { BaseAddress = providerCode == "google"
+            ? GoogleAdapterOptions.Production.BaseAddress : DeepSeekAdapterOptions.Production.BaseAddress };
+        ILlmProviderAdapter adapter = providerCode == "google"
+            ? new GoogleContentAdapter(client, resolver, GoogleAdapterOptions.Production)
+            : new DeepSeekChatAdapter(client, resolver, DeepSeekAdapterOptions.Production);
+        var execution = new ProviderExecutionContext(Guid.NewGuid(), upstream.Id, Guid.NewGuid(),
+            key.Id, providerCode == "google" ? "gemini-test" : "deepseek-flash",
+            TimeSpan.FromSeconds(5), org.Id, project.Id);
+        var request = new ProviderChatRequest([new ProviderMessage("user",
+            [new ProviderContentPart(ProviderContentKind.Text, "Hello")])], MaxOutputTokens: 100);
+        ProviderUsage? usage;
+        if (stream)
+        {
+            var events = new List<ProviderStreamEvent>();
+            await foreach (var item in adapter.StreamAsync(request, execution)) events.Add(item);
+            Assert.Equal("ok", string.Concat(events.Where(item => item.Kind == ProviderStreamKind.TextDelta).Select(item => item.Text)));
+            Assert.Single(events, item => item.Kind == ProviderStreamKind.Finish);
+            usage = Assert.Single(events, item => item.Kind == ProviderStreamKind.Usage).Usage;
+            Assert.DoesNotContain(events, item => item.Kind == ProviderStreamKind.Error);
+        }
+        else
+        {
+            var response = await adapter.CompleteAsync(request, execution);
+            Assert.Equal("ok", Assert.Single(response.Message.Content).Value);
+            usage = response.Usage;
+        }
+        Assert.Equal(new ProviderUsage(4, 3, 1, 1), usage);
+        Assert.Equal(providerCode == "google" ? secret : "Bearer " + secret, handler.Authentication);
+        Assert.DoesNotContain(secret, handler.Uri!.AbsoluteUri);
+        Assert.Equal(1, handler.Calls);
+        async Task ExecuteAsync(ProviderExecutionContext context)
+        {
+            if (stream) { await foreach (var _ in adapter.StreamAsync(request, context)) { } }
+            else await adapter.CompleteAsync(request, context);
+        }
+        var denied = await Assert.ThrowsAsync<ProviderExecutionException>(() =>
+            ExecuteAsync(execution with { OrganizationId = Guid.NewGuid() }));
+        Assert.Equal(ProviderExecutionCertainty.NotDispatched, denied.Error.Certainty);
+        Assert.True(await byok.DisableAsync(owner, org.Id, key.Id));
+        denied = await Assert.ThrowsAsync<ProviderExecutionException>(() => ExecuteAsync(execution));
+        Assert.Equal(ProviderExecutionCertainty.NotDispatched, denied.Error.Certainty);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task Restrictions_accept_only_provider_models_and_audited_lifetime_spend_cap(string providerCode)
     {
         await fixture.ResetMigrationsAsync();
         await fixture.ApplyMigrationsAsync();
@@ -36,7 +111,7 @@ public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
         var org = await scope.ServiceProvider.GetRequiredService<IOrganizationService>()
             .CreateAsync(owner, "BYOK policy");
         var catalog = scope.ServiceProvider.GetRequiredService<ICatalogService>();
-        var upstream = await catalog.AddProviderAsync("openai", "OpenAI");
+        var upstream = await catalog.AddProviderAsync(providerCode, "Provider");
         var model = await catalog.AddModelAsync("policy-model", "Policy model", 1000, 100,
             [CatalogCapability.Text]);
         await catalog.AddProviderModelAsync(upstream.Id, model.Id, "upstream-model", null, null);
@@ -63,8 +138,11 @@ public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
         Assert.Null(await byok.SetRestrictionsAsync(owner, org.Id, key.Id, null, null));
     }
 
-    [Fact]
-    public async Task Org_credential_lifecycle_is_masked_encrypted_audited_and_disabled()
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task Org_credential_lifecycle_is_masked_encrypted_audited_and_disabled(string providerCode)
     {
         await fixture.ResetMigrationsAsync();
         await fixture.ApplyMigrationsAsync();
@@ -74,7 +152,7 @@ public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
         var org = await scope.ServiceProvider.GetRequiredService<IOrganizationService>()
             .CreateAsync(owner, "BYOK tenant");
         var catalog = scope.ServiceProvider.GetRequiredService<ICatalogService>();
-        var upstream = await catalog.AddProviderAsync("openai", "OpenAI");
+        var upstream = await catalog.AddProviderAsync(providerCode, "Provider");
         var byok = scope.ServiceProvider.GetRequiredService<IByokCredentialService>();
         var resolver = scope.ServiceProvider.GetRequiredService<IByokCredentialResolver>();
         const string firstSecret = "sk-first-secret-value-123456";
@@ -130,8 +208,11 @@ public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
         Assert.DoesNotContain(nextSecret, JsonSerializer.Serialize(auditRows));
     }
 
-    [Fact]
-    public async Task Credential_grants_require_same_tenant_active_project_and_prevent_cross_project_resolution()
+    [Theory]
+    [InlineData("anthropic")]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task Credential_grants_require_same_tenant_active_project_and_prevent_cross_project_resolution(string providerCode)
     {
         await fixture.ResetMigrationsAsync();
         await fixture.ApplyMigrationsAsync();
@@ -147,7 +228,7 @@ public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
         var denied = await projects.CreateAsync(owner, org.Id, "Denied");
         var foreign = await projects.CreateAsync(owner, otherOrg.Id, "Foreign");
         var upstream = await scope.ServiceProvider.GetRequiredService<ICatalogService>()
-            .AddProviderAsync("anthropic", "Anthropic");
+            .AddProviderAsync(providerCode, "Provider");
         var byok = scope.ServiceProvider.GetRequiredService<IByokCredentialService>();
         var resolver = scope.ServiceProvider.GetRequiredService<IByokCredentialResolver>();
         const string secret = "sk-antropic-test-value-12345";
@@ -218,6 +299,34 @@ public sealed class ByokIntegrationTests(PersistenceIntegrationFixture fixture)
         var db = seed.ServiceProvider.GetRequiredService<FoundationDbContext>();
         Assert.Empty(await db.Set<ProviderCredentialEntity>().AsNoTracking()
             .Where(value => value.OrganizationId == org.Id).ToArrayAsync());
+    }
+
+    private sealed class NativeByokHandler(string provider, bool stream) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        public string? Authentication { get; private set; }
+        public Uri? Uri { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++; Uri = request.RequestUri;
+            Authentication = provider == "google" ? request.Headers.GetValues("x-goog-api-key").Single()
+                : request.Headers.Authorization?.ToString();
+            const string google = """
+                {"responseId":"tenant-response","candidates":[{"content":{"parts":[{"text":"ok"}],"role":"model"},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":4,"cachedContentTokenCount":1,"candidatesTokenCount":2,"thoughtsTokenCount":1,"totalTokenCount":7}}
+                """;
+            const string deepseek = """
+                {"id":"tenant-response","object":"chat.completion","model":"deepseek-flash","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"prompt_cache_hit_tokens":1,"prompt_cache_miss_tokens":3,"completion_tokens":3,"completion_tokens_details":{"reasoning_tokens":1},"total_tokens":7}}
+                """;
+            var body = provider == "google" ? google : deepseek;
+            if (stream)
+            {
+                if (provider == "deepseek") body = body.Replace("\"message\":", "\"delta\":")
+                    .Replace("\"chat.completion\"", "\"chat.completion.chunk\"");
+                body = "data: " + body + "\n\n" + (provider == "deepseek" ? "data: [DONE]\n\n" : "");
+            }
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent(body, Encoding.UTF8, stream ? "text/event-stream" : "application/json") });
+        }
     }
 
     private ServiceProvider CreateProvider(bool failAudit = false)

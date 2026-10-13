@@ -167,12 +167,15 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         Assert.False(state.SpendingHeld);
     }
 
-    [Fact]
-    public async Task Byok_zero_fee_external_cap_is_atomic_without_wallet_credit_and_replay_adds_no_hold()
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task Byok_zero_fee_external_cap_is_atomic_without_wallet_credit_and_replay_adds_no_hold(string providerCode)
     {
         await ResetAsync();
         var seed = await SeedAsync();
-        var keyId = await SeedByokAsync(seed, 100_000);
+        var keyId = await SeedByokAsync(seed, 100_000, providerCode);
         var providers = new List<ServiceProvider>();
         var scopes = new List<AsyncServiceScope>();
         try
@@ -227,8 +230,11 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         }
     }
 
-    [Fact]
-    public async Task Byok_verified_usage_spends_external_cap_but_wallet_only_pays_platform_fee()
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task Byok_verified_usage_spends_external_cap_but_wallet_only_pays_platform_fee(string providerCode)
     {
         long observedSpend = 0;
         using var meter = new MeterListener
@@ -244,7 +250,7 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         meter.Start();
         await ResetAsync();
         var seed = await SeedAsync();
-        var keyId = await SeedByokAsync(seed, 50_000);
+        var keyId = await SeedByokAsync(seed, 50_000, providerCode);
         await CreditAsync(seed.OrganizationId, 2_000);
         await using var provider = fixture.CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
@@ -1515,7 +1521,7 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         chargeByokFee ? seed.ByokFeeId : seed.FeeId, credentialId,
         new UsdMicroAmount(maximumExternalSpend), allowManagedFallback, Start.AddHours(1));
 
-    private async Task<Guid> SeedByokAsync(BillingSeed seed, long spendLimit)
+    private async Task<Guid> SeedByokAsync(BillingSeed seed, long spendLimit, string? providerCode = null)
     {
         await using var provider = fixture.CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
@@ -1524,6 +1530,9 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
             .Where(value => value.Id == seed.ProviderModelId)
             .Select(value => value.ProviderId).SingleAsync();
         var credentialId = Guid.CreateVersion7();
+        if (providerCode is not null)
+            await db.Set<CatalogProviderEntity>().Where(value => value.Id == providerId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Code, providerCode));
         db.Set<ProviderCredentialEntity>().Add(new ProviderCredentialEntity
         {
             Id = credentialId, OrganizationId = seed.OrganizationId, ProviderId = providerId,

@@ -41,6 +41,11 @@ revocation and explicit project grants. Recipients sign in with the verified
 invited email and paste the one-time token at `/accept-invitation`.
 See [team permissions and validation](docs/27_TEAM_MEMBERSHIP.md).
 
+BYOK supports OpenAI, Anthropic, Google/Gemini and DeepSeek through fixed
+verification endpoints and the existing encrypted tenant/project grants,
+estimated external-spend caps and credential-isolated health. See
+[provider parity and validation](docs/28_BYOK_PROVIDER_PARITY.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

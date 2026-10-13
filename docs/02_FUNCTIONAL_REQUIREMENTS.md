@@ -188,9 +188,15 @@ Platform-managed credentials shall be stored securely.
 
 ### FR-055 — BYOK credentials [P1]
 Users may register provider credentials.
+BYOK-003 extends the existing capability to active `google` (Gemini) and
+`deepseek` catalog providers alongside OpenAI/Anthropic. Custom endpoints,
+service-account/OAuth credentials and additional capabilities are not implied.
 
 ### FR-056 — Provider-key restrictions [P1]
 BYOK key may be limited to selected models and optional max spend.
+The current cap bounds catalog-estimated lifetime external spend through atomic
+holds; it is not a guarantee about the supplier's actual invoice. Existing
+project grants, platform-fee budgets and explicit Hybrid consent remain mandatory.
 
 ---
 

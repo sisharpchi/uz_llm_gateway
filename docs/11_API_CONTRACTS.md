@@ -517,7 +517,13 @@ optional `name` and/or `secret` to rotate it. Read/write responses contain
 ciphertext. All mutations require the management session and CSRF token.
 Test returns `Valid`, `Invalid`, or `Unavailable` without upstream response
 body; it makes a bounded GET to the provider's fixed model-list endpoint.
-Only active OpenAI/Anthropic catalog providers are supported at this stage.
+Active OpenAI/Anthropic/Google (`google`, Gemini API-key)/DeepSeek catalog
+providers are supported after `BYOK-003`. Test is read-only upstream; Valid
+means the model-list endpoint accepted the key, not guaranteed model access,
+available inference quota or invoice accuracy. Google structured 400
+`API_KEY_INVALID` returns Invalid; generic/malformed/oversized errors, 402/429,
+redirects, network errors and timeouts return Unavailable. No automatic retry
+or inference health reset occurs. [Fixed endpoints, bounds and evidence](28_BYOK_PROVIDER_PARITY.md).
 Deleting soft-tombstones and crypto-shreds the stored ciphertext; disabled/deleted credentials and
 ungranted projects cannot resolve its secret. `PUT /restrictions` replaces
 `allowedModels` (canonical codes; `null` means unrestricted) and optional

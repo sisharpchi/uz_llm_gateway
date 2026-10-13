@@ -25,8 +25,11 @@ namespace UZLLM.Persistence.IntegrationTests;
 [Collection(nameof(PersistenceIntegrationCollection))]
 public sealed class ByokEndpointIntegrationTests(PersistenceIntegrationFixture fixture)
 {
-    [Fact]
-    public async Task Byok_http_requires_session_csrf_manager_role_and_never_returns_secret()
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("google")]
+    [InlineData("deepseek")]
+    public async Task Byok_http_requires_session_csrf_manager_role_and_never_returns_secret(string providerCode)
     {
         await fixture.ResetMigrationsAsync();
         await fixture.ApplyMigrationsAsync();
@@ -70,7 +73,7 @@ public sealed class ByokEndpointIntegrationTests(PersistenceIntegrationFixture f
             var org = await scope.ServiceProvider.GetRequiredService<IOrganizationService>()
                 .CreateAsync(owner.AccountId, "BYOK HTTP tenant");
             var upstream = await scope.ServiceProvider.GetRequiredService<ICatalogService>()
-                .AddProviderAsync("openai", "OpenAI");
+                .AddProviderAsync(providerCode, "Provider");
             var project = await scope.ServiceProvider.GetRequiredService<IProjectService>()
                 .CreateAsync(owner.AccountId, org.Id, "Production");
             var path = $"/management/v1/organizations/{org.Id}/provider-keys";

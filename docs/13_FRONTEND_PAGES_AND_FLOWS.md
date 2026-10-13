@@ -325,8 +325,10 @@ Create:
 - name;
 - explicit allowed projects.
 
-`BYOK-001` exposes only fixed official OpenAI/Anthropic endpoints and
-organization credential-to-project grants. Do not show a custom base URL yet:
+`BYOK-001` initially exposed fixed official OpenAI/Anthropic endpoints and
+organization credential-to-project grants; `BYOK-003` adds Google/Gemini and
+DeepSeek parity. The dedicated production UI remains `FRONTEND-008` work.
+Do not show a custom base URL yet:
 approved custom endpoints belong to P2 `PROVIDER-010`. Model restrictions,
 spend displays were backend-gated until `BYOK-002`; its masked restriction and
 external spend fields are now available for a dedicated frontend task.

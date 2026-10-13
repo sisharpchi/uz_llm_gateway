@@ -40,7 +40,7 @@ public sealed class ByokCredentialService(
         await LockAndAuthorizeAsync(actorId, organizationId, cancellationToken);
         var providerCode = await store.GetActiveProviderCodeAsync(providerId, cancellationToken);
         if (!IsSupported(providerCode))
-            throw new ArgumentException("BYOK currently supports active OpenAI and Anthropic providers.");
+            throw new ArgumentException("BYOK supports active OpenAI, Anthropic, Google and DeepSeek providers.");
         var now = clock.GetUtcNow();
         var credential = new ByokCredential(Guid.CreateVersion7(), organizationId, providerId,
             providerCode!, cleanName, Mask(secret), ProviderCredentialStatus.Active,
@@ -202,5 +202,5 @@ public sealed class ByokCredentialService(
     private static string Mask(string secret) => $"••••{secret[^4..]}";
 
     private static bool IsSupported(string? providerCode) =>
-        providerCode is "openai" or "anthropic";
+        providerCode is "openai" or "anthropic" or "google" or "deepseek";
 }
