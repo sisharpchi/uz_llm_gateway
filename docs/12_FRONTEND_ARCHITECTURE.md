@@ -298,3 +298,13 @@ adds project scope, reuses the project settings editor and never persists execut
 mode/credential/fallback consent. Secret commands are imperative and ephemeral,
 not TanStack mutations; submitted inputs clear before awaiting I/O. External caps
 use exact BigInt/string micro-units up to Int64. See [scope and evidence](29_BYOK_ROUTING_UX.md).
+
+FRONTEND-009 adds organization-scoped Alerts and project-scoped Privacy routes.
+Alert metadata queries include account/organization; current read failures hide
+cached controls. Role metadata gates mutations; every server operation still
+authorizes independently. Payload bodies, one-time webhook secrets and Telegram
+links use imperative calls and ephemeral dialog state, never Query/Mutation
+caches, storage or dashboard URL parameters (Telegram's external start link
+necessarily carries its one-use challenge). Payload reads are cancelled on unmount and
+cleared at local expiry; the backend separately rejects expired reads. Only
+Owners can access retention. See [scope and evidence](30_ALERTS_PRIVACY_UX.md).

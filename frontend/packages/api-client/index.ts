@@ -12,6 +12,9 @@ export type Project = Schema['Project'];
 export type ProjectSettings = Schema['ProjectSettings'];
 export type ByokCredential = Schema['ByokCredentialResponse'];
 export type ByokProvider = Schema['ByokProviderOption'];
+export type AlertRule = Schema['AlertRuleView'];
+export type AlertDestination = Schema['AlertDestinationViewList'][number];
+export type RetainedPayload = Schema['RetainedPayload'];
 export type ApiKey = Schema['IssuedGatewayApiKey']['apiKey'];
 export type IssuedApiKey = Schema['IssuedGatewayApiKey'];
 export type ApiKeyPermissions = Schema['ApiKeyPermissions'];
@@ -102,6 +105,17 @@ async function call<P extends keyof paths, M extends Verb & keyof paths[P]>(
 
 const org = '/management/v1/organizations/{organizationId}' as const;
 export const management = {
+  alertRules: (organizationId: Id, signal?: AbortSignal) => call(`${org}/alerts/rules`, 'get', { path: { organizationId }, signal }),
+  alertEvents: (organizationId: Id, signal?: AbortSignal) => call(`${org}/alerts/events`, 'get', { path: { organizationId }, signal }),
+  alertDestinations: (organizationId: Id, signal?: AbortSignal) => call(`${org}/alerts/destinations`, 'get', { path: { organizationId }, signal }),
+  createAlertRule: (organizationId: Id, body: Schema['CreateAlertRuleRequest']) => call(`${org}/alerts/rules`, 'post', { path: { organizationId }, body }),
+  setAlertRule: (organizationId: Id, ruleId: Id, enabled: boolean) => call(`${org}/alerts/rules/{ruleId}`, 'patch', { path: { organizationId, ruleId }, body: { enabled } }),
+  telegramLink: (organizationId: Id) => call(`${org}/alerts/telegram/link`, 'post', { path: { organizationId } }),
+  createAlertWebhook: (organizationId: Id, endpointUrl: string) => call(`${org}/alerts/webhook/destination`, 'post', { path: { organizationId }, body: { endpointUrl } }),
+  disableAlertDestination: (organizationId: Id, destinationId: Id) => call(`${org}/alerts/destinations/{destinationId}`, 'delete', { path: { organizationId, destinationId } }),
+  payloadPolicy: (organizationId: Id, projectId: Id, signal?: AbortSignal) => call(`${org}/projects/{projectId}/payload-retention`, 'get', { path: { organizationId, projectId }, signal }),
+  setPayloadPolicy: (organizationId: Id, projectId: Id, enabled: boolean, retentionMinutes: number) => call(`${org}/projects/{projectId}/payload-retention`, 'put', { path: { organizationId, projectId }, body: { enabled, retentionMinutes } }),
+  retainedPayload: (organizationId: Id, projectId: Id, requestId: Id, signal?: AbortSignal) => call(`${org}/projects/{projectId}/payload-retention/requests/{requestId}`, 'get', { path: { organizationId, projectId, requestId }, signal }),
   byokProviders: (organizationId: Id, signal?: AbortSignal) => call(`${org}/provider-keys/providers`, 'get', { path: { organizationId }, signal }),
   byokKeys: (organizationId: Id, signal?: AbortSignal) => call(`${org}/provider-keys`, 'get', { path: { organizationId }, signal }),
   createByokKey: (organizationId: Id, providerId: Id, name: string, secret: string) => call(`${org}/provider-keys`, 'post', { path: { organizationId }, body: { providerId, name, secret } }),

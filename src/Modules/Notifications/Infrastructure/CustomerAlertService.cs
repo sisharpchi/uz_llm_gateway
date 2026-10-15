@@ -12,6 +12,10 @@ public sealed record AlertRuleView(Guid Id, Guid OrganizationId, Guid? ProjectId
 public sealed record AlertDestinationView(Guid Id, string Type, string Status, DateTimeOffset VerifiedAt,
     string? EndpointUrl);
 
+/// <summary>Safe delivery evidence for a customer rule; never includes transport secrets or payloads.</summary>
+public sealed record AlertEventView(Guid Id, Guid RuleId, string Type, Guid? ProjectId,
+    long ObservedValue, string Status, DateTimeOffset TriggeredAt, DateTimeOffset? DeliveredAt);
+
 public sealed class CustomerAlertService(FoundationDbContext db, IOrganizationAuthorizationService authorization,
     TelegramAlertOptions telegram, TelegramChatProtector chats, IAuditTrail audit, TimeProvider clock)
 {
@@ -172,6 +176,20 @@ public sealed class CustomerAlertService(FoundationDbContext db, IOrganizationAu
             "alert_rule", ruleId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<IReadOnlyList<AlertEventView>> ListEventsAsync(Guid accountId, Guid organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        await authorization.EnsurePermissionAsync(accountId, organizationId,
+            OrganizationPermission.ReadBilling, cancellationToken: cancellationToken);
+        return await (from alert in db.CustomerAlertEvents.AsNoTracking()
+                      join rule in db.CustomerAlertRules.AsNoTracking() on alert.RuleId equals rule.Id
+                      where rule.OrganizationId == organizationId
+                      orderby alert.TriggeredAt descending, alert.Id descending
+                      select new AlertEventView(alert.Id, rule.Id, rule.Type, rule.ProjectId,
+                          alert.ObservedValue, alert.Status, alert.TriggeredAt, alert.DeliveredAt))
+            .Take(100).ToListAsync(cancellationToken);
     }
 
     public static bool ValidRule(string type, Guid? projectId, Guid? budgetPolicyId, long threshold) => type switch

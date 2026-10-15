@@ -1,0 +1,7 @@
+.alerts-page, .privacy-page { min-width: 0; --border: #38505e; --bg: #0b1721; }
+.alerts-page .row-list li { gap: 16px; }
+.alerts-page .row-list small, .privacy-page p, .private-payload { overflow-wrap: anywhere; }
+.private-payload { white-space: pre-wrap; max-height: 320px; overflow: auto; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); font-size: 14px; }
+.privacy-page .privacy-consent { display: flex; align-items: flex-start; gap: 12px; }
+.privacy-consent input { width: 24px; min-height: 44px; flex: 0 0 24px; }
+@media (max-width: 600px) { .alerts-page .row-list li { align-items: flex-start; flex-direction: column; } .private-payload { font-size: 16px; } }

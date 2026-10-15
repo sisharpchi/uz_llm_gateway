@@ -1311,6 +1311,113 @@
         },
         "type": "array"
       },
+      "AlertEventView": {
+        "properties": {
+          "deliveredAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "observedValue": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "projectId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "triggeredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ruleId",
+          "type",
+          "projectId",
+          "observedValue",
+          "status",
+          "triggeredAt",
+          "deliveredAt"
+        ],
+        "type": "object"
+      },
+      "AlertEventViewList": {
+        "items": {
+          "properties": {
+            "deliveredAt": {
+              "format": "date-time",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "observedValue": {
+              "format": "int64",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer"
+            },
+            "projectId": {
+              "format": "uuid",
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "ruleId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "triggeredAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "ruleId",
+            "type",
+            "projectId",
+            "observedValue",
+            "status",
+            "triggeredAt",
+            "deliveredAt"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "AlertRuleView": {
         "properties": {
           "budgetPolicyId": {
@@ -12561,6 +12668,79 @@
             "Session": []
           }
         ],
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/organizations/{organizationId}/alerts/events": {
+      "get": {
+        "operationId": "ListCustomerAlertEvents",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertEventViewList"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read the latest 100 tenant-scoped customer alert delivery events.",
         "tags": [
           "UZLLM.Management.Api"
         ]

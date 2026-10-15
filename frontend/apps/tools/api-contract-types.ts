@@ -40,6 +40,12 @@ const stringLimit: Limits = { requestsPerMinute: '10' };
 const unsafeLease: Limits = { leaseSeconds: 1 };
 
 type Settings = Parameters<typeof management.setProjectSettings>[2];
+type AlertEvent = Awaited<ReturnType<typeof management.alertEvents>>[number];
+const safeDeliveryStatus: AlertEvent['status'] = 'Pending';
+// @ts-expect-error Customer delivery evidence never includes a signing secret.
+const deliverySecret: AlertEvent['signingSecret'] = 'forbidden';
+// @ts-expect-error Retention minutes are JSON numbers, not strings.
+const stringRetention: Parameters<typeof management.setPayloadPolicy>[3] = '60';
 type ByokOptions = Awaited<ReturnType<typeof management.byokProviders>>;
 const safeProviderIdentity: ByokOptions[number] = { id: 'uuid', code: 'google', name: 'Gemini' };
 // @ts-expect-error BYOK provider discovery never exposes an operator secret.

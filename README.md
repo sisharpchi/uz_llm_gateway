@@ -50,6 +50,11 @@ The dashboard now manages masked provider keys, grants/restrictions and project
 routing defaults, with an explicit Managed/BYOK/Hybrid request-only preview.
 See [security boundaries and UX evidence](docs/29_BYOK_ROUTING_UX.md).
 
+Alerts exposes threshold rules, Telegram/signed-webhook setup and safe delivery
+evidence. Privacy gives organization Owners explicit project payload opt-in,
+expiry-aware audited reads and opt-out deletion, separate from financial/audit
+metadata. See [scope and validation](docs/30_ALERTS_PRIVACY_UX.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

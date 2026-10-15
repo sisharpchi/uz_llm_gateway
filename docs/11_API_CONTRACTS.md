@@ -897,6 +897,7 @@ Under `/management/v1/organizations/{organizationId}/alerts`:
 
 ```text
 GET    /rules
+GET    /events
 POST   /rules
 PATCH  /rules/{ruleId}
 GET    /destinations
@@ -914,6 +915,16 @@ optional project. `PATCH` accepts `{ "enabled": false }`. Responses include
 scope, threshold, destination, enabled status, and last trigger, but never
 Telegram chat ID. Cross-tenant IDs return `404`; unauthorized organizations
 return `403`.
+
+`FRONTEND-009` adds `GET /events`: latest 100 events in descending
+`triggeredAt`, then `id` order, with billing-read authorization and no-store.
+Each item contains `id`, `ruleId`, `type`, nullable `projectId`, numeric
+`observedValue`, `status`, `triggeredAt`, nullable `deliveredAt`. Values use
+micro-USD for LowBalance and basis points for other types. No chat ID, endpoint,
+signature, transport error or payload is returned. Existing persisted states
+are Pending/Delivered/Suppressed; Pending can include work needing operator
+investigation and must not be presented as guaranteed queued delivery. The
+customer API does not expose the operator retry/dead-letter console.
 
 `POST /telegram/link` returns a 10-minute `deepLink` and `expiresAt` with
 `Cache-Control: no-store`. Only a private-chat `/start <token>` sent to the

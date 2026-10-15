@@ -804,6 +804,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/organizations/{organizationId}/alerts/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the latest 100 tenant-scoped customer alert delivery events. */
+        get: operations["ListCustomerAlertEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/organizations/{organizationId}/alerts/rules": {
         parameters: {
             query?: never;
@@ -1890,6 +1907,38 @@ export interface components {
             type: string;
             /** Format: date-time */
             verifiedAt: string;
+        }[];
+        AlertEventView: {
+            /** Format: date-time */
+            deliveredAt: null | string;
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            observedValue: number;
+            /** Format: uuid */
+            projectId: null | string;
+            /** Format: uuid */
+            ruleId: string;
+            status: string;
+            /** Format: date-time */
+            triggeredAt: string;
+            type: string;
+        };
+        AlertEventViewList: {
+            /** Format: date-time */
+            deliveredAt: null | string;
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            observedValue: number;
+            /** Format: uuid */
+            projectId: null | string;
+            /** Format: uuid */
+            ruleId: string;
+            status: string;
+            /** Format: date-time */
+            triggeredAt: string;
+            type: string;
         }[];
         AlertRuleView: {
             /** Format: uuid */
@@ -6409,6 +6458,45 @@ export interface operations {
             };
             /** @description Resource absent or outside the authorized scope; empty body. */
             404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListCustomerAlertEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertEventViewList"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
                 headers: {
                     "Cache-Control"?: "no-store";
                     [name: string]: unknown;

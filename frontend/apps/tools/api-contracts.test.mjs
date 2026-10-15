@@ -197,3 +197,19 @@ test('BYOK provider choices are session-protected metadata, not operator credent
   assert.deepEqual(Object.keys(option.properties).sort(), ['code', 'id', 'name']);
   assert.ok(operation.responses['200'].headers['Cache-Control']);
 });
+
+test('customer alert delivery and owner payload contracts are protected and do not mix secret data', () => {
+  const root = '/management/v1/organizations/{organizationId}';
+  const events = documents.management.paths[root + '/alerts/events'].get;
+  assert.deepEqual(events.security, [{ Session: [] }]);
+  for (const status of ['200', '401', '403']) assert.ok(events.responses[status]);
+  assert.ok(events.responses['200'].headers['Cache-Control']);
+  const view = documents.management.components.schemas.AlertEventView;
+  assert.deepEqual(Object.keys(view.properties).sort(), ['deliveredAt', 'id', 'observedValue', 'projectId', 'ruleId', 'status', 'triggeredAt', 'type']);
+  const policy = documents.management.paths[root + '/projects/{projectId}/payload-retention'];
+  assert.deepEqual(policy.get.security, [{ Session: [] }]);
+  assert.ok(policy.put.parameters.some(value => value.name === 'X-CSRF-Token' && value.required));
+  const payload = documents.management.paths[root + '/projects/{projectId}/payload-retention/requests/{requestId}'].get;
+  for (const status of ['200', '401', '403', '404']) assert.ok(payload.responses[status]);
+  assert.ok(payload.responses['200'].headers['Cache-Control']);
+});

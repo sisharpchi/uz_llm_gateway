@@ -13,6 +13,22 @@ public static class CustomerAlertEndpoints
     public static IEndpointRouteBuilder MapUzllmCustomerAlertEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/management/v1/organizations/{organizationId:guid}/alerts");
+        group.MapGet("/events", async Task<Microsoft.AspNetCore.Http.HttpResults.Results<
+            Microsoft.AspNetCore.Http.HttpResults.Ok<IReadOnlyList<AlertEventView>>,
+            Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult,
+            Microsoft.AspNetCore.Http.HttpResults.StatusCodeHttpResult>> (
+            Guid organizationId, HttpContext context, CustomerAlertService service,
+            CancellationToken cancellationToken) =>
+        {
+            if (!AccountId(context, out var accountId)) return TypedResults.Unauthorized();
+            try
+            {
+                context.Response.Headers.CacheControl = "no-store";
+                return TypedResults.Ok(await service.ListEventsAsync(accountId, organizationId, cancellationToken));
+            }
+            catch (TenantAccessDeniedException) { return TypedResults.StatusCode(StatusCodes.Status403Forbidden); }
+        }).WithName("ListCustomerAlertEvents")
+            .WithSummary("Read the latest 100 tenant-scoped customer alert delivery events.");
         group.MapGet("/rules", async (Guid organizationId, HttpContext context, CustomerAlertService service,
             CancellationToken cancellationToken) =>
         {

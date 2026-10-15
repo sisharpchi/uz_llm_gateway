@@ -15,6 +15,9 @@ x-app: &app
   SSL_CERT_FILE: /run/certs/ca.crt
 
 x-management-worker: &management-worker
+  # Synthetic key used only to validate customer configuration, never live delivery.
+  OutboundWebhooks__ActiveKeyVersion: acceptance
+  OutboundWebhooks__Keys__acceptance: ${UZLLM_ACCEPTANCE_WEBHOOK_KEY}
   DataProtection__KeyRingPath: /run/keyring
   DataProtection__CertificatePath: /run/certs/internal.pfx
   DataProtection__CertificatePassword: ${UZLLM_ACCEPTANCE_PFX_PASSWORD}

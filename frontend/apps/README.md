@@ -46,3 +46,12 @@ The repository-root `node deploy/tests/run-launch-acceptance.mjs` runs both
 launch/lifecycle and Team real-stack scenarios against disposable services;
 the Team expiry fixture refuses non-harness environments. It honors production
 edge throttling rather than disabling limits.
+
+Alerts and project Privacy are at `/organizations/:orgId/alerts` and
+`/organizations/:orgId/privacy?project=:projectId`. BillingViewer reads alerts;
+Owner/Admin manage them; only Owner can access payload retention. Existing
+operator-provided Telegram/webhook/payload encryption configuration is required;
+unconfigured channels fail honestly. See [scope and validation](../../docs/30_ALERTS_PRIVACY_UX.md).
+Focused browser tests: `npm run test:e2e --workspace @uzllm/dashboard --prefix frontend/apps -- alerts-privacy.spec.ts --workers=1`.
+The real-stack harness also runs the guarded synthetic payload expiry scenario;
+it does not send live Telegram messages or webhook deliveries.

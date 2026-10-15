@@ -32,6 +32,64 @@ public sealed class CustomerAlertIntegrationTests(PersistenceIntegrationFixture 
     private const string WebhookSecret = "test-webhook-secret-0123456789";
 
     [Fact]
+    public async Task Customer_delivery_read_is_bounded_newest_first_role_scoped_and_secret_free()
+    {
+        await ResetAsync();
+        var clock = new AlertClock(DateTimeOffset.UtcNow);
+        await using var app = await CreateAppAsync(clock);
+        using var client = new HttpClient { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()!.Addresses.Single()) };
+        await using var scope = app.Services.CreateAsyncScope();
+        var owner = await RegisterAsync(scope, "delivery-owner@example.uz");
+        var outsider = await RegisterAsync(scope, "delivery-outsider@example.uz");
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityService>();
+        var session = (await identity.AuthenticateAsync("delivery-owner@example.uz", "correct horse battery staple"))!;
+        var orgs = scope.ServiceProvider.GetRequiredService<IOrganizationService>();
+        var org = await orgs.CreateAsync(owner, "Delivery tenant");
+        var other = await orgs.CreateAsync(outsider, "Other delivery tenant");
+        var destination = await scope.ServiceProvider.GetRequiredService<OutboundWebhookService>()
+            .CreateAsync(owner, org.Id, "https://alerts.example.com/hook");
+        var service = scope.ServiceProvider.GetRequiredService<CustomerAlertService>();
+        var rule = await service.CreateRuleAsync(owner, org.Id, null, null, destination.Id, "LowBalance", 1);
+        var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        for (var index = 0; index < 105; index++)
+            db.CustomerAlertEvents.Add(new CustomerAlertEventEntity { Id = Guid.CreateVersion7(), RuleId = rule.Id,
+                Episode = index, ObservedValue = index, Status = index % 3 == 0 ? "Delivered" : index % 3 == 1 ? "Pending" : "Suppressed",
+                TriggeredAt = clock.GetUtcNow().AddSeconds(index), DeliveredAt = index % 3 == 0 ? clock.GetUtcNow().AddSeconds(index) : null });
+        await db.SaveChangesAsync();
+        var path = $"/management/v1/organizations/{org.Id}/alerts/events";
+        using (var anonymous = await client.GetAsync(path)) Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        using (var response = await client.SendAsync(Request(HttpMethod.Get, path, session)))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(destination.SigningSecret, body, StringComparison.Ordinal);
+            Assert.DoesNotContain("endpointUrl", body, StringComparison.Ordinal);
+            var events = JsonSerializer.Deserialize<AlertEventView[]>(body, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+            Assert.Equal(100, events.Length);
+            Assert.Equal(104, events[0].ObservedValue);
+            Assert.Equal(5, events[^1].ObservedValue);
+            Assert.All(events, value => Assert.Equal(rule.Id, value.RuleId));
+            Assert.Contains(events, value => value.Status == "Delivered" && value.DeliveredAt is not null);
+            Assert.Contains(events, value => value.Status == "Pending" && value.DeliveredAt is null);
+            Assert.Contains(events, value => value.Status == "Suppressed");
+        }
+        using (var crossTenant = await client.SendAsync(Request(HttpMethod.Get,
+            $"/management/v1/organizations/{other.Id}/alerts/events", session)))
+            Assert.Equal(HttpStatusCode.Forbidden, crossTenant.StatusCode);
+        Assert.Empty(await service.ListEventsAsync(outsider, other.Id));
+        foreach (var role in new[] { "Admin", "BillingViewer", "Developer", "ReadOnly" })
+        {
+            await db.Set<OrganizationMemberEntity>().Where(value => value.AccountId == owner && value.OrganizationId == org.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.Role, role));
+            using var response = await client.SendAsync(Request(HttpMethod.Get, path, session));
+            Assert.Equal(role is "Admin" or "BillingViewer" ? HttpStatusCode.OK : HttpStatusCode.Forbidden, response.StatusCode);
+        }
+        await app.StopAsync();
+    }
+
+    [Fact]
     public async Task Outbound_webhook_destination_is_tenant_scoped_encrypted_show_once_and_audited()
     {
         await ResetAsync();

@@ -63,6 +63,9 @@ public sealed class OpenApiWireContractTests : IDisposable
         }
 
         const string org = "/management/v1/organizations/{organizationId}";
+        Add(org + "/alerts/events", "get", 200, new[] {
+            new UZLLM.Modules.Notifications.Infrastructure.AlertEventView(id, id, "LowBalance", null, 100,
+                "Delivered", now, now.AddSeconds(1)) });
         Add(org + "/projects/{projectId}/settings", "get", 200, new UZLLM.Modules.Projects.Contracts.ProjectSettings());
         Add(org + "/projects/{projectId}/settings", "put", 200,
             new UZLLM.Modules.Projects.Contracts.ProjectSettings("price", "Production", ["example-chat"], ["openai"]));

@@ -11,9 +11,11 @@ import { TeamPage } from './TeamPage';
 import { ProviderKeysPage } from './ProviderKeysPage';
 import { RoutingPage } from './RoutingPage';
 import { AcceptInvitationPage } from './AcceptInvitationPage';
+import { AlertsPage } from './AlertsPage';
+import { PrivacyPage } from './PrivacyPage';
 
-type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics' | 'team' | 'provider-keys' | 'routing';
-const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics', 'team', 'provider-keys', 'routing'];
+type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics' | 'team' | 'provider-keys' | 'routing' | 'alerts' | 'privacy';
+const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics', 'team', 'provider-keys', 'routing', 'alerts', 'privacy'];
 
 export function App() {
   return <Routes>
@@ -190,6 +192,8 @@ function Dashboard({ organization, organizations, page, accountId }: { organizat
         {page === 'routing' && !projects.isPending && !projects.isError && <RoutingPage key={`${accountId}:${organization.id}:${selectedProject?.id}`} organization={organization} accountId={accountId} project={selectedProject} />}
         {(page === 'projects' || page === 'keys') && projects.isPending && <p role="status">Loading projects…</p>}
         {page === 'models' && <CatalogPage organizationId={organization.id} projectId={selectedProject?.id} />}
+        {page === 'alerts' && <AlertsPage key={`${accountId}:${organization.id}`} accountId={accountId} organization={organization} projects={projects.data ?? []} />}
+        {page === 'privacy' && (projects.isPending ? <p role="status">Loading projects…</p> : projects.isError ? null : selectedProject ? <PrivacyPage key={`${accountId}:${organization.id}:${selectedProject.id}`} accountId={accountId} organization={organization} project={selectedProject} /> : <EmptyProject />)}
         {page === 'billing' && <BillingPanel organizationId={organization.id} />}
         {page === 'activity' && <ActivityPage key={`${organization.id}:${activityProject?.id ?? 'all'}`} organizationId={organization.id} projectId={activityProject?.id} projects={projects.data ?? []} />}
         {page === 'analytics' && <AnalyticsPage organizationId={organization.id} projectId={selectedProject?.id} />}

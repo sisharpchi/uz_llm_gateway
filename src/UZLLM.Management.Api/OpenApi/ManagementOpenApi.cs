@@ -297,6 +297,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Empty("DELETE", org + "/provider-keys/{id}", 404);
         foreach (var method in new[] { "PUT", "DELETE" }) Empty(method, org + "/provider-keys/{id}/projects/{projectId}", 404);
         Read<AlertRuleView[]>(org + "/alerts/rules");
+        Read<AlertEventView[]>(org + "/alerts/events");
         Write<AlertRuleView>("POST", org + "/alerts/rules", 201, 404);
         Empty("PATCH", org + "/alerts/rules/{ruleId}", 404);
         Read<AlertDestinationView[]>(org + "/alerts/destinations");

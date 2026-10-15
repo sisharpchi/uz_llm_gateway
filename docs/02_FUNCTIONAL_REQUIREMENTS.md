@@ -304,6 +304,11 @@ Record:
 Prompt/response payload storage is disabled in P0. P1 may add explicit,
 encrypted, time-limited opt-in retention.
 
+FRONTEND-009 exposes the existing PRIVACY-001 project policy to current
+organization Owners only: explicit 60–10080 minute opt-in, confirmed opt-out
+deletion, audited request-specific read and visible expiry. Ordinary Activity
+remains payload-free. This setting is not upstream ZDR or metadata/ledger deletion.
+
 ### FR-092 — Dashboard totals [P0]
 Show:
 - requests;
@@ -377,6 +382,14 @@ Optional signed webhook delivery.
 
 ### FR-115 — Deduplication [P1]
 Alert engine must suppress repetitive alert storms.
+
+FRONTEND-009 exposes LowBalance, BudgetWarning and ErrorSpike rules, verified
+Telegram/validated signed-webhook destinations, pause/disable controls and the
+latest 100 customer delivery events. Reads require billing-read; mutations
+require Owner/Admin and CSRF. Pending is not a delivery guarantee; Delivered
+means transport acknowledgement, not human receipt. Provider-outage alerts
+remain operator-only. Live bot/receiver qualification is separate from repository
+acceptance. See [scope and validation](30_ALERTS_PRIVACY_UX.md).
 
 ---
 

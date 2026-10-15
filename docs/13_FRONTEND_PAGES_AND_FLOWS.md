@@ -398,12 +398,18 @@ management. No budget deletion or new per-request cost ceiling is introduced.
 
 ## 15. Alerts [P1]
 
+FRONTEND-009 exposes `/organizations/:orgId/alerts`: organization-wide rules,
+destinations and the latest 100 delivery events. Project selector does not filter
+these reads. Owner/Admin manage; BillingViewer can read; Developer/ReadOnly
+cannot. Telegram connects through an expiring private-chat challenge, never a
+submitted chat ID. Webhook secret is shown once; no fake test-send/verification.
+
 Rules:
 - low wallet;
 - budget 80%;
 - budget 100%;
 - error-rate spike;
-- provider outage.
+- provider outage remains an operator alert, not a customer rule type.
 
 Destination:
 - Telegram;
@@ -440,6 +446,14 @@ Every operation rechecks server permissions. See [scope and real API evidence](2
 ---
 
 ## 17. Organization Settings
+
+FRONTEND-009 implements payload/privacy controls separately at
+`/organizations/:orgId/privacy?project=:projectId`, for current Owners only.
+Explicit encrypted opt-in is bounded to one hour–seven days; opt-out confirms
+irreversible project payload deletion. The private inspector requires an explicit
+request UUID read, displays expiry and clears bodies on close/scope change/local
+expiry. Activity/financial/audit metadata remain separate. Organization language,
+timezone, legal schedules and upstream ZDR are not invented by this screen.
 
 - name;
 - language;
