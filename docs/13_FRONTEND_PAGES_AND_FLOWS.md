@@ -536,3 +536,14 @@ P0 onboarding is: register and verify email → create project → obtain UZS qu
 and top up → create API key → send first managed request. Billing and request
 views must show pending evidence, pending settlement, and a spending hold/debt
 when present. P1/P2 controls are not displayed as active P0 options.
+
+## 21. Customer localization and accessibility
+
+`FRONTEND-010` covers the implemented customer pages above plus auth/recovery,
+onboarding and invitation acceptance in English, Uzbek Latin and Russian.
+Language/timezone preferences are browser-local presentation only. Team search
+accepts localized role/status labels as well as canonical codes. User names,
+secrets and executable request examples are not translated. Display UTC/local
+timestamps without changing UTC filter, expiry or budget inputs; keep localized
+option labels separate from canonical API values. Native dialogs have safe
+initial focus, Escape dismissal and focus restoration. See [scope and evidence](31_LOCALIZATION_ACCESSIBILITY.md).

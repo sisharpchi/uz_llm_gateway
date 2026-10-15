@@ -55,3 +55,12 @@ unconfigured channels fail honestly. See [scope and validation](../../docs/30_AL
 Focused browser tests: `npm run test:e2e --workspace @uzllm/dashboard --prefix frontend/apps -- alerts-privacy.spec.ts --workers=1`.
 The real-stack harness also runs the guarded synthetic payload expiry scenario;
 it does not send live Telegram messages or webhook deliveries.
+
+The customer app has English, Uzbek Latin and Russian language controls plus
+local/UTC display time. Only validated browser-local display preferences are
+saved; API identifiers, canonical money/date inputs and UTC financial windows
+do not change. No new server configuration or migration is needed. See
+[localization/accessibility scope](../../docs/31_LOCALIZATION_ACCESSIBILITY.md).
+Focused checks: `npm run test:e2e --workspace @uzllm/dashboard --prefix frontend/apps -- localization.spec.ts localization-format.spec.ts --workers=1`.
+The real-stack harness also exercises localized registration, project budget,
+show-once key, synthetic top-up and settled inference/activity without route mocks.

@@ -1,3 +1,4 @@
+import { t } from './I18n';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -21,13 +22,13 @@ export function AcceptInvitationPage() {
     return () => window.removeEventListener('hashchange', clean);
   }, []);
   const waiting = session.isPending || (!session.isFetchedAfterMount && session.isFetching);
-  return <main className="team-accept"><span className="eyebrow">WORKSPACE INVITATION</span><h1>Accept an invitation</h1>
-    <p>Use the one-time token from your invitation email. Sign in with that exact, verified email address first.</p>
-    {waiting ? <p role="status">Checking your session…</p> : session.isError ?
-      session.error instanceof ApiError && session.error.status === 401 ? <section className="panel stack"><h2>Sign in to accept</h2>
-        <p>Your token is not saved or forwarded. After signing in, return here and paste it from your email.</p><Link className="button primary" to="/login">Sign in</Link><Link to="/register">Create an account</Link></section>
+  return <main className="team-accept" id="main-content" tabIndex={-1}><span className="eyebrow">{t("WORKSPACE INVITATION")}</span><h1>{t("Accept an invitation")}</h1>
+    <p>{t("Use the one-time token from your invitation email. Sign in with that exact, verified email address first.")}</p>
+    {waiting ? <p role="status">{t("Checking your session…")}</p> : session.isError ?
+      session.error instanceof ApiError && session.error.status === 401 ? <section className="panel stack"><h2>{t("Sign in to accept")}</h2>
+        <p>{t("Your token is not saved or forwarded. After signing in, return here and paste it from your email.")}</p><Link className="button primary" to="/login">{t("Sign in")}</Link><Link to="/register">{t("Create an account")}</Link></section>
         : <LoadError error={session.error} retry={() => void session.refetch()} />
-      : !session.data.emailVerified ? <section className="panel"><h2>Verify your email first</h2><p>Signed in as {session.data.email}. Verification must match the invited account.</p><Link to="/verify-email">Verify email</Link></section>
+      : !session.data.emailVerified ? <section className="panel"><h2>{t("Verify your email first")}</h2><p>{t("Signed in as ")}{session.data.email}{t(". Verification must match the invited account.")}</p><Link to="/verify-email">{t("Verify email")}</Link></section>
         : <AcceptForm key={session.data.accountId} session={session.data} />}
   </main>;
 }
@@ -50,14 +51,14 @@ function AcceptForm({ session }: { session: Session }) {
       void client.invalidateQueries({ queryKey: ['projects'] });
     });
   }
-  return <section className="panel stack"><h2>Signed in as {session.email}</h2>
-    {done ? <><ActionFeedback {...action} /><p>Choose the organization in the workspace selector. Developer and Read-only roles still need explicit project grants from an Owner/Admin.</p>
-      <Link className="button primary" to="/">Open workspace</Link></> : <form className="stack" onSubmit={submit} aria-label="Accept invitation">
-      <label>Invitation token<input type="password" value={token} maxLength={43} minLength={43} required autoComplete="off" spellCheck={false}
+  return <section className="panel stack"><h2>{t("Signed in as ")}{session.email}</h2>
+    {done ? <><ActionFeedback {...action} /><p>{t("Choose the organization in the workspace selector. Developer and Read-only roles still need explicit project grants from an Owner/Admin.")}</p>
+      <Link className="button primary" to="/">{t("Open workspace")}</Link></> : <form className="stack" onSubmit={submit} aria-label={t("Accept invitation")}>
+      <label>{t("Invitation token")}<input type="password" value={token} maxLength={43} minLength={43} required autoComplete="off" spellCheck={false}
         disabled={action.busy} onChange={event => setToken(event.target.value)} /></label>
-      <p className="muted">Acceptance happens only when you confirm. Tokens expire after seven days and cannot be replayed. Nothing is stored in browser storage or the query cache.</p>
-      <ActionFeedback {...action} /><button className="button primary" disabled={action.busy}>Accept invitation</button>
+      <p className="muted">{t("Acceptance happens only when you confirm. Tokens expire after seven days and cannot be replayed. Nothing is stored in browser storage or the query cache.")}</p>
+      <ActionFeedback {...action} /><button className="button primary" disabled={action.busy}>{t("Accept invitation")}</button>
     </form>}
-    <Link to="/">Cancel and return to workspace</Link>
+    <Link to="/">{t("Cancel and return to workspace")}</Link>
   </section>;
 }

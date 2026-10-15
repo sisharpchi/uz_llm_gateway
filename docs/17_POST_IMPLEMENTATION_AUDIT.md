@@ -133,3 +133,16 @@ No historical `Completed` status is erased. The corrective, product and
 qualification tasks are registered with explicit dependencies in
 `16_IMPLEMENTATION_BACKLOG.md`. Do not claim launch readiness from compilation,
 mocked browser tests, local callback fixtures, or a single-host drill.
+
+## Subsequent customer UX follow-up — 2026-10-16
+
+Preserve the audit snapshot and historical completion labels above. Customer
+alerts/privacy controls were subsequently delivered by `FRONTEND-009`
+([evidence](30_ALERTS_PRIVACY_UX.md)). `FRONTEND-010` completes the implemented
+customer/auth/onboarding/invitation flows in Uzbek Latin, Russian and English,
+with exact localized financial units, browser-local display preferences,
+keyboard/dialog focus and accessible names. [Scope, screenshots and validation](31_LOCALIZATION_ACCESSIBILITY.md)
+separate local repository evidence from manual assistive-technology, hosted CI
+and production qualification. No server contract, financial rule or migration
+changed; operator translation is outside this task. OPS-006 remains externally
+blocked; no paid-launch gate is passed by this follow-up.

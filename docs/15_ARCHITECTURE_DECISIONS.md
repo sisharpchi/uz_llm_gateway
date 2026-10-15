@@ -219,7 +219,7 @@ routing sophistication must not delay reliable billing and developer UX.
 
 **Status:** Accepted  
 **Basis:** Implementation default  
-**Implementation status:** English code/API identifiers and UI baseline exist; complete Uzbek/Russian/English i18n remains `FRONTEND-010`
+**Implementation status:** English code/API identifiers remain stable; `FRONTEND-010` implements Uzbek Latin/Russian/English customer, auth/onboarding and invitation flows with browser-local display preferences and accessible controls. [Scope and evidence](31_LOCALIZATION_ACCESSIBILITY.md). Operator UI remains English; this task does not claim operator localization or a production accessibility certification.
 
 Code/database/API identifiers use stable English terms.
 

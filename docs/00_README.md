@@ -182,6 +182,7 @@ This creates clear boundaries without paying the operational cost of many micros
 28. `28_BYOK_PROVIDER_PARITY.md`
 29. `29_BYOK_ROUTING_UX.md`
 30. `30_ALERTS_PRIVACY_UX.md`
+31. `31_LOCALIZATION_ACCESSIBILITY.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

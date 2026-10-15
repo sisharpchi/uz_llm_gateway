@@ -129,6 +129,11 @@ Customers can inspect effective managed model prices and copy a model-specific
 chat request in the dashboard's **Models** page; see the
 [customer quickstart](docs/20_CUSTOMER_QUICKSTART.md).
 
+The customer dashboard also supports English, Uzbek Latin and Russian with
+browser-local language and local/UTC display preferences. These do not change
+API values, UTC financial windows or account policy; see
+[localization and accessibility](docs/31_LOCALIZATION_ACCESSIBILITY.md).
+
 Versioned Gateway and Management OpenAPI artifacts, serializer-derived examples
 and typed client generation are documented in [API contracts](docs/api/README.md).
 Run `npm run api:check --prefix frontend/apps` to detect contract/client drift.

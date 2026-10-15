@@ -73,7 +73,7 @@ test('catalog filters provider capabilities and clears tenant data on organizati
   await page.getByRole('combobox', { name: 'Organization' }).selectOption(beta);
   await page.getByRole('link', { name: 'Models' }).click();
   await expect(page.getByRole('heading', { name: 'Catalog Chat' })).toHaveCount(0);
-  expect(calls).toContain(`/management/v1/organizations/${beta}/projects/${betaProject}/catalog/models`);
+  await expect.poll(() => calls).toContain(`/management/v1/organizations/${beta}/projects/${betaProject}/catalog/models`);
 });
 
 test('catalog denial shows a safe project access message without price data', async ({ page }) => {

@@ -1,3 +1,4 @@
+import { t } from './I18n';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { ApiError, management, type UsageFilters } from '@uzllm/api-client';
 
@@ -40,7 +41,7 @@ export function UsageExportButton({ organizationId, kind, filters, disabled }: {
 
   return <div className="usage-export"><button type="button" className="button secondary"
     disabled={disabled || current?.status === 'pending'} onClick={download}>
-    {current?.status === 'pending' ? 'Preparing CSV…' : kind === 'activity' ? 'Export activity CSV' : 'Export daily CSV'}
+    {current?.status === 'pending' ? t("Preparing CSV…") : kind === 'activity' ? t("Export activity CSV") : t("Export daily CSV")}
   </button>{current && <p role={current.status === 'error' ? 'alert' : 'status'}
-    className={current.status === 'error' ? 'error' : 'muted'}>{current.message}</p>}</div>;
+    className={current.status === 'error' ? 'error' : 'muted'}>{t(current.message)}</p>}</div>;
 }

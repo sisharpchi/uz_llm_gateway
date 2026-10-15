@@ -1,3 +1,4 @@
+import { t } from './I18n';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '@uzllm/api-client';
 
@@ -40,21 +41,26 @@ export function useLifecycleAction() {
 }
 
 export function ActionFeedback({ error, success }: { error: string; success: string }) {
-  return <>{error && <p role="alert" className="error">{error}</p>}{success && <p role="status" className="notice">{success}</p>}</>;
+  return <>{error && <p role="alert" className="error">{t(error)}</p>}{success && <p role="status" className="notice">{t(success)}</p>}</>;
 }
 
 export function LoadError({ error, retry }: { error: unknown; retry: () => void }) {
-  return <div className="stack"><p role="alert" className="error">{lifecycleError(error)}</p>
-    <button type="button" className="button secondary" onClick={retry}>Retry read</button></div>;
+  return <div className="stack"><p role="alert" className="error">{t(lifecycleError(error))}</p>
+    <button type="button" className="button secondary" onClick={retry}>{t("Retry read")}</button></div>;
 }
 
 export function LifecycleDialog({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const id = useId();
-  useEffect(() => { const dialog = ref.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  useEffect(() => {
+    const dialog = ref.current; const previous = document.activeElement;
+    dialog?.showModal();
+    dialog?.querySelector<HTMLElement>('[data-dialog-dismiss]')?.focus();
+    return () => { dialog?.close(); if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
+  }, []);
   return <dialog ref={ref} className="secret-dialog lifecycle-dialog" aria-labelledby={id}
     onCancel={event => { event.preventDefault(); close(); }}>
-    <div className="stack"><h2 id={id}>{title}</h2>{children}</div></dialog>;
+    <div className="stack"><h2 id={id}>{t(title)}</h2>{children}</div></dialog>;
 }
 
 export function ShowOnceSecret({ secret, close }: { secret: string; close: () => void }) {
@@ -64,14 +70,14 @@ export function ShowOnceSecret({ secret, close }: { secret: string; close: () =>
     try { await navigator.clipboard.writeText(secret); setCopied(true); setError(''); }
     catch { setError('Clipboard unavailable. Select and copy the key manually before closing.'); }
   }
-  return <LifecycleDialog title="Your new API key" close={close}>
-    <span className="eyebrow">SHOW ONCE · KEEP PRIVATE</span>
-    <p>Copy this key now. Closing this dialog permanently hides the secret. Never put it in browser storage or source control.</p>
+  return <LifecycleDialog title={t("Your new API key")} close={close}>
+    <span className="eyebrow">{t("SHOW ONCE · KEEP PRIVATE")}</span>
+    <p>{t("Copy this key now. Closing this dialog permanently hides the secret. Never put it in browser storage or source control.")}</p>
     <code className="secret-value">{secret}</code>
-    {error && <p role="alert" className="error">{error}</p>}
-    {copied && <p role="status">Key copied. Store it securely.</p>}
-    <button type="button" className="button primary" onClick={copy}>Copy key</button>
-    <button type="button" className="button secondary" onClick={close}>I saved it</button>
+    {error && <p role="alert" className="error">{t(error)}</p>}
+    {copied && <p role="status">{t("Key copied. Store it securely.")}</p>}
+    <button type="button" className="button primary" onClick={copy}>{t("Copy key")}</button>
+    <button type="button" className="button secondary" onClick={close} data-dialog-dismiss="">{t("I saved it")}</button>
   </LifecycleDialog>;
 }
 
@@ -95,13 +101,13 @@ export function allowlistValue(value: CodeListDraft): string[] | null {
 
 export function AllowlistField({ label, value, change }: { label: string; value: CodeListDraft; change: (value: CodeListDraft) => void }) {
   const id = useId();
-  return <div className="stack code-list"><label>{label}<select value={value.mode} aria-describedby={id}
+  return <div className="stack code-list"><label>{t(label)}<select value={value.mode} aria-describedby={id}
     onChange={event => change({ ...value, mode: event.target.value as CodeListDraft['mode'] })}>
-    <option value="all">Unrestricted (null)</option><option value="selected">Only selected codes</option><option value="none">Deny all (empty list)</option>
+    <option value="all">{t("Unrestricted (null)")}</option><option value="selected">{t("Only selected codes")}</option><option value="none">{t("Deny all (empty list)")}</option>
   </select></label>
-    {value.mode === 'selected' && <label>{label} codes<textarea value={value.text} required rows={3} maxLength={25856}
-      onChange={event => change({ ...value, text: event.target.value })} placeholder="One canonical code per line" /></label>}
-    <small id={id} className="muted">Hard restriction. Deny all blocks every route in this dimension.</small>
+    {value.mode === 'selected' && <label>{t(label)}{t(" codes")}<textarea value={value.text} required rows={3} maxLength={25856}
+      onChange={event => change({ ...value, text: event.target.value })} placeholder={t("One canonical code per line")} /></label>}
+    <small id={id} className="muted">{t("Hard restriction. Deny all blocks every route in this dimension.")}</small>
   </div>;
 }
 

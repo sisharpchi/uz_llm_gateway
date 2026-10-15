@@ -63,6 +63,8 @@ jobs:
           npm run api:test --prefix frontend/apps
           npm run api:types --prefix frontend/apps
           npm run build --prefix frontend/apps
+      - name: Verify customer browser regression and localization
+        run: npm run test:e2e --workspace @uzllm/dashboard --prefix frontend/apps -- --workers=1
       - name: Run disposable real-stack launch acceptance
         run: |
           for target in gateway management worker migrator; do

@@ -190,13 +190,23 @@ Design for:
 - Russian;
 - English.
 
-Do not hard-code long UI text into components.
+Use catalog-backed source-message keys, not untranslated long UI copy.
+`FRONTEND-010` implements customer/auth/onboarding/invitation flows with browser-local
+language/timezone preferences; see [scope and verification](31_LOCALIZATION_ACCESSIBILITY.md).
+Raw names, secrets, model/provider identifiers and API/CSV/request examples are
+not translated. Localized option labels retain explicit canonical wire values.
 
 Formatting:
 - UZS;
 - USD;
 - local time / UTC toggle;
 - token/count abbreviations.
+
+Display money from exact micro-unit strings/BigInt; preserve existing precision
+guards and canonical input formats. The timezone toggle changes displayed
+timestamps only, never budget windows, UTC filters, expiry inputs or FX.
+Use an explicit Latin Uzbek formatting fallback where browser Intl data is
+incomplete. Language/timezone are not server-side financial or security policy.
 
 ---
 
