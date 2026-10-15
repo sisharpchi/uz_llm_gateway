@@ -500,6 +500,7 @@ session and CSRF token.
 
 ```text
 GET    /management/v1/organizations/{organizationId}/provider-keys
+GET    /management/v1/organizations/{organizationId}/provider-keys/providers
 GET    /management/v1/organizations/{organizationId}/provider-keys/{id}
 POST   /management/v1/organizations/{organizationId}/provider-keys
 PATCH  /management/v1/organizations/{organizationId}/provider-keys/{id}
@@ -511,8 +512,14 @@ PUT    /management/v1/organizations/{organizationId}/provider-keys/{id}/projects
 DELETE /management/v1/organizations/{organizationId}/provider-keys/{id}/projects/{projectId}
 ```
 
-Owner/Admin only. Create takes `providerId`, `name`, and `secret`; PATCH takes
-optional `name` and/or `secret` to rotate it. Read/write responses contain
+Owner/Admin only. `GET /provider-keys/providers`
+returns active supported catalog identities `[{id,code,name}]` for registration,
+including providers without a priced model mapping. It requires the same current
+Owner/Admin tenant permission (401 without session, 403 denied), uses no-store,
+and exposes no credential, endpoint, price, quota or health state. Creation still
+rechecks provider status; a listed option is not an execution eligibility promise.
+Create takes `providerId`, `name`, and `secret`; PATCH takes optional `name`
+and/or `secret` to rotate it. Read/write responses contain
 `maskedKey`, status, last test result, and explicit `projectIds`, never secret or
 ciphertext. All mutations require the management session and CSRF token.
 Test returns `Valid`, `Invalid`, or `Unavailable` without upstream response

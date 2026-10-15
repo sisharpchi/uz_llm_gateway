@@ -40,6 +40,12 @@ const stringLimit: Limits = { requestsPerMinute: '10' };
 const unsafeLease: Limits = { leaseSeconds: 1 };
 
 type Settings = Parameters<typeof management.setProjectSettings>[2];
+type ByokOptions = Awaited<ReturnType<typeof management.byokProviders>>;
+const safeProviderIdentity: ByokOptions[number] = { id: 'uuid', code: 'google', name: 'Gemini' };
+// @ts-expect-error BYOK provider discovery never exposes an operator secret.
+const unsafeProviderIdentity: ByokOptions[number] = { id: 'uuid', code: 'google', name: 'Gemini', secret: 'no' };
+// @ts-expect-error Exact monetary strings are required, not lossy numbers.
+const unsafeByokCap: Parameters<typeof management.restrictByokKey>[3] = 9007199254740993;
 const projectSettings: Settings = { routing: 'priority', environment: 'Production', allowedModels: null, allowedProviders: [] };
 // @ts-expect-error Project settings cannot store financial or execution-mode knobs.
 const unsafeSettings: Settings = { max_cost_usd: 1 };
@@ -65,4 +71,4 @@ void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSess
   exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind,
   unrestrictedModels, denyAllModels, invalidPermission, inheritedLimits, finiteLimits, stringLimit, unsafeLease,
   projectSettings, unsafeSettings, invalidStrategy, enabledKey, deletedKey, monthlyBudget, yearlyBudget,
-  developerInvite, ownerInvite, financeRole];
+  developerInvite, ownerInvite, financeRole, safeProviderIdentity, unsafeProviderIdentity, unsafeByokCap];

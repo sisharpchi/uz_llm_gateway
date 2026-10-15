@@ -56,7 +56,7 @@ function ProjectControls({ organizationId, project }: { organizationId: string; 
   </section>;
 }
 
-function ProjectSettingsEditor({ organizationId, projectId }: { organizationId: string; projectId: string }) {
+export function ProjectSettingsEditor({ organizationId, projectId }: { organizationId: string; projectId: string }) {
   const settings = useQuery({ queryKey: ['project-settings', organizationId, projectId], queryFn: () => management.projectSettings(organizationId, projectId), refetchOnWindowFocus: false });
   return <section className="panel lifecycle-section"><h3>Routing defaults & hard restrictions</h3>
     {settings.isPending || (!settings.isFetchedAfterMount && settings.isFetching) ? <p role="status">Loading project settings…</p> : settings.isError ? <LoadError error={settings.error} retry={() => void settings.refetch()} />

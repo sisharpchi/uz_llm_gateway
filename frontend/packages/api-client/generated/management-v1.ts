@@ -1167,6 +1167,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/organizations/{organizationId}/provider-keys/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active supported catalog providers for BYOK registration. */
+        get: operations["ListByokProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/organizations/{organizationId}/team/invitations": {
         parameters: {
             query?: never;
@@ -2001,6 +2018,18 @@ export interface components {
             status: string;
             /** Format: date-time */
             updatedAt: string;
+        }[];
+        ByokProviderOption: {
+            code: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        ByokProviderOptionList: {
+            code: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
         }[];
         ByokTestResponse: {
             status: string;
@@ -8197,6 +8226,45 @@ export interface operations {
                     "application/json": components["schemas"]["ManagementErrorResponse"];
                     "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+        };
+    };
+    ListByokProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ByokProviderOptionList"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

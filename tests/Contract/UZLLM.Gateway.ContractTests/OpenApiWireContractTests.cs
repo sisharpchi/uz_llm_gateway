@@ -76,6 +76,8 @@ public sealed class OpenApiWireContractTests : IDisposable
                     UZLLM.Modules.ApiKeys.Contracts.GatewayApiKeyStatus.Active, null, id, now) });
         Add(org + "/billing/wallet", "get", 200, new WalletResponse(id,
             "9007199254740993", "100", "9007199254740893", "0", false, 3));
+        Add(org + "/provider-keys/providers", "get", 200,
+            new[] { new ByokProviderOption(id, "google", "Gemini") });
         foreach (var resource in new[] { "projects/{projectId}", "api-keys/{apiKeyId}" })
         {
             var path = "/management/v1/" + resource + "/limits";

@@ -291,3 +291,10 @@ scope. Invitation tokens stay in masked ephemeral form state, never Query/
 Mutation caches, browser storage or sign-in URLs. Commands remain independently
 authorized by Management; UI restrictions are not security boundaries. See
 [team scope and validation](27_TEAM_MEMBERSHIP.md).
+
+FRONTEND-008 adds Provider keys and Routing routes. BYOK metadata queries include
+account and organization; current failed reads mask cached controls/data. Routing
+adds project scope, reuses the project settings editor and never persists execution
+mode/credential/fallback consent. Secret commands are imperative and ephemeral,
+not TanStack mutations; submitted inputs clear before awaiting I/O. External caps
+use exact BigInt/string micro-units up to Int64. See [scope and evidence](29_BYOK_ROUTING_UX.md).

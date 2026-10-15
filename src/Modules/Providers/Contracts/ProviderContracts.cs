@@ -101,6 +101,9 @@ public sealed record StoredByokCredential(ByokCredential Credential,
 
 public enum ByokTestStatus { Valid, Invalid, Unavailable }
 
+/// <summary>Active catalog identity accepted for BYOK registration; not a health claim.</summary>
+public sealed record ByokProviderOption(Guid Id, string Code, string Name);
+
 public interface IByokCredentialVerifier
 {
     Task<ByokTestStatus> VerifyAsync(string providerCode, string secret,
@@ -109,6 +112,7 @@ public interface IByokCredentialVerifier
 
 public interface IByokCredentialStore
 {
+    Task<IReadOnlyList<ByokProviderOption>> ListActiveProvidersAsync(CancellationToken cancellationToken = default);
     Task<bool> LockOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default);
     Task<string?> GetActiveProviderCodeAsync(Guid providerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ByokCredential>> ListAsync(Guid organizationId,
@@ -135,6 +139,8 @@ public interface IByokCredentialStore
 
 public interface IByokCredentialService
 {
+    Task<IReadOnlyList<ByokProviderOption>> ListProvidersAsync(Guid actorId, Guid organizationId,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ByokCredential>> ListAsync(Guid actorId, Guid organizationId,
         CancellationToken cancellationToken = default);
     Task<ByokCredential?> FindAsync(Guid actorId, Guid organizationId, Guid credentialId,

@@ -1798,6 +1798,49 @@
         },
         "type": "array"
       },
+      "ByokProviderOption": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ByokProviderOptionList": {
+        "items": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "code",
+            "name"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "ByokTestResponse": {
         "properties": {
           "status": {
@@ -15258,6 +15301,79 @@
           }
         ],
         "summary": "Store an encrypted organization provider key; plaintext is never returned.",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/organizations/{organizationId}/provider-keys/providers": {
+      "get": {
+        "operationId": "ListByokProviders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ByokProviderOptionList"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "List active supported catalog providers for BYOK registration.",
         "tags": [
           "UZLLM.Management.Api"
         ]

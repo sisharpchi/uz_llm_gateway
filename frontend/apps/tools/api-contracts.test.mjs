@@ -188,3 +188,12 @@ test('drift comparison detects schema and client changes without treating CRLF a
   assert.equal(artifactMatches('contract\n', 'contract'), false);
   assert.deepEqual(canonicalize({ z: 1, a: { z: 2, a: 3 } }), { a: { a: 3, z: 2 }, z: 1 });
 });
+
+test('BYOK provider choices are session-protected metadata, not operator credentials', () => {
+  const operation = documents.management.paths['/management/v1/organizations/{organizationId}/provider-keys/providers'].get;
+  assert.deepEqual(operation.security, [{ Session: [] }]);
+  for (const status of ['200', '401', '403']) assert.ok(operation.responses[status]);
+  const option = documents.management.components.schemas.ByokProviderOption;
+  assert.deepEqual(Object.keys(option.properties).sort(), ['code', 'id', 'name']);
+  assert.ok(operation.responses['200'].headers['Cache-Control']);
+});

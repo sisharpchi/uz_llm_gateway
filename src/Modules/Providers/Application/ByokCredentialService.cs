@@ -16,6 +16,14 @@ public sealed class ByokCredentialService(
     ITransactionCoordinator transactions,
     TimeProvider clock) : IByokCredentialService
 {
+    public async Task<IReadOnlyList<ByokProviderOption>> ListProvidersAsync(Guid actorId,
+        Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        await EnsureManagerAsync(actorId, organizationId, cancellationToken);
+        return (await store.ListActiveProvidersAsync(cancellationToken))
+            .Where(provider => IsSupported(provider.Code)).ToArray();
+    }
+
     public async Task<IReadOnlyList<ByokCredential>> ListAsync(Guid actorId,
         Guid organizationId, CancellationToken cancellationToken = default)
     {

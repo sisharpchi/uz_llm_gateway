@@ -327,11 +327,16 @@ Create:
 
 `BYOK-001` initially exposed fixed official OpenAI/Anthropic endpoints and
 organization credential-to-project grants; `BYOK-003` adds Google/Gemini and
-DeepSeek parity. The dedicated production UI remains `FRONTEND-008` work.
+DeepSeek parity. `FRONTEND-008` exposes the organization-scoped production UI at
+`/organizations/:orgId/provider-keys`. Owner/Admin read/write existing encrypted
+credentials through masked metadata, explicit project grants, model restrictions,
+exact lifetime external caps, test, rename/rotate, disable and crypto-shred delete.
+Secret input is always masked, cleared on submit/close, and never returned or
+placed in Query/Mutation cache, storage or URLs. See [UX contract and evidence](29_BYOK_ROUTING_UX.md).
 Do not show a custom base URL yet:
 approved custom endpoints belong to P2 `PROVIDER-010`. Model restrictions,
 spend displays were backend-gated until `BYOK-002`; its masked restriction and
-external spend fields are now available for a dedicated frontend task.
+external spend fields are now shown by these controls.
 Last-used remains unavailable and must stay hidden. The existing root
 `frontend/` mockup remains visual reference only; production UI belongs in
 `frontend/apps` and must follow the backlog's UI/UX note.
@@ -346,24 +351,22 @@ Actions:
 
 ## 13. Routing [P1]
 
-Project defaults:
+`FRONTEND-008` exposes `/organizations/:orgId/routing?project=:projectId`.
+The existing project settings editor configures strategy (priority/price/latency/
+throughput/auto), hard model/provider allowlists and metadata-only environment.
+Budgets remain on their separate existing APIs. There is no persisted project
+provider priority/denylist, credential default or fallback toggle in this contract.
 
-```text
-Routing strategy:
-( ) Auto
-( ) Cheapest
-( ) Lowest latency
-( ) Highest throughput
-```
-
-Controls:
-- provider allowlist;
-- provider denylist;
-- provider priority;
-- fallback enabled;
-- fallback models.
-
-Show warning that restrictive routing can reduce availability.
+A request-only builder previews Managed (default), explicit BYOK, or explicitly
+consented Hybrid. It can override strategy, pin provider/model, and explicitly
+name up to two model alternatives. Nothing here auto-saves consent or sends
+inference. BYOK remains primary; Hybrid managed capacity is conditional on safe
+pre-execution rejection, wallet hold and operator controls. Missing grant, disabled
+key, exhausted estimated cap or known policy conflict blocks the example.
+Exact endpoint ranking, key permissions and live health/quota are not exposed:
+preview is a configuration explanation, never an admission/availability guarantee.
+Restrictive routing can reduce availability; unknown outcomes/partial output are
+never replayed. See [implemented boundaries](29_BYOK_ROUTING_UX.md).
 
 ---
 

@@ -191,6 +191,8 @@ Users may register provider credentials.
 BYOK-003 extends the existing capability to active `google` (Gemini) and
 `deepseek` catalog providers alongside OpenAI/Anthropic. Custom endpoints,
 service-account/OAuth credentials and additional capabilities are not implied.
+FRONTEND-008 adds masked organization credential lifecycle and explicit project
+grants. Creation never changes project execution defaults; no secret reveal.
 
 ### FR-056 — Provider-key restrictions [P1]
 BYOK key may be limited to selected models and optional max spend.
@@ -232,6 +234,9 @@ Routing shall exclude open-circuit/unhealthy endpoints.
 
 ### FR-068 — Routing reason [P1]
 Internal request record should store why a provider was selected.
+FRONTEND-008 provides a request-only configuration/conditional sequence preview,
+not a live endpoint decision or guaranteed price/health outcome. Project defaults
+and explicit strategy overrides never bypass hard authorization/financial policy.
 
 ---
 

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Organizations.Contracts;
@@ -14,6 +15,15 @@ public static class ByokEndpointExtensions
     {
         var keys = endpoints.MapGroup(
             "/management/v1/organizations/{organizationId:guid}/provider-keys");
+        keys.MapGet("/providers", async Task<Results<Ok<IReadOnlyList<ByokProviderOption>>,
+            UnauthorizedHttpResult, StatusCodeHttpResult>> (
+            Guid organizationId, HttpContext context, IByokCredentialService service, CancellationToken ct) =>
+        {
+            if (!TryActor(context, out var actor)) return TypedResults.Unauthorized();
+            try { return TypedResults.Ok(await service.ListProvidersAsync(actor, organizationId, ct)); }
+            catch (TenantAccessDeniedException) { return TypedResults.StatusCode(StatusCodes.Status403Forbidden); }
+        }).WithName("ListByokProviders").WithSummary("List active supported catalog providers for BYOK registration.");
+
         keys.MapGet("", async (Guid organizationId, HttpContext context,
             IByokCredentialService service, CancellationToken ct) =>
         {

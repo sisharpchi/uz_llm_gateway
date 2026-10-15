@@ -27,6 +27,7 @@ public sealed class ByokEndpointIntegrationTests(PersistenceIntegrationFixture f
 {
     [Theory]
     [InlineData("openai")]
+    [InlineData("anthropic")]
     [InlineData("google")]
     [InlineData("deepseek")]
     public async Task Byok_http_requires_session_csrf_manager_role_and_never_returns_secret(string providerCode)
@@ -77,6 +78,44 @@ public sealed class ByokEndpointIntegrationTests(PersistenceIntegrationFixture f
             var project = await scope.ServiceProvider.GetRequiredService<IProjectService>()
                 .CreateAsync(owner.AccountId, org.Id, "Production");
             var path = $"/management/v1/organizations/{org.Id}/provider-keys";
+            await scope.ServiceProvider.GetRequiredService<ICatalogService>()
+                .AddProviderAsync("unsupported", "Unsupported provider");
+            var disabled = await scope.ServiceProvider.GetRequiredService<ICatalogService>()
+                .AddProviderAsync(providerCode == "openai" ? "google" : "openai", "Disabled provider");
+            Assert.True(await scope.ServiceProvider.GetRequiredService<ICatalogStore>()
+                .TrySetProviderStatusAsync(disabled.Id, CatalogStatus.Disabled));
+            using (var response = await client.GetAsync(path + "/providers"))
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get,
+                path + "/providers", outsiderSession, csrf: false)))
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using (var response = await client.SendAsync(Request(HttpMethod.Get,
+                path + "/providers", ownerSession, csrf: false)))
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var choices = (await response.Content.ReadFromJsonAsync<ByokProviderOption[]>())!;
+                var choice = Assert.Single(choices);
+                Assert.Equal(upstream.Id, choice.Id);
+                Assert.Equal(providerCode, choice.Code);
+                Assert.Equal("Provider", choice.Name);
+            }
+            var db = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            var member = new OrganizationMemberEntity { OrganizationId = org.Id,
+                AccountId = outsider.AccountId, Role = "Developer", Status = "Active",
+                CreatedAt = DateTimeOffset.UtcNow };
+            db.Set<OrganizationMemberEntity>().Add(member);
+            await db.SaveChangesAsync();
+            foreach (var role in new[] { "Developer", "ReadOnly", "BillingViewer", "Admin" })
+            {
+                member.Role = role;
+                await db.SaveChangesAsync();
+                using var response = await client.SendAsync(Request(HttpMethod.Get,
+                    path + "/providers", outsiderSession, csrf: false));
+                Assert.Equal(role == "Admin" ? HttpStatusCode.OK : HttpStatusCode.Forbidden,
+                    response.StatusCode);
+            }
+            member.Status = "Revoked";
+            await db.SaveChangesAsync();
             const string secret = "sk-http-private-key-123456";
             var payload = new { providerId = upstream.Id, name = "Production", secret };
 

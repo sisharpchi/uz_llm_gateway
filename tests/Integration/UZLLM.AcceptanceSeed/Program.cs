@@ -55,6 +55,13 @@ db.Set<BillingFeePolicyVersionEntity>().Add(new BillingFeePolicyVersionEntity
     Id = Guid.CreateVersion7(), PolicyCode = "default", MarkupBasisPoints = 0,
     FixedFeeMicroUsd = 0, EffectiveFrom = now.AddMinutes(-1), CreatedAt = now
 });
+// Synthetic fee-free BYOK lets the browser acceptance exercise the real
+// encrypted resolver and settlement without a live supplier or funded wallet.
+db.Set<BillingFeePolicyVersionEntity>().Add(new BillingFeePolicyVersionEntity
+{
+    Id = Guid.CreateVersion7(), PolicyCode = "byok", MarkupBasisPoints = 0,
+    FixedFeeMicroUsd = 0, EffectiveFrom = now.AddMinutes(-1), CreatedAt = now
+});
 db.Set<BillingFxRateSnapshotEntity>().Add(new BillingFxRateSnapshotEntity
 {
     Id = Guid.CreateVersion7(), Source = "LAUNCH-002 synthetic acceptance rate",

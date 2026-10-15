@@ -180,6 +180,7 @@ This creates clear boundaries without paying the operational cost of many micros
 26. `26_CUSTOMER_LIFECYCLE.md`
 27. `27_TEAM_MEMBERSHIP.md`
 28. `28_BYOK_PROVIDER_PARITY.md`
+29. `29_BYOK_ROUTING_UX.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

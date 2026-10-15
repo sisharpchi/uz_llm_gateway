@@ -12,6 +12,7 @@ using UZLLM.Modules.Organizations.Contracts;
 using UZLLM.Modules.Organizations.Infrastructure;
 using UZLLM.Modules.Payments.Contracts;
 using UZLLM.Modules.Projects.Contracts;
+using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Persistence;
@@ -286,6 +287,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         foreach (var method in new[] { "PUT", "DELETE" })
             Empty(method, org + "/team/members/{accountId}/projects/{projectId}", 404, 409);
         Read<ByokCredentialResponse[]>(org + "/provider-keys");
+        Read<ByokProviderOption[]>(org + "/provider-keys/providers");
         Read<ByokCredentialResponse>(org + "/provider-keys/{id}", 404);
         Write<ByokCredentialResponse>("POST", org + "/provider-keys", 201, 404);
         Write<ByokCredentialResponse>("PATCH", org + "/provider-keys/{id}", 200, 404, 409);

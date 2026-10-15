@@ -8,10 +8,12 @@ import { CatalogPage } from './CatalogPage';
 import { ProjectsPage } from './ProjectsPage';
 import { KeysPage } from './KeysPage';
 import { TeamPage } from './TeamPage';
+import { ProviderKeysPage } from './ProviderKeysPage';
+import { RoutingPage } from './RoutingPage';
 import { AcceptInvitationPage } from './AcceptInvitationPage';
 
-type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics' | 'team';
-const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics', 'team'];
+type Page = 'overview' | 'projects' | 'keys' | 'models' | 'billing' | 'activity' | 'analytics' | 'team' | 'provider-keys' | 'routing';
+const validPages: Page[] = ['overview', 'projects', 'keys', 'models', 'billing', 'activity', 'analytics', 'team', 'provider-keys', 'routing'];
 
 export function App() {
   return <Routes>
@@ -172,7 +174,7 @@ function Dashboard({ organization, organizations, page, accountId }: { organizat
         {!projects.data?.length && <option value="">No projects</option>}
         {projects.data?.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       <nav aria-label="Main navigation" className="nav-list">{validPages.map(item => <Link key={item} to={pageUrl(item)} aria-current={page === item ? 'page' : undefined}>
-        <span className="nav-icon" aria-hidden="true">{item === 'team' ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2" /></svg> : item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'models' ? '◇' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
+        <span className="nav-icon" aria-hidden="true">{item === 'team' ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2" /></svg> : item === 'overview' ? '◫' : item === 'projects' ? '▤' : item === 'keys' ? '⌘' : item === 'models' ? '◇' : item === 'activity' ? '≋' : item === 'analytics' ? '▥' : '◈'}</span>{item === 'keys' ? 'API keys' : item === 'provider-keys' ? 'Provider keys' : item[0].toUpperCase() + item.slice(1)}</Link>)}</nav>
       <div className="sidebar-bottom"><p>Managed credits</p><strong>{wallet.data ? usdFromMicro(wallet.data.availableBalanceMicroUsd) : '—'}</strong>
         <button onClick={signOut} className="text-button">Sign out</button></div>
     </aside>
@@ -184,6 +186,8 @@ function Dashboard({ organization, organizations, page, accountId }: { organizat
         {page === 'projects' && !projects.isPending && !projects.isError && <ProjectsPage key={organization.id} organization={organization} projects={projects.data ?? []} selected={selectedProject} />}
         {page === 'keys' && !projects.isPending && !projects.isError && <KeysPage key={`${organization.id}:${selectedProject?.id ?? 'none'}`} organizationId={organization.id} project={selectedProject} />}
         {page === 'team' && <TeamPage key={`${accountId}:${organization.id}`} organization={organization} accountId={accountId} projects={projects.data ?? []} />}
+        {page === 'provider-keys' && <ProviderKeysPage key={`${accountId}:${organization.id}`} organization={organization} accountId={accountId} projects={projects.data ?? []} />}
+        {page === 'routing' && !projects.isPending && !projects.isError && <RoutingPage key={`${accountId}:${organization.id}:${selectedProject?.id}`} organization={organization} accountId={accountId} project={selectedProject} />}
         {(page === 'projects' || page === 'keys') && projects.isPending && <p role="status">Loading projects…</p>}
         {page === 'models' && <CatalogPage organizationId={organization.id} projectId={selectedProject?.id} />}
         {page === 'billing' && <BillingPanel organizationId={organization.id} />}

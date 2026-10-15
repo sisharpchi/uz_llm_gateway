@@ -46,6 +46,10 @@ verification endpoints and the existing encrypted tenant/project grants,
 estimated external-spend caps and credential-isolated health. See
 [provider parity and validation](docs/28_BYOK_PROVIDER_PARITY.md).
 
+The dashboard now manages masked provider keys, grants/restrictions and project
+routing defaults, with an explicit Managed/BYOK/Hybrid request-only preview.
+See [security boundaries and UX evidence](docs/29_BYOK_ROUTING_UX.md).
+
 ## Local development
 
 ### One-command disposable stack (Aspire)

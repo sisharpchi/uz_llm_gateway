@@ -219,27 +219,27 @@ Use platform provider credential.
 Use user's encrypted provider credential.
 
 ### Hybrid
-Candidate order may be:
+The implemented request-selected Hybrid order is:
 
 ```text
-1. healthy BYOK credential
-2. another BYOK credential
-3. managed provider capacity
+1. the explicitly selected, granted and eligible BYOK credential
+2. eligible managed capacity, only with explicit request consent
 ```
 
-subject to policy.
+subject to project/key/operator/financial policy. Multi-key ordering is not
+implemented. Explicit model alternatives are request-only and remain bounded by
+Gateway attempt policy. The dashboard preview is not a live eligibility decision.
 
 ---
 
 ## 8. Failure classification
 
 ### Retry/fallback eligible
-Usually:
-- connection timeout;
-- 429;
-- selected 5xx;
-- provider unavailable;
-- capacity errors.
+Implemented policy requires verified rejection before execution (eligible 429 or
+overload), before downstream output. Timeout, transport ambiguity and 5xx remain
+unknown financial outcomes, not proof that the supplier charged zero; they do not
+automatically retry/fallback. See [Gateway §15](08_GATEWAY_ROUTING_AND_PROVIDER_ADAPTERS.md#15-p0-implementation-boundary)
+and the evidence/settlement ADRs.
 
 ### Normally not blindly retryable
 - invalid user request;
@@ -254,7 +254,8 @@ Special case:
 - some providers may still bill;
 - automatic retry could duplicate content.
 
-Therefore mid-stream retries should be conservative and policy-driven.
+The implemented Gateway never automatically replays partial output; unknown
+usage retains financial evidence/holds for reconciliation, not zero-cost release.
 
 ---
 

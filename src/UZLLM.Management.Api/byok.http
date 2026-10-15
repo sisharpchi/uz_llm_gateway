@@ -5,13 +5,19 @@
 @projectId = 00000000-0000-0000-0000-000000000004
 @csrf = replace-with-session-csrf
 
+### Active supported BYOK catalog identities (use the authenticated browser session)
+GET {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/providers
+
+### Without a current session this returns 401; a foreign tenant/session returns 403
+GET {{baseUrl}}/management/v1/organizations/22222222-2222-4222-8222-222222222222/provider-keys/providers
+
 ### List masked keys (browser session cookie required)
 GET {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys
 
 ### Get one masked key
 GET {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys/{{credentialId}}
 
-### Create OpenAI/Anthropic key; use a real secret locally, never commit it
+### Create a supported provider key; use a real secret locally, never commit it
 POST {{baseUrl}}/management/v1/organizations/{{orgId}}/provider-keys
 Content-Type: application/json
 X-CSRF-Token: {{csrf}}

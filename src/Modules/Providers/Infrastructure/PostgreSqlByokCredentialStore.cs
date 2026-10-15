@@ -8,6 +8,13 @@ namespace UZLLM.Modules.Providers.Infrastructure;
 
 public sealed class PostgreSqlByokCredentialStore(FoundationDbContext db) : IByokCredentialStore
 {
+    public async Task<IReadOnlyList<ByokProviderOption>> ListActiveProvidersAsync(
+        CancellationToken cancellationToken = default) =>
+        await db.Set<CatalogProviderEntity>().AsNoTracking()
+            .Where(provider => provider.Status == "Active").OrderBy(provider => provider.Code)
+            .Select(provider => new ByokProviderOption(provider.Id, provider.Code, provider.Name))
+            .ToArrayAsync(cancellationToken);
+
     public async Task<bool> LockOrganizationAsync(Guid organizationId,
         CancellationToken cancellationToken = default) =>
         await db.Set<OrganizationEntity>().FromSqlInterpolated(
