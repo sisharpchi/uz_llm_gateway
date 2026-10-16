@@ -273,7 +273,7 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 | GATEWAY-005 · Completed | Add bounded non-streaming OpenAI-style Responses subset; Gateway, Provider contracts/adapters. | DX-002, BILLING-003; FR-043, ADR-004/010. | Explicit stateless text capability matrix, operation-scoped idempotent reservation/settlement and normalized errors. 57 Responses regressions (including four actual native adapters), PostgreSQL concurrency/reconciliation, real TLS-edge acceptance 5/5 and Release baseline 863 PASS; [scope and validation](32_RESPONSES_API.md). Explicit user selection authorizes this P1 task while OPS-006 remains externally blocked; no paid-launch gate passed. |
 | GATEWAY-006 · Completed | Stream supported Responses subset with SSE cancellation/evidence; Gateway/adapters. | GATEWAY-005; FR-043, ADR-010. | No fallback after output, terminal/unknown usage and disconnect settled safely; 95 Responses regressions (38 new SSE cases, four native adapters), PostgreSQL recovery/idempotency, real TLS-edge acceptance 5/5 and final unchanged Release baseline 903 PASS. [Protocol, validation and initial Redis timeout/recheck evidence](33_RESPONSES_SSE.md). Explicit user-selected P1 while OPS-006 remains externally blocked; no launch-gate pass. |
 | GATEWAY-007 · Completed | Add bounded text/float embeddings route with input-only model capability/pricing; Gateway/OpenAI adapter/Catalog. | DX-002, BILLING-003; FR-044, ADR-004/010/020/022. | Shape, usage, cost and authorization match contract; 66 embeddings regressions, PostgreSQL concurrency/recovery/full-ID migration tests, generated contract parity, real TLS-edge acceptance 5/5 and final Release baseline 973 PASS. [Scope, migration and validation](34_EMBEDDINGS_API.md). User approval selects this P1 task while OPS-006 remains externally blocked; no launch gate passed. |
-| REFUND-002 · Planned | Audited discretionary wallet adjustments with approval policy; Billing, Admin, Audit. | REFUND-001, SECURITY-004; FR-080/124. | Actor/reason/two-person threshold policy, immutable ledger, replay/concurrency tests; no cash payout implied. |
+| REFUND-002 · Blocked | Audited discretionary wallet adjustments with approval policy; Billing, Admin, Audit. | REFUND-001, SECURITY-004; FR-080/124. | Actor/reason/two-person threshold policy, immutable ledger, replay/concurrency tests; no cash payout implied. 2026-10-17 readiness review: dependencies exist, but adjustment direction and approval threshold are not specified. Await the policy decision below; no implementation or acceptance claim. User approved selecting this P1 task while OPS-006 remains externally blocked. |
 | CATALOG-003 · Planned | Add provider data-policy/residency metadata with dated provenance; Catalog/Admin. | DX-002; NFR-052. | Unknown policy is explicit, not marketed as ZDR; publication/audit and API tests. |
 | DX-003 · Planned | Add SDK examples and optional bounded playground based on actual contracts; docs/frontend. | DX-001, DX-002, GATEWAY-005, GATEWAY-006, GATEWAY-007; NFR-084. | Examples execute against test stack, disclose billing and secret hygiene; browser/contract tests. |
 
@@ -295,3 +295,32 @@ into small tested implementation tasks. Live merchant, provider, FX/tax,
 region, HA/PITR and incident ownership are **external launch prerequisites**,
 not code tasks or automatic completion dependencies. See
 `18_PRODUCTION_READINESS.md`.
+
+### REFUND-002 readiness review — 2026-10-17
+
+FR-080 permits audited **credit** adjustments; FR-124 requires compensating
+entries. Neither specifies a two-person approval threshold or discretionary
+debit authorization. The ledger supports both adjustment entry types, but that
+is not a business-policy grant. Existing `AdjustmentDebit` postings recover
+payment-reversal debt; they do not establish a manual debit workflow.
+
+`REFUND-001` already serializes settlement-linked refunds on the wallet and
+records the ledger, debt recovery and audit atomically. The operator boundary
+requires recent MFA; it does not implement adjustment requests or approval.
+See [refund persistence](../src/Modules/Billing/Infrastructure/PostgreSqlSettlementRefundStore.cs),
+[admin service](../src/UZLLM.Management.Api/Administration/AdminService.cs) and
+[admin authorization](../src/UZLLM.Management.Api/Administration/AdminEndpoints.cs).
+Existing refund/concurrency and MFA tests are dependency evidence, not tests
+of the missing adjustment workflow; they were inspected, not rerun for this
+documentation-only readiness review.
+
+**Decision required before coding:** confirm credit-only adjustments with
+approval by a different recently MFA-verified operator for **every amount**,
+or specify the intended USD threshold and any authorized debit rules. The
+credit-only/all-amounts option is a recommendation, not an accepted policy.
+Self-approval must be denied; credits must preserve active holds and the
+existing recovery-debt behavior. No cash payout, historical budget reduction
+or change to settlement refunds is proposed. After confirmation, specify the
+policy in FR-080/124, Billing and API Contracts, then implement/test this task.
+No source, migration, configuration or financial behavior changed in this
+review. Do not start CATALOG-003 while this decision is pending.
