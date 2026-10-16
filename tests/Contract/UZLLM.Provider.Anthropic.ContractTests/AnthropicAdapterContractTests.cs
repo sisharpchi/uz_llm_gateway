@@ -14,6 +14,25 @@ public sealed class AnthropicAdapterContractTests
         new ProviderMessage("user", [new ProviderContentPart(ProviderContentKind.Text, "Hello")])
     ], MaxOutputTokens: 100);
 
+    [Theory]
+    [InlineData("text", true)]
+    [InlineData("temperature", false)]
+    [InlineData("late-guidance", false)]
+    [InlineData("system-only", false)]
+    public void Admission_support_check_reuses_native_validation_without_network_or_credentials(string shape, bool supported)
+    {
+        var handler = new FixtureHandler(_ => throw new InvalidOperationException("No network during eligibility."));
+        var request = Request with { MaxOutputTokens = null };
+        if (shape == "temperature") request = request with { Temperature = 1.5m };
+        if (shape == "late-guidance") request = request with { Messages = [.. request.Messages,
+            new("system", [new(ProviderContentKind.Text, "Late instructions")])] };
+        if (shape == "system-only") request = request with { Messages = [new("system", [new(ProviderContentKind.Text, "Instructions")])] };
+        Assert.Equal(supported, Adapter(handler).Supports(request, false));
+        Assert.Equal(supported, Adapter(handler).Supports(request, true));
+        Assert.Null(handler.Path);
+        Assert.Null(handler.ApiKey);
+    }
+
     [Fact]
     public async Task Messages_request_and_response_preserve_tools_usage_and_request_id()
     {

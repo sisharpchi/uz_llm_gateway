@@ -198,6 +198,39 @@ test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async
   await page.goto(`/organizations/${orgId}/billing`);
   await expect(page.getByText('$10.99').first()).toBeVisible();
 
+  // GATEWAY-005: real TLS-edge/API/Redis/PostgreSQL/provider-adapter execution,
+  // not browser route mocks. The existing cold-Redis sentinel above must run first.
+  const responseRequest = { model: 'fixture-model', instructions: 'Be concise.', input: 'Hello', max_output_tokens: 32, store: false };
+  const responseHeaders = { Authorization: `Bearer ${gatewaySecret}`, 'Idempotency-Key': randomUUID() };
+  const response = await json(request, 'post', '/v1/responses', { data: responseRequest, headers: responseHeaders });
+  expect(response.response.status(), JSON.stringify(response.body)).toBe(200);
+  expect(response.response.headers()['cache-control']).toBe('no-store');
+  expect(response.body.object).toBe('response'); expect(response.body.status).toBe('completed'); expect(response.body.store).toBe(false);
+  expect(response.body.output[0].content[0]).toMatchObject({ type: 'output_text', text: 'Fixture complete.' });
+  expect(response.body.usage).toMatchObject({ input_tokens: 8, output_tokens: 3, total_tokens: 11 });
+  const responseReplay = await json(request, 'post', '/v1/responses', { data: responseRequest, headers: responseHeaders });
+  expect(responseReplay.response.status()).toBe(409);
+  expect(responseReplay.response.headers()['x-original-request-id']).toBe(response.response.headers()['x-request-id']);
+  const changedReplay = await json(request, 'post', '/v1/responses', { data: { ...responseRequest, input: 'Different' }, headers: responseHeaders });
+  expect(changedReplay.response.status()).toBe(409);
+  const unsupportedResponse = await json(request, 'post', '/v1/responses', { data: { ...responseRequest, stream: true }, headers: { Authorization: `Bearer ${gatewaySecret}` } });
+  expect(unsupportedResponse.response.status()).toBe(400);
+  expect(unsupportedResponse.body.error.code).toBe('unsupported_parameter');
+  const responseWallet = await json(request, 'get', walletPath);
+  expect(responseWallet.body.postedBalanceMicroUsd).toBe('10999967');
+  expect(responseWallet.body.reservedBalanceMicroUsd).toBe('0');
+  await expect.poll(async () => (await json(request, 'get', activityPath)).body.items.length).toBe(3);
+  const responseActivity = (await json(request, 'get', activityPath)).body.items;
+  expect(responseActivity.every((item: { chargedMicroUsd: string }) => item.chargedMicroUsd === '11')).toBe(true);
+  // The new path inherits the same real key permission gate, with no extra debit.
+  const keyPermissionPath = `/management/v1/api-keys/${key.body.apiKey.id}/permissions`;
+  const denyResponse = await request.put(base + keyPermissionPath, { headers: auth, data: { allowedModels: [] } });
+  expect(denyResponse.status()).toBe(204);
+  const deniedResponse = await json(request, 'post', '/v1/responses', { data: responseRequest, headers: { Authorization: `Bearer ${gatewaySecret}` } });
+  expect(deniedResponse.response.status()).toBe(403);
+  expect((await json(request, 'get', walletPath)).body.postedBalanceMicroUsd).toBe('10999967');
+  expect((await request.put(base + keyPermissionPath, { headers: auth, data: {} })).status()).toBe(204);
+
   // FRONTEND-006: real UI commands through TLS edge/session/CSRF/PostgreSQL.
   // No route interception. Secret values stay only in test memory; screenshots
   // below are deliberately taken after the show-once dialog has been destroyed.

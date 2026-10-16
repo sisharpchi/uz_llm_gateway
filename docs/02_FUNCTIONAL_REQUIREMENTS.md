@@ -151,6 +151,12 @@ Support:
 ### FR-043 — Responses API [P1]
 Add OpenAI-style Responses API after chat completion stability.
 
+`GATEWAY-005` defines the stateless non-streaming text subset at `/v1/responses`,
+translated through existing native chat adapters with the same authorization,
+limits, reservation/evidence/settlement and explicit execution-mode controls.
+No stored conversation, tools, modalities or Responses-specific reasoning controls
+are implied. SSE is GATEWAY-006. [Capability matrix](32_RESPONSES_API.md).
+
 ### FR-044 — Embeddings [P1]
 Add normalized embedding API.
 

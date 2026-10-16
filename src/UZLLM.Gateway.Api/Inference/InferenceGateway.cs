@@ -21,6 +21,7 @@ public interface IInferenceGateway
 {
     Task ListModelsAsync(HttpContext context, CancellationToken cancellationToken);
     Task ChatAsync(HttpContext context, CancellationToken cancellationToken);
+    Task ResponsesAsync(HttpContext context, CancellationToken cancellationToken);
 }
 
 public sealed class InferenceGateway(
@@ -103,9 +104,18 @@ public sealed class InferenceGateway(
     private static GatewayError ProjectPermissionDenied() => new(403, "project_permission_denied", "permission_error",
         "The project does not permit the requested model or provider.");
 
-    public async Task ChatAsync(HttpContext context, CancellationToken cancellationToken)
+    public Task ChatAsync(HttpContext context, CancellationToken cancellationToken) =>
+        InferAsync(context, false, cancellationToken);
+
+    public Task ResponsesAsync(HttpContext context, CancellationToken cancellationToken)
     {
-        using var activity = UzllmTelemetry.ActivitySource.StartActivity("gateway.chat");
+        context.Response.Headers.CacheControl = "no-store";
+        return InferAsync(context, true, cancellationToken);
+    }
+
+    private async Task InferAsync(HttpContext context, bool responses, CancellationToken cancellationToken)
+    {
+        using var activity = UzllmTelemetry.ActivitySource.StartActivity(responses ? "gateway.responses" : "gateway.chat");
         var requestTimer = Stopwatch.StartNew();
         SetGatewayRequestId(context, Guid.CreateVersion7());
         LimitLease? lease = null;
@@ -130,7 +140,7 @@ public sealed class InferenceGateway(
             if (!context.Request.HasJsonContentType())
                 throw new GatewayRequestException("Content-Type must be application/json.", "unsupported_media_type");
             var raw = await ReadRequestBodyAsync(context.Request, options.MaximumRequestBytes, cancellationToken);
-            var parsed = ChatRequestParser.Parse(raw);
+            var parsed = responses ? ResponsesRequestParser.Parse(raw) : ChatRequestParser.Parse(raw);
             var projectSettings = tenant.Settings ?? new ProjectSettings();
             parsed = parsed with { Routing = ProjectSettingsPolicy.ResolveRouting(projectSettings, parsed.Routing) };
             var managedEnabled = await platformControls.IsEnabledAsync(PlatformFeature.ManagedTraffic,
@@ -150,7 +160,7 @@ public sealed class InferenceGateway(
             if (idempotencyKey is not null)
             {
                 var existing = await usage.FindExistingClaimAsync(tenant.OrganizationId,
-                    identity.ApiKeyId, "chat.completions", idempotencyKey, payloadHash,
+                    identity.ApiKeyId, parsed.Operation, idempotencyKey, payloadHash,
                     cancellationToken);
                 if (existing is not null)
                 {
@@ -517,7 +527,7 @@ public sealed class InferenceGateway(
                 return;
             }
             var prepare = new PrepareUsageRequest(tenant.OrganizationId, identity.ProjectId,
-                identity.ApiKeyId, model.Model.Id, parsed.Stream, "chat.completions",
+                identity.ApiKeyId, model.Model.Id, parsed.Stream, parsed.Operation,
                 idempotencyKey, payloadHash, System.Diagnostics.Activity.Current?.TraceId.ToString());
             var expiresAt = clock.GetUtcNow().Add(options.ReservationLifetime);
             var admission = byok is null
@@ -653,7 +663,8 @@ public sealed class InferenceGateway(
         string requestedModelCode, IReadOnlyList<RouteCandidate> candidates, bool pinned,
         Reservation reservation, CancellationToken cancellationToken)
     {
-        var writer = writerFactory.Create(context);
+        var writer = parsed.Operation == "responses"
+            ? new OpenAiResponsesWriter(context, parsed) : writerFactory.Create(context);
         var selectedCandidate = candidates[0];
         var mapping = candidates[0].Mapping;
         var credentialId = candidates[0].CredentialId;
@@ -798,6 +809,7 @@ public sealed class InferenceGateway(
                             deadline.Token);
                         providerUsage = completion.Usage;
                         providerRequestId = completion.ProviderRequestId;
+                        if (parsed.Operation == "responses") OpenAiResponsesWriter.ValidateCompletion(completion);
                         completed = true;
                         firstTokenMs = Math.Max(1, attemptTimer.ElapsedMilliseconds);
                         telemetry.RecordTimeToFirstToken(

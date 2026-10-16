@@ -6,7 +6,8 @@ namespace UZLLM.Gateway.Api.Inference;
 public sealed record ParsedChatRequest(string Model, bool Stream, ProviderChatRequest ProviderRequest,
     IReadOnlyCollection<string> RequiredCapabilities, int EstimatedInputTokens,
     Guid? ProviderKeyId = null, bool AllowManagedFallback = false,
-    string? Routing = null, IReadOnlyList<string>? FallbackModels = null);
+    string? Routing = null, IReadOnlyList<string>? FallbackModels = null,
+    string Operation = "chat.completions", string? Instructions = null);
 
 public sealed class GatewayRequestException(string message, string code = "invalid_request") : Exception(message)
 {

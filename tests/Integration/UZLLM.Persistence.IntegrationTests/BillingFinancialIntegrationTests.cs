@@ -1412,6 +1412,78 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         await fixture.ApplyMigrationsAsync();
     }
 
+    [Fact]
+    public async Task Responses_concurrent_duplicate_admission_and_settlement_post_one_charge()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        var key = Guid.NewGuid().ToString();
+        var input = Admission(seed, 30_000, key, [1, 2], "responses");
+        var clock = new MutableFinancialClock(Start);
+        await using var firstProvider = fixture.CreateServiceProvider();
+        await using var firstScope = firstProvider.CreateAsyncScope();
+        await using var secondProvider = fixture.CreateServiceProvider();
+        await using var secondScope = secondProvider.CreateAsyncScope();
+        var first = Financial(firstScope.ServiceProvider, clock);
+        var second = Financial(secondScope.ServiceProvider, clock);
+        var admissions = await Task.WhenAll(first.ReserveAsync(input), second.ReserveAsync(input));
+        var admitted = Assert.Single(admissions, value => value.Status == AdmissionStatus.Reserved);
+        Assert.Equal(admitted.RequestId, Assert.Single(admissions, value => value.Status == AdmissionStatus.Duplicate).RequestId);
+        Assert.Equal(AdmissionStatus.PayloadConflict, (await second.ReserveAsync(
+            Admission(seed, 30_000, key, [9], "responses"))).Status);
+        var usage = Usage(firstScope.ServiceProvider, clock);
+        var attempt = await usage.StartAttemptAsync(admitted.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.NotNull(await usage.RecordVerifiedAsync(new(admitted.RequestId.Value, attempt.Id,
+            EvidenceSource.Provider, 12, 5, 0, 2, seed.PriceId, "response-provider-id")));
+        var settlements = await Task.WhenAll(first.FinalizeAsync(admitted.Reservation!.Id),
+            second.FinalizeAsync(admitted.Reservation.Id));
+        var settled = Assert.Single(settlements, value => value.Status == FinalizationStatus.Settled);
+        Assert.Single(settlements, value => value.Status == FinalizationStatus.AlreadyFinalized);
+        Assert.Equal(17, settled.Settlement!.Charged.Value); // reasoning tokens are an output subset
+        var state = (await first.GetWalletStateAsync(seed.OrganizationId))!;
+        Assert.Equal(99_983, state.Wallet.PostedBalance.Value);
+        Assert.Equal(0, state.Wallet.ReservedBalance.Value);
+        var db = firstScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(1, await db.Set<BillingSettlementEntity>().CountAsync());
+        Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>().CountAsync(value => value.Type == "UsageCharge"));
+        Assert.Equal("responses", (await db.Set<UsageRequestEntity>().SingleAsync()).Operation);
+        Assert.Null(await usage.FindExistingClaimAsync(Guid.CreateVersion7(), seed.ApiKeyId,
+            "responses", key, input.Request.PayloadHash));
+        // Operation identities are intentionally independent; the same UUID may be used for chat.
+        var chat = await second.ReserveAsync(Admission(seed, 30_000, key, [1, 2]));
+        Assert.Equal(AdmissionStatus.Reserved, chat.Status);
+        Assert.NotEqual(admitted.RequestId, chat.RequestId);
+        Assert.Equal(FinalizationStatus.Released, (await second.ReleaseUndispatchedAsync(chat.Reservation!.Id)).Status);
+    }
+
+    [Fact]
+    public async Task Responses_unknown_usage_stays_reserved_then_reconciles_once_without_zero_cost_assumption()
+    {
+        await ResetAsync();
+        var seed = await SeedAsync();
+        await CreditAsync(seed.OrganizationId, 100_000);
+        await using var provider = fixture.CreateServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var clock = new MutableFinancialClock(Start);
+        var financial = Financial(scope.ServiceProvider, clock);
+        var usage = Usage(scope.ServiceProvider, clock);
+        var admitted = await financial.ReserveAsync(Admission(seed, 30_000, operation: "responses"));
+        var attempt = await usage.StartAttemptAsync(admitted.RequestId!.Value, seed.ProviderModelId);
+        Assert.True(await usage.MarkDispatchedAsync(attempt.Id));
+        Assert.NotNull(await usage.RecordUnknownAsync(admitted.RequestId.Value, attempt.Id));
+        Assert.Equal(FinalizationStatus.PendingEvidence, (await financial.FinalizeAsync(admitted.Reservation!.Id)).Status);
+        Assert.Equal(30_000, (await financial.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
+        Assert.NotNull(await usage.RecordVerifiedAsync(new(admitted.RequestId.Value, attempt.Id,
+            EvidenceSource.Reconciled, 10, 5, 0, null, seed.PriceId, "late-response-usage")));
+        Assert.Equal(FinalizationStatus.Settled, (await financial.FinalizeAsync(admitted.Reservation.Id)).Status);
+        Assert.Equal(FinalizationStatus.AlreadyFinalized, (await financial.FinalizeAsync(admitted.Reservation.Id)).Status);
+        var state = (await financial.GetWalletStateAsync(seed.OrganizationId))!;
+        Assert.Equal(99_985, state.Wallet.PostedBalance.Value);
+        Assert.Equal(0, state.Wallet.ReservedBalance.Value);
+    }
+
     private async Task<BillingSeed> SeedAsync(string extraPricingJson = "{}")
     {
         await using var provider = fixture.CreateServiceProvider();
@@ -1507,9 +1579,9 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
     }
 
     private static ManagedAdmissionInput Admission(BillingSeed seed, long amount,
-        string? idempotencyKey = null, byte[]? payload = null) => new(
+        string? idempotencyKey = null, byte[]? payload = null, string operation = "chat.completions") => new(
         new PrepareUsageRequest(seed.OrganizationId, seed.ProjectId, seed.ApiKeyId, seed.ModelId,
-            false, "chat.completions", idempotencyKey, SHA256.HashData(payload ?? [1]), null),
+            false, operation, idempotencyKey, SHA256.HashData(payload ?? [1]), null),
         new UsdMicroAmount(amount), seed.FeeId, Start.AddHours(1));
 
     private static ByokAdmissionInput ByokAdmission(BillingSeed seed, Guid credentialId,

@@ -15,7 +15,7 @@ public static class GatewayOpenApi
             options.AddDocumentTransformer((document, _, _) =>
             {
                 document.Info = new() { Title = "UZLLM Gateway API", Version = "1.0.0",
-                    Description = "Implemented OpenAI-compatible models/chat contract. Responses and embeddings are not yet supported. "
+                    Description = "Implemented OpenAI-compatible models/chat and stateless non-streaming text Responses subset. Embeddings are not yet supported. "
                         + "Breaking changes require a versioned path and 180 days of migration overlap." };
                 document.Servers = [new() { Url = "/" }];
                 document.Components ??= new();
@@ -37,15 +37,17 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
         CancellationToken cancellationToken)
     {
         var chat = context.Description.RelativePath == "v1/chat/completions";
-        if (!chat && context.Description.RelativePath != "v1/models")
+        var responses = context.Description.RelativePath == "v1/responses";
+        var inference = chat || responses;
+        if (!inference && context.Description.RelativePath != "v1/models")
             throw new InvalidOperationException("Document the new gateway operation before publishing it.");
         operation.Security = [new OpenApiSecurityRequirement
             { [new OpenApiSecuritySchemeReference("GatewayKey", context.Document)] = [] }];
         operation.Responses = new();
         operation.Responses["200"] = new OpenApiResponse { Description = "Successful inference/model discovery.",
             Content = new Dictionary<string, OpenApiMediaType>
-            { ["application/json"] = new() { Schema = chat ? Completion() : Models() } } };
-        foreach (var status in chat ? new[] { 400, 401, 402, 403, 409, 413, 415, 429, 502, 503 } : [401, 403, 503])
+            { ["application/json"] = new() { Schema = responses ? Response() : chat ? Completion() : Models() } } };
+        foreach (var status in inference ? new[] { 400, 401, 402, 403, 404, 409, 413, 415, 429, 502, 503 } : [401, 403, 503])
             operation.Responses[status.ToString()] = new OpenApiResponse
             {
                 Description = "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
@@ -54,26 +56,43 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
         foreach (OpenApiResponse response in operation.Responses.Values)
             response.Headers = new Dictionary<string, IOpenApiHeader>
             { ["X-Request-Id"] = new OpenApiHeader { Schema = String(), Description = "Correlation ID." } };
-        if (chat)
+        if (inference)
         {
-            operation.Description = "Bounded chat subset; unsupported fields return 400. max_tokens and max_completion_tokens "
+            operation.Description = responses
+                ? "Stateless non-streaming text Responses subset, translated through existing chat adapters. input accepts text or 1–256 "
+                    + "text message items (including instructions). stream/store must be false or omitted; no conversation retrieval, "
+                    + "tools, vision, structured-output or reasoning controls. Unsupported fields return 400 before reservation/dispatch. "
+                    + "Missing usage is null and remains pending evidence, not zero cost. Existing authorization, limits, routing, "
+                    + "BYOK/Hybrid consent and financial controls apply. Idempotency operation is responses, separate from chat.completions."
+                : "Bounded chat subset; unsupported fields return 400. max_tokens and max_completion_tokens "
                 + "are mutually exclusive. Tool/vision/structured-output capability is checked against the selected mapping. "
                 + "After output begins, no replay/fallback occurs. Unknown usage leaves settlement pending, never a zero-cost claim.";
             operation.RequestBody = new OpenApiRequestBody { Required = true,
                 Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = new()
-                { Schema = Request(), Example = JsonNode.Parse("""{"model":"example-chat","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":32,"stream":false}""") } } };
+                { Schema = responses ? ResponseRequest() : Request(), Example = JsonNode.Parse(responses
+                    ? """{"model":"example-chat","input":"Hello","max_output_tokens":32,"store":false}"""
+                    : """{"model":"example-chat","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":32,"stream":false}""") } } };
             operation.Parameters = [new OpenApiParameter { Name = "Idempotency-Key", In = ParameterLocation.Header,
                 Required = false, Description = "Non-empty UUID, scoped to organization/key/operation for 24 hours. "
                     + "Replay returns 409 and X-Original-Request-Id; completion bodies are not replayed.",
                 Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid" } }];
-            operation.Responses["200"].Content!["text/event-stream"] = new OpenApiMediaType
-            { Schema = String(), Example = JsonValue.Create(
-                "data: {\"id\":\"chatcmpl-11111111111141118111111111111111\",\"object\":\"chat.completion.chunk\",\"created\":1790812800,\"model\":\"example-chat\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"
-                + "data: {\"id\":\"chatcmpl-11111111111141118111111111111111\",\"object\":\"chat.completion.chunk\",\"created\":1790812800,\"model\":\"example-chat\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\n"
-                + "data: [DONE]\n\n") };
-            operation.Responses["200"].Description = "JSON completion or SSE data frames. A complete stream ends with data: [DONE]. "
-                + "Interrupted streams use event: error with the error envelope; HTTP status cannot change after headers. "
-                + "Usage/finish/tool/refusal chunks may appear before the terminal marker.";
+            if (chat)
+            {
+                operation.Responses["200"].Content!["text/event-stream"] = new OpenApiMediaType
+                { Schema = String(), Example = JsonValue.Create(
+                    "data: {\"id\":\"chatcmpl-11111111111141118111111111111111\",\"object\":\"chat.completion.chunk\",\"created\":1790812800,\"model\":\"example-chat\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n"
+                    + "data: {\"id\":\"chatcmpl-11111111111141118111111111111111\",\"object\":\"chat.completion.chunk\",\"created\":1790812800,\"model\":\"example-chat\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\n"
+                    + "data: [DONE]\n\n") };
+                operation.Responses["200"].Description = "JSON completion or SSE data frames. A complete stream ends with data: [DONE]. "
+                    + "Interrupted streams use event: error with the error envelope; HTTP status cannot change after headers. "
+                    + "Usage/finish/tool/refusal chunks may appear before the terminal marker.";
+            }
+            else
+            {
+                operation.Responses["200"].Description = "One response with text/refusal message; completed or incomplete. No SSE. Unknown usage is null.";
+                foreach (var response in operation.Responses.Values)
+                    response.Headers!["Cache-Control"] = new OpenApiHeader { Schema = Enum("no-store") };
+            }
             foreach (var name in new[] { "X-Uzllm-Provider", "X-Uzllm-Model", "X-Uzllm-Requested-Model", "X-Uzllm-Billing-Mode" })
                 operation.Responses["200"].Headers![name] = new OpenApiHeader { Schema = String() };
             operation.Responses["409"].Headers!["X-Original-Request-Id"] = new OpenApiHeader { Schema = String() };
@@ -96,6 +115,60 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
     public static OpenApiSchema Error() => Required(Object(("error", Required(Object(
         ("message", String()), ("type", String()), ("code", String()), ("param", Nullable(String()))),
         "message", "type", "code", "param"))), "error");
+
+    public static OpenApiSchema ResponseRequest()
+    {
+        var text = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 1_048_576, Pattern = "\\S" };
+        var part = Required(Object(("type", Enum("input_text")), ("text", text)), "type", "text");
+        part.AdditionalPropertiesAllowed = false;
+        var message = Required(Object(("type", Enum("message")),
+            ("role", Enum("system", "developer", "user", "assistant")),
+            ("content", new OpenApiSchema { OneOf = [text, new OpenApiSchema { Type = JsonSchemaType.Array,
+                Items = part, MinItems = 1, MaxItems = 64 }] })), "role", "content");
+        message.AdditionalPropertiesAllowed = false;
+        var chat = Request();
+        var request = Required(Object(("model", chat.Properties!["model"]),
+            ("input", new OpenApiSchema { OneOf = [text, new OpenApiSchema { Type = JsonSchemaType.Array,
+                Items = message, MinItems = 1, MaxItems = 256 }] }), ("instructions", text),
+            ("max_output_tokens", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "16", Maximum = int.MaxValue.ToString() }),
+            ("temperature", chat.Properties["temperature"]), ("top_p", chat.Properties["top_p"]),
+            ("uzllm", chat.Properties["uzllm"]),
+            ("stream", new OpenApiSchema { Type = JsonSchemaType.Boolean, Enum = [JsonValue.Create(false)!] }),
+            ("store", new OpenApiSchema { Type = JsonSchemaType.Boolean, Enum = [JsonValue.Create(false)!] })), "model", "input");
+        request.AdditionalPropertiesAllowed = false;
+        request.Description = "Stateless text subset. Instructions plus input count <=256; JSON property names must be unique at each object.";
+        return request;
+    }
+
+    public static OpenApiSchema Response()
+    {
+        var content = new OpenApiSchema { OneOf = [
+            Required(Object(("type", Enum("output_text")), ("text", String()),
+                ("annotations", Array(new OpenApiSchema { Type = JsonSchemaType.Object })),
+                ("logprobs", Array(new OpenApiSchema { Type = JsonSchemaType.Object }))), "type", "text", "annotations", "logprobs"),
+            Required(Object(("type", Enum("refusal")), ("refusal", String())), "type", "refusal")] };
+        return Required(Object(("id", String()), ("object", Enum("response")), ("created_at", Integer()),
+            ("status", Enum("completed", "incomplete")), ("error", new OpenApiSchema { Type = JsonSchemaType.Null }),
+            ("incomplete_details", Nullable(Required(Object(("reason", Enum("max_output_tokens", "content_filter"))), "reason"))),
+            ("model", String()), ("output", Array(Required(Object(("id", String()), ("type", Enum("message")),
+                ("role", Enum("assistant")), ("status", Enum("completed", "incomplete")), ("content", Array(content))), "id", "type", "role", "status", "content"))),
+            ("instructions", Nullable(String())), ("max_output_tokens", Nullable(Integer())),
+            ("store", new OpenApiSchema { Type = JsonSchemaType.Boolean, Enum = [JsonValue.Create(false)!] }),
+            ("previous_response_id", new OpenApiSchema { Type = JsonSchemaType.Null }),
+            ("parallel_tool_calls", new OpenApiSchema { Type = JsonSchemaType.Boolean, Enum = [JsonValue.Create(false)!] }),
+            ("reasoning", Required(Object(("effort", new OpenApiSchema { Type = JsonSchemaType.Null }),
+                ("summary", new OpenApiSchema { Type = JsonSchemaType.Null })), "effort", "summary")),
+            ("temperature", new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null }),
+            ("top_p", new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null }),
+            ("text", Required(Object(("format", Required(Object(("type", Enum("text"))), "type"))), "format")),
+            ("tool_choice", Enum("none")), ("tools", Array(new OpenApiSchema { Type = JsonSchemaType.Object })),
+            ("truncation", Enum("disabled")), ("metadata", new OpenApiSchema { Type = JsonSchemaType.Object }),
+            ("usage", Nullable(Required(Object(("input_tokens", Integer()), ("output_tokens", Integer()), ("total_tokens", Integer()),
+                ("input_tokens_details", Required(Object(("cached_tokens", Integer())), "cached_tokens")),
+                ("output_tokens_details", Required(Object(("reasoning_tokens", Integer())), "reasoning_tokens"))),
+                "input_tokens", "output_tokens", "total_tokens", "input_tokens_details", "output_tokens_details")))),
+            "id", "object", "created_at", "status", "error", "incomplete_details", "model", "output", "usage", "store");
+    }
 
     public static OpenApiSchema Request()
     {

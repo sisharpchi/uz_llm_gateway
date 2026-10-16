@@ -186,6 +186,38 @@ reconciliation rather than charging zero.
 
 ---
 
+## 2a. Stateless Responses text subset [P1]
+
+`POST /v1/responses` uses the Gateway Bearer key, not a Management session or
+provider secret. It accepts required `model` and `input` (text or bounded text
+message items), optional `instructions`, `max_output_tokens` (integer >=16),
+`temperature`, `top_p`, false/omitted `stream` and `store`, and the existing
+`uzllm` routing/BYOK/Hybrid extension. [Exact bounds and capability matrix](32_RESPONSES_API.md).
+Unknown fields, duplicate JSON properties, unsupported items/features and
+invalid bounds return 400 before reservation/dispatch; `stream=true` is not
+supported by this increment. No GET/DELETE/conversation operations exist.
+
+Output is `object: response` with a `resp_` ID, `created_at`, selected `model`,
+`status: completed|incomplete`, nullable `incomplete_details`, one assistant
+message containing output_text/refusal parts, `store: false` and nullable usage.
+Usage uses input/output/total token names plus cached/reasoning detail subsets.
+Length/content-filter endings are incomplete, not fabricated completed output.
+No top-level output_text SDK convenience is added. Sampling/output request fields
+are echoed as supplied (nullable when omitted), not invented provider defaults.
+
+All results/errors are `no-store`; existing error/status and correlation/routing
+headers apply, including 404 for unavailable models. `Idempotency-Key` UUID claims
+are scoped to organization/key/**responses** for 24 hours: repeated or changed
+bodies return 409 with the original request ID, not response replay. Chat uses a
+different operation identity. Managed/BYOK/Hybrid routing, permissions, budgets,
+wallet and operator gates are unchanged. Unknown usage returns null and retains
+the hold for reconciliation; failed finalization returns 503 finalization_pending.
+Stateless Responses storage does not disable separately consented project payload
+retention or promise upstream ZDR. Provider calls use existing chat adapters,
+not a transparent proxy to the native OpenAI Responses endpoint.
+
+---
+
 ## 3. Gateway extensions
 
 Prefer namespace-like extension to reduce collision risk:

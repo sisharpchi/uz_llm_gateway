@@ -51,6 +51,21 @@ public sealed class OpenApiWireContractTests : IDisposable
         Assert.Equal(JsonValueKind.Null, Body(context).GetProperty("usage").ValueKind);
         snapshots.Add(new("gateway", "/v1/chat/completions", "post", 200, "application/json", FixedTimestamp(Body(context))));
 
+        var responsesExample = document.RootElement.GetProperty("paths").GetProperty("/v1/responses")
+            .GetProperty("post").GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("example");
+        var responseRequest = ResponsesRequestParser.Parse(Encoding.UTF8.GetBytes(responsesExample.GetRawText()));
+        Assert.Equal("responses", responseRequest.Operation);
+        Assert.Equal(32, responseRequest.ProviderRequest.MaxOutputTokens);
+        foreach (var finish in new[] { "stop", "length", "content_filter", "unknown-usage" })
+        {
+            context = Context();
+            await new OpenAiResponsesWriter(context, responseRequest).WriteCompletionAsync(new("u", "m",
+                new("assistant", [new(ProviderContentKind.Text, "Hello")]), finish == "unknown-usage" ? "stop" : finish,
+                finish == "unknown-usage" ? null : new(12, 5, 4, 2), "provider-id",
+                finish == "content_filter" ? "Synthetic refusal" : null), "example-chat", id, CancellationToken.None);
+            snapshots.Add(new("gateway", "/v1/responses", "post", 200, "application/json", FixedTimestamp(Body(context))));
+        }
+
         foreach (var status in new[] { 400, 401, 402, 403, 409, 413, 415, 429, 502, 503 })
         {
             context = Context();
@@ -60,6 +75,7 @@ public sealed class OpenApiWireContractTests : IDisposable
             Assert.Equal(JsonValueKind.Null, Body(context).GetProperty("error").GetProperty("param").ValueKind);
             if (status == 409) Assert.Equal(id.ToString("N"), context.Response.Headers["X-Original-Request-Id"]);
             snapshots.Add(new("gateway", "/v1/chat/completions", "post", status, "application/json", Body(context)));
+            snapshots.Add(new("gateway", "/v1/responses", "post", status, "application/json", Body(context)));
         }
 
         const string org = "/management/v1/organizations/{organizationId}";
@@ -170,7 +186,7 @@ public sealed class OpenApiWireContractTests : IDisposable
         Assert.Equal("1.0.0", document.RootElement.GetProperty("info").GetProperty("version").GetString());
         var paths = document.RootElement.GetProperty("paths").EnumerateObject().Select(item => item.Name).ToArray();
         Assert.All(paths, path => Assert.StartsWith(prefix, path));
-        Assert.DoesNotContain("/v1/responses", paths);
+        if (name == "gateway") Assert.Contains("/v1/responses", paths);
         Assert.DoesNotContain("/v1/embeddings", paths);
     }
 
@@ -215,8 +231,9 @@ public sealed class OpenApiWireContractTests : IDisposable
     private static JsonElement FixedTimestamp(JsonElement value)
     {
         var node = System.Text.Json.Nodes.JsonNode.Parse(value.GetRawText())!;
-        Assert.True(node["created"]!.GetValue<long>() > 0);
-        node["created"] = 1790812800;
+        var field = node["object"]!.GetValue<string>() == "response" ? "created_at" : "created";
+        Assert.True(node[field]!.GetValue<long>() > 0);
+        node[field] = 1790812800;
         return JsonSerializer.SerializeToElement(node);
     }
 

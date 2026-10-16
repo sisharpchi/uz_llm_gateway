@@ -9,8 +9,14 @@ const validTopUpHeaders: TopUpHeaders = { 'X-CSRF-Token': 'csrf', 'Idempotency-K
 const missingReplayProof: TopUpHeaders = { 'X-CSRF-Token': 'csrf' };
 // @ts-expect-error A billing amount must not become a lossy JavaScript number.
 const invalidQuoteAmount: Parameters<typeof management.quotes>[2] = 9007199254740992;
-// @ts-expect-error Future endpoints are not advertised as implemented.
-type UnimplementedResponses = GatewayPaths['/v1/responses'];
+type ResponsesRequest = GatewayPaths['/v1/responses']['post']['requestBody']['content']['application/json'];
+const statelessResponse: ResponsesRequest = { model: 'example-chat', input: 'Hello', store: false, stream: false };
+// @ts-expect-error Responses SSE is not advertised until GATEWAY-006.
+const streamingResponse: ResponsesRequest = { model: 'example-chat', input: 'Hello', stream: true };
+// @ts-expect-error Conversation storage is not implemented.
+const storedResponse: ResponsesRequest = { model: 'example-chat', input: 'Hello', store: true };
+// @ts-expect-error Embeddings are not implemented.
+type UnimplementedEmbeddings = GatewayPaths['/v1/embeddings'];
 // @ts-expect-error The contract does not expose a DELETE session operation.
 const unsupportedSessionMethod: NonNullable<ManagementPaths['/management/v1/auth/session']['delete']> = {};
 type WalletResult = Awaited<ReturnType<typeof management.wallet>>;
@@ -73,7 +79,7 @@ const ownerInvite: InvitationRole = 'Owner';
 // @ts-expect-error Display labels are not API role codes.
 const financeRole: Parameters<typeof management.changeMemberRole>[2] = 'Billing Viewer';
 
-void [validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
+void [statelessResponse, streamingResponse, storedResponse, validTopUpHeaders, missingReplayProof, invalidQuoteAmount, unsupportedSessionMethod,
   exactWalletMoney, lossyWalletMoney, unknownUsage, csvDownload, invalidCsvDownload, invalidCsvKind,
   unrestrictedModels, denyAllModels, invalidPermission, inheritedLimits, finiteLimits, stringLimit, unsafeLease,
   projectSettings, unsafeSettings, invalidStrategy, enabledKey, deletedKey, monthlyBudget, yearlyBudget,

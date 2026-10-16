@@ -17,6 +17,22 @@ public sealed class AnthropicMessagesAdapter(HttpClient client,
     private const string ApiVersion = "2023-06-01";
     public string ProviderCode => "anthropic";
 
+    public bool Supports(ProviderChatRequest request, bool stream)
+    {
+        try
+        {
+            // Catalog supplies an omitted output ceiling at dispatch. Validate the
+            // same native translation now, without credentials or network I/O.
+            _ = AnthropicWireMapper.BuildRequest(request with { MaxOutputTokens = request.MaxOutputTokens ?? 1 },
+                "eligibility-check", stream);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or JsonException)
+        {
+            return false;
+        }
+    }
+
     public async Task<ProviderCompletion> CompleteAsync(ProviderChatRequest request,
         ProviderExecutionContext context, CancellationToken cancellationToken = default)
     {

@@ -72,6 +72,256 @@
   },
   {
     "body": {
+      "created_at": 1790812800,
+      "error": null,
+      "id": "resp_11111111111141118111111111111111",
+      "incomplete_details": null,
+      "instructions": null,
+      "max_output_tokens": 32,
+      "metadata": {},
+      "model": "example-chat",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "logprobs": [],
+              "text": "Hello",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_11111111111141118111111111111111",
+          "role": "assistant",
+          "status": "completed",
+          "type": "message"
+        }
+      ],
+      "parallel_tool_calls": false,
+      "previous_response_id": null,
+      "reasoning": {
+        "effort": null,
+        "summary": null
+      },
+      "status": "completed",
+      "store": false,
+      "temperature": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "tool_choice": "none",
+      "tools": [],
+      "top_p": null,
+      "truncation": "disabled",
+      "usage": {
+        "input_tokens": 12,
+        "input_tokens_details": {
+          "cached_tokens": 4
+        },
+        "output_tokens": 5,
+        "output_tokens_details": {
+          "reasoning_tokens": 2
+        },
+        "total_tokens": 17
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
+    "status": 200
+  },
+  {
+    "body": {
+      "created_at": 1790812800,
+      "error": null,
+      "id": "resp_11111111111141118111111111111111",
+      "incomplete_details": {
+        "reason": "max_output_tokens"
+      },
+      "instructions": null,
+      "max_output_tokens": 32,
+      "metadata": {},
+      "model": "example-chat",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "logprobs": [],
+              "text": "Hello",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_11111111111141118111111111111111",
+          "role": "assistant",
+          "status": "incomplete",
+          "type": "message"
+        }
+      ],
+      "parallel_tool_calls": false,
+      "previous_response_id": null,
+      "reasoning": {
+        "effort": null,
+        "summary": null
+      },
+      "status": "incomplete",
+      "store": false,
+      "temperature": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "tool_choice": "none",
+      "tools": [],
+      "top_p": null,
+      "truncation": "disabled",
+      "usage": {
+        "input_tokens": 12,
+        "input_tokens_details": {
+          "cached_tokens": 4
+        },
+        "output_tokens": 5,
+        "output_tokens_details": {
+          "reasoning_tokens": 2
+        },
+        "total_tokens": 17
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
+    "status": 200
+  },
+  {
+    "body": {
+      "created_at": 1790812800,
+      "error": null,
+      "id": "resp_11111111111141118111111111111111",
+      "incomplete_details": {
+        "reason": "content_filter"
+      },
+      "instructions": null,
+      "max_output_tokens": 32,
+      "metadata": {},
+      "model": "example-chat",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "logprobs": [],
+              "text": "Hello",
+              "type": "output_text"
+            },
+            {
+              "refusal": "Synthetic refusal",
+              "type": "refusal"
+            }
+          ],
+          "id": "msg_11111111111141118111111111111111",
+          "role": "assistant",
+          "status": "incomplete",
+          "type": "message"
+        }
+      ],
+      "parallel_tool_calls": false,
+      "previous_response_id": null,
+      "reasoning": {
+        "effort": null,
+        "summary": null
+      },
+      "status": "incomplete",
+      "store": false,
+      "temperature": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "tool_choice": "none",
+      "tools": [],
+      "top_p": null,
+      "truncation": "disabled",
+      "usage": {
+        "input_tokens": 12,
+        "input_tokens_details": {
+          "cached_tokens": 4
+        },
+        "output_tokens": 5,
+        "output_tokens_details": {
+          "reasoning_tokens": 2
+        },
+        "total_tokens": 17
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
+    "status": 200
+  },
+  {
+    "body": {
+      "created_at": 1790812800,
+      "error": null,
+      "id": "resp_11111111111141118111111111111111",
+      "incomplete_details": null,
+      "instructions": null,
+      "max_output_tokens": 32,
+      "metadata": {},
+      "model": "example-chat",
+      "object": "response",
+      "output": [
+        {
+          "content": [
+            {
+              "annotations": [],
+              "logprobs": [],
+              "text": "Hello",
+              "type": "output_text"
+            }
+          ],
+          "id": "msg_11111111111141118111111111111111",
+          "role": "assistant",
+          "status": "completed",
+          "type": "message"
+        }
+      ],
+      "parallel_tool_calls": false,
+      "previous_response_id": null,
+      "reasoning": {
+        "effort": null,
+        "summary": null
+      },
+      "status": "completed",
+      "store": false,
+      "temperature": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "tool_choice": "none",
+      "tools": [],
+      "top_p": null,
+      "truncation": "disabled",
+      "usage": null
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
+    "status": 200
+  },
+  {
+    "body": {
       "error": {
         "code": "example_error",
         "message": "Synthetic contract rejection",
@@ -83,6 +333,21 @@
     "mediaType": "application/json",
     "method": "post",
     "path": "/v1/chat/completions",
+    "status": 400
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
     "status": 400
   },
   {
@@ -112,7 +377,37 @@
     "document": "gateway",
     "mediaType": "application/json",
     "method": "post",
+    "path": "/v1/responses",
+    "status": 401
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
     "path": "/v1/chat/completions",
+    "status": 402
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
     "status": 402
   },
   {
@@ -142,7 +437,37 @@
     "document": "gateway",
     "mediaType": "application/json",
     "method": "post",
+    "path": "/v1/responses",
+    "status": 403
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
     "path": "/v1/chat/completions",
+    "status": 409
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
     "status": 409
   },
   {
@@ -172,7 +497,37 @@
     "document": "gateway",
     "mediaType": "application/json",
     "method": "post",
+    "path": "/v1/responses",
+    "status": 413
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
     "path": "/v1/chat/completions",
+    "status": 415
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
     "status": 415
   },
   {
@@ -202,6 +557,21 @@
     "document": "gateway",
     "mediaType": "application/json",
     "method": "post",
+    "path": "/v1/responses",
+    "status": 429
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
     "path": "/v1/chat/completions",
     "status": 502
   },
@@ -217,7 +587,37 @@
     "document": "gateway",
     "mediaType": "application/json",
     "method": "post",
+    "path": "/v1/responses",
+    "status": 502
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
     "path": "/v1/chat/completions",
+    "status": 503
+  },
+  {
+    "body": {
+      "error": {
+        "code": "example_error",
+        "message": "Synthetic contract rejection",
+        "param": null,
+        "type": "server_error"
+      }
+    },
+    "document": "gateway",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/v1/responses",
     "status": 503
   },
   {

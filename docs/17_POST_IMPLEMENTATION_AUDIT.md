@@ -146,3 +146,14 @@ separate local repository evidence from manual assistive-technology, hosted CI
 and production qualification. No server contract, financial rule or migration
 changed; operator translation is outside this task. OPS-006 remains externally
 blocked; no paid-launch gate is passed by this follow-up.
+
+## Subsequent Gateway follow-up — 2026-10-16
+
+`GATEWAY-005` adds the [bounded stateless non-streaming text Responses contract](32_RESPONSES_API.md)
+through the existing native chat adapters and financial pipeline. This supersedes
+the snapshot's statement that all Responses operations are missing; Responses
+streaming, embeddings and server-managed conversations remain unsupported.
+Operation-scoped duplicate suppression, verified/unknown evidence, cancellation,
+normalized errors and generated contract parity require the linked task evidence.
+No financial schema or accounting model is redesigned. OPS-006 and external
+provider/merchant/HA/PITR launch gates remain separate and unpassed.

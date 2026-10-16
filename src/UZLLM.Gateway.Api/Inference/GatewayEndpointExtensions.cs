@@ -26,6 +26,23 @@ public static class GatewayEndpointExtensions
             .Produces(StatusCodes.Status429TooManyRequests)
             .Produces(StatusCodes.Status502BadGateway)
             .Produces(StatusCodes.Status503ServiceUnavailable);
+        endpoints.MapPost("/v1/responses", async (HttpContext context,
+            IInferenceGateway gateway, CancellationToken cancellationToken) =>
+            await gateway.ResponsesAsync(context, cancellationToken))
+            .WithName("CreateResponse")
+            .WithSummary("Create a stateless non-streaming text Response")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status402PaymentRequired)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status409Conflict)
+            .Produces(StatusCodes.Status413PayloadTooLarge)
+            .Produces(StatusCodes.Status415UnsupportedMediaType)
+            .Produces(StatusCodes.Status429TooManyRequests)
+            .Produces(StatusCodes.Status502BadGateway)
+            .Produces(StatusCodes.Status503ServiceUnavailable);
         return endpoints;
     }
 }

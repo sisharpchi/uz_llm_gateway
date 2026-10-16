@@ -46,7 +46,7 @@ test('versioned documents cover implemented surfaces and resolve all schema refe
     visit(document);
     for (const schema of Object.values(document.components.schemas ?? {})) validator(document, schema);
   }
-  assert.deepEqual(Object.keys(documents.gateway.paths).sort(), ['/v1/chat/completions', '/v1/models']);
+  assert.deepEqual(Object.keys(documents.gateway.paths).sort(), ['/v1/chat/completions', '/v1/models', '/v1/responses']);
 });
 
 test('API-key permission contract preserves null empty deny rules and authenticated replacement', () => {
@@ -132,6 +132,29 @@ test('gateway request example and rejection boundaries agree with the bounded ch
   assert.equal(validate({ ...media.example, tools: [{ type: 'function', function: { name: 'lookup' } }] }), false);
   assert.equal(validate({ ...media.example, response_format: {} }), false);
   assert.equal(validate({ ...media.example, stop: [''] }), false);
+});
+
+test('Responses schema advertises only stateless text non-streaming with existing security and error contracts', () => {
+  const operation = documents.gateway.paths['/v1/responses'].post;
+  assert.deepEqual(operation.security, [{ GatewayKey: [] }]);
+  assert.deepEqual(Object.keys(operation.responses['200'].content), ['application/json']);
+  assert.ok(operation.responses['409'].headers['X-Original-Request-Id']);
+  assert.ok(operation.responses['429'].headers['Retry-After']);
+  for (const status of ['200', '400', '401', '402', '403', '404', '409', '413', '415', '429', '502', '503']) {
+    assert.ok(operation.responses[status]);
+    assert.deepEqual(operation.responses[status].headers['Cache-Control'].schema.enum, ['no-store']);
+  }
+  const media = operation.requestBody.content['application/json']; const validate = validator(documents.gateway, media.schema);
+  for (const value of [media.example, { model: 'example-chat', input: [{ role: 'user', content: [{ type: 'input_text', text: 'Hello' }] }], instructions: 'Guide', stream: false }])
+    assert.ok(validate(value), JSON.stringify(validate.errors));
+  for (const value of [{ stream: true }, { store: true }, { tools: [] }, { previous_response_id: 'resp_old' },
+    { input: [] }, { input: '' }, { max_output_tokens: 15 }, { max_output_tokens: '32' }, { max_output_tokens: 2147483648 },
+    { input: [{ role: 'tool', content: 'x' }] }, { input: [{ role: 'user', content: [{ type: 'input_image', image_url: 'https://example.test/image' }] }] }])
+    assert.equal(validate({ ...media.example, ...value }), false, JSON.stringify(value));
+  const examples = read('examples.json').filter(item => item.path === '/v1/responses' && item.status === 200);
+  assert.equal(examples.length, 4);
+  assert.ok(examples.some(item => item.body.usage === null));
+  assert.ok(examples.some(item => item.body.status === 'incomplete' && item.body.incomplete_details.reason === 'max_output_tokens'));
 });
 
 test('usage rollup wire keeps gross refunds and net amounts distinct and reports lag', () => {

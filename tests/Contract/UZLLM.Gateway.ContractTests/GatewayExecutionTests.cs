@@ -1390,6 +1390,11 @@ public sealed partial class GatewayExecutionTests
         }
 
         public Task RunAsync() => gateway.ChatAsync(Context, Context.RequestAborted);
+        public Task RunResponsesAsync(string json = "{\"model\":\"gpt-test\",\"input\":\"Hello\",\"max_output_tokens\":32}")
+        {
+            Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            return gateway.ResponsesAsync(Context, Context.RequestAborted);
+        }
         public Task ListAsync() => gateway.ListModelsAsync(Context, Context.RequestAborted);
         public void UseByok(bool allowManagedFallback, bool priceRouting = false,
             string providerCode = "openai", bool stream = false)
@@ -1603,6 +1608,7 @@ public sealed partial class GatewayExecutionTests
         public int Reserves, ManagedReserves, ByokReserves, Finalizes, Releases;
         public UsdMicroAmount? LastMaximum;
         public ByokAdmissionInput? LastByokInput;
+        public PrepareUsageRequest? LastPrepare;
         public AdmissionStatus NextAdmission = AdmissionStatus.Reserved;
         public FinalizationStatus NextFinalization = FinalizationStatus.Settled;
         public Exception? ReserveFailure, FinalizationFailure;
@@ -1611,6 +1617,7 @@ public sealed partial class GatewayExecutionTests
         {
             Reserves++;
             ManagedReserves++;
+            LastPrepare = input.Request;
             LastMaximum = input.MaximumCharge;
             if (ReserveFailure is not null) throw ReserveFailure;
             var reservation = NextAdmission == AdmissionStatus.Reserved
@@ -1663,6 +1670,7 @@ public sealed partial class GatewayExecutionTests
         public Guid? VerifiedPriceId;
         public ExecutionState? AttemptFinalState;
         public ClaimResult? ExistingClaim;
+        public string? LastOperation;
         public Task<UsageAttempt> StartAttemptAsync(Guid id, Guid providerModelId,
             CancellationToken cancellationToken = default)
         { Attempts++; return Task.FromResult(new UsageAttempt(Guid.NewGuid(), requestId, Attempts, providerModelId,
@@ -1686,7 +1694,8 @@ public sealed partial class GatewayExecutionTests
         public Task<ClaimResult> ResolveDuplicateAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClaimResult?> FindExistingClaimAsync(Guid organizationId, Guid apiKeyId,
             string operation, string idempotencyKey, byte[] payloadHash,
-            CancellationToken cancellationToken = default) => Task.FromResult(ExistingClaim);
+            CancellationToken cancellationToken = default)
+        { LastOperation = operation; return Task.FromResult(ExistingClaim); }
         public Task<UsageRequest?> FindRequestAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<UsageEvidence>> ListEvidenceAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
@@ -1700,6 +1709,7 @@ public sealed partial class GatewayExecutionTests
         public ProviderCompletion? Completion;
         public ProviderError? Error;
         public ProviderError? ByokError;
+        public Action? BeforeComplete;
         public ProviderExecutionContext? LastContext;
         public int? LastMaxOutputTokens;
         public IReadOnlyList<ProviderStreamEvent> StreamItems = [];
@@ -1710,6 +1720,7 @@ public sealed partial class GatewayExecutionTests
             ProviderExecutionContext context, CancellationToken cancellationToken = default)
         {
             CompleteCalls++;
+            BeforeComplete?.Invoke();
             LastContext = context;
             LastMaxOutputTokens = request.MaxOutputTokens;
             if (Error is not null) throw new ProviderExecutionException(Error);
