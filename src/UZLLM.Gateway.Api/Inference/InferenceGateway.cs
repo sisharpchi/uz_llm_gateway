@@ -801,6 +801,8 @@ public sealed class InferenceGateway(
                                     ? parsed.Model : candidate.Model.CanonicalCode,
                                 reservation.RequestId, deadline.Token);
                         }
+                        if (providerError is null && writer is OpenAiResponsesWriter responsesWriter)
+                            responsesWriter.ValidateStreamEnd();
                         completed = providerError is null;
                     }
                     else
@@ -820,7 +822,7 @@ public sealed class InferenceGateway(
                 catch (ProviderExecutionException exception)
                 {
                     providerError = exception.Error;
-                    providerRequestId = exception.Error.ProviderRequestId;
+                    providerRequestId = exception.Error.ProviderRequestId ?? providerRequestId;
                 }
                 attemptTimer.Stop();
                 var providerMetric = new GatewayTelemetryContext(providerError is null ? "success" : "error",
@@ -863,7 +865,7 @@ public sealed class InferenceGateway(
         catch (ProviderExecutionException exception)
         {
             providerError = exception.Error;
-            providerRequestId = exception.Error.ProviderRequestId;
+            providerRequestId = exception.Error.ProviderRequestId ?? providerRequestId;
         }
         catch (GatewayRequestException exception)
         {
@@ -888,6 +890,7 @@ public sealed class InferenceGateway(
                 await RecordHealthAsync(healthPermit, null, false);
         }
 
+        if (writer is OpenAiResponsesWriter { HasInvalidUsageEvidence: true }) providerUsage = null;
         if (providerError is not null)
         {
             if (writer.Started && providerError.Certainty != ProviderExecutionCertainty.Unknown)

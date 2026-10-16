@@ -70,13 +70,75 @@ public sealed class ResponsesAdapterContractTests
         Assert.Equal(3, response.RootElement.GetProperty("usage").GetProperty("total_tokens").GetInt32());
     }
 
+    [Theory]
+    [InlineData("openai", false)]
+    [InlineData("anthropic", false)]
+    [InlineData("google", false)]
+    [InlineData("deepseek", false)]
+    [InlineData("openai", true)]
+    [InlineData("anthropic", true)]
+    [InlineData("google", true)]
+    [InlineData("deepseek", true)]
+    public async Task Responses_SSE_native_adapters_translate_incrementally_and_reject_truncated_protocol(string provider, bool truncated)
+    {
+        var parsed = ResponsesRequestParser.Parse(Encoding.UTF8.GetBytes("""{"model":"m","input":"Hello","stream":true,"max_output_tokens":32}"""));
+        var first = provider switch {
+            "anthropic" => "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":2,\"output_tokens\":0}}}\n\n"
+                + "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n",
+            "google" => "data: {\"responseId\":\"up\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}]}}]}\n\n",
+            _ => "data: {\"id\":\"up\",\"model\":\"model\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\n" };
+        var last = provider switch {
+            "anthropic" => "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n"
+                + "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+            "google" => "data: {\"responseId\":\"up\",\"candidates\":[{\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":2,\"candidatesTokenCount\":1,\"totalTokenCount\":3}}\n\n",
+            _ => "data: {\"id\":\"up\",\"model\":\"model\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n"
+                + "data: {\"id\":\"up\",\"model\":\"model\",\"object\":\"chat.completion.chunk\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":2,\"completion_tokens\":1,\"total_tokens\":3}}\n\ndata: [DONE]\n\n" };
+        using var handler = new NativeFixture(first + (truncated ? "" : last), true);
+        var address = provider switch { "openai" => OpenAiAdapterOptions.Production.BaseAddress,
+            "anthropic" => AnthropicAdapterOptions.Production.BaseAddress, "google" => GoogleAdapterOptions.Production.BaseAddress,
+            _ => DeepSeekAdapterOptions.Production.BaseAddress };
+        using var client = new HttpClient(handler) { BaseAddress = address, Timeout = Timeout.InfiniteTimeSpan };
+        var credentials = new FixtureCredentials();
+        ILlmProviderAdapter adapter = provider switch {
+            "openai" => new OpenAiChatAdapter(client, credentials, new(client.BaseAddress)),
+            "anthropic" => new AnthropicMessagesAdapter(client, credentials, new(client.BaseAddress)),
+            "google" => new GoogleContentAdapter(client, credentials, new(client.BaseAddress)),
+            _ => new DeepSeekChatAdapter(client, credentials, new(client.BaseAddress)) };
+        var context = new DefaultHttpContext(); context.Response.Body = new MemoryStream();
+        var writer = new OpenAiResponsesWriter(context, parsed); var id = Guid.NewGuid();
+        async Task ExecuteAsync()
+        {
+            await foreach (var item in adapter.StreamAsync(parsed.ProviderRequest,
+                new(id, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "model", TimeSpan.FromSeconds(5))))
+            {
+                if (item.Kind == ProviderStreamKind.Finish)
+                    Assert.Contains("response.output_text.delta", Encoding.UTF8.GetString(((MemoryStream)context.Response.Body).ToArray()));
+                await writer.WriteStreamEventAsync(item, "m", id, CancellationToken.None);
+            }
+            writer.ValidateStreamEnd();
+        }
+        if (truncated)
+        {
+            var error = await Assert.ThrowsAsync<ProviderExecutionException>(ExecuteAsync);
+            Assert.Equal(ProviderExecutionCertainty.Unknown, error.Error.Certainty);
+            await writer.WriteStreamErrorAsync("Provider stream failed.", "provider_error", CancellationToken.None);
+        }
+        else { await ExecuteAsync(); await writer.FinishStreamAsync(CancellationToken.None); }
+        var events = GatewayExecutionTests.ResponsesEvents(Encoding.UTF8.GetString(((MemoryStream)context.Response.Body).ToArray()));
+        Assert.Contains(events, value => value.GetProperty("type").GetString() == "response.output_text.delta");
+        Assert.Equal(truncated ? "response.failed" : "response.completed", events[^1].GetProperty("type").GetString());
+        if (!truncated) Assert.Equal(3, events[^1].GetProperty("response").GetProperty("usage").GetProperty("total_tokens").GetInt32());
+        Assert.True(adapter.Supports(parsed.ProviderRequest, true));
+        Assert.Equal(1, handler.Calls);
+    }
+
     private sealed class FixtureCredentials : IProviderCredentialResolver
     {
         public Task<string?> ResolvePlatformSecretAsync(Guid credentialId, Guid providerId, CancellationToken cancellationToken = default) =>
             Task.FromResult<string?>("synthetic-adapter-fixture-key");
     }
 
-    private sealed class NativeFixture(string json) : HttpMessageHandler
+    private sealed class NativeFixture(string json, bool stream = false) : HttpMessageHandler
     {
         public int Calls;
         public string? RequestBody;
@@ -84,7 +146,7 @@ public sealed class ResponsesAdapterContractTests
         {
             Calls++;
             RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
-            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, stream ? "text/event-stream" : "application/json") };
             response.Headers.TryAddWithoutValidation("x-request-id", "fixture-request-id");
             response.Headers.TryAddWithoutValidation("request-id", "fixture-request-id");
             return response;

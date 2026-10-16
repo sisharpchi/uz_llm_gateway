@@ -1484,6 +1484,56 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         Assert.Equal(0, state.Wallet.ReservedBalance.Value);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Responses_SSE_disconnect_keeps_durable_evidence_and_recovers_exactly_one_charge(bool knownUsage)
+    {
+        await ResetAsync();
+        var seed = await SeedAsync(); await CreditAsync(seed.OrganizationId, 100_000);
+        var admission = Admission(seed, 30_000, Guid.NewGuid().ToString(), operation: "responses");
+        admission = admission with { Request = admission.Request with { IsStream = true } };
+        Guid reservationId, requestId, attemptId;
+        var clock = new MutableFinancialClock(Start);
+        await using (var provider = fixture.CreateServiceProvider())
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var financial = Financial(scope.ServiceProvider, clock); var usage = Usage(scope.ServiceProvider, clock);
+            var admitted = await financial.ReserveAsync(admission);
+            reservationId = admitted.Reservation!.Id; requestId = admitted.RequestId!.Value;
+            var attempt = await usage.StartAttemptAsync(requestId, seed.ProviderModelId); attemptId = attempt.Id;
+            Assert.True(await usage.MarkDispatchedAsync(attemptId));
+            if (knownUsage) Assert.NotNull(await usage.RecordVerifiedAsync(new(requestId, attemptId,
+                EvidenceSource.Provider, 12, 5, 0, 2, seed.PriceId, "disconnected-stream")));
+            else Assert.NotNull(await usage.RecordUnknownAsync(requestId, attemptId));
+            Assert.True(await usage.FinishAttemptAsync(attemptId, knownUsage ? ExecutionState.Failed : ExecutionState.OutcomeUnknown,
+                "disconnected-stream", null));
+            Assert.True(await usage.FinishRequestAsync(requestId, ExecutionState.Canceled, DeliveryState.ClientDisconnected, 499, "deterministic:openai"));
+            // Dispose the request scope before settlement, modeling a crash after durable evidence.
+        }
+        await using var recovery = fixture.CreateServiceProvider(); await using var recoveryScope = recovery.CreateAsyncScope();
+        var recoveredFinance = Financial(recoveryScope.ServiceProvider, clock); var recoveredUsage = Usage(recoveryScope.ServiceProvider, clock);
+        Assert.Equal(knownUsage ? FinalizationStatus.Settled : FinalizationStatus.PendingEvidence,
+            (await recoveredFinance.FinalizeAsync(reservationId)).Status);
+        if (!knownUsage)
+        {
+            Assert.Equal(30_000, (await recoveredFinance.GetWalletStateAsync(seed.OrganizationId))!.Wallet.ReservedBalance.Value);
+            Assert.NotNull(await recoveredUsage.RecordVerifiedAsync(new(requestId, attemptId, EvidenceSource.Reconciled,
+                12, 5, 0, 2, seed.PriceId, "late-stream-usage")));
+            Assert.Equal(FinalizationStatus.Settled, (await recoveredFinance.FinalizeAsync(reservationId)).Status);
+        }
+        Assert.Equal(FinalizationStatus.AlreadyFinalized, (await recoveredFinance.FinalizeAsync(reservationId)).Status);
+        Assert.Equal(AdmissionStatus.Duplicate, (await recoveredFinance.ReserveAsync(admission)).Status);
+        var wallet = (await recoveredFinance.GetWalletStateAsync(seed.OrganizationId))!.Wallet;
+        Assert.Equal(99_983, wallet.PostedBalance.Value); Assert.Equal(0, wallet.ReservedBalance.Value);
+        var request = (await recoveredUsage.FindRequestAsync(requestId))!;
+        Assert.True(request.IsStream); Assert.Equal("responses", request.Operation);
+        Assert.Equal(DeliveryState.ClientDisconnected, request.Delivery);
+        var db = recoveryScope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+        Assert.Equal(1, await db.Set<BillingSettlementEntity>().CountAsync());
+        Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>().CountAsync(value => value.Type == "UsageCharge"));
+    }
+
     private async Task<BillingSeed> SeedAsync(string extraPricingJson = "{}")
     {
         await using var provider = fixture.CreateServiceProvider();

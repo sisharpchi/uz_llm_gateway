@@ -6,8 +6,10 @@ Task validation evidence: [DX-002 validation](VALIDATION.md).
 implemented `/v1` and `/management/v1` surfaces (OpenAPI 3.1.1, contract 1.0.0).
 Native payment/Telegram callbacks and health endpoints are not Management
 client operations; their protocols remain documented in `../11_API_CONTRACTS.md`.
-`/v1/responses` exposes only the [stateless non-streaming text subset](../32_RESPONSES_API.md)
-from GATEWAY-005. Responses SSE, conversation storage and embeddings remain absent.
+`/v1/responses` exposes the [stateless text subset](../32_RESPONSES_API.md)
+and [Responses SSE lifecycle](../33_RESPONSES_SSE.md). Conversation storage and
+embeddings remain absent. `ResponsesStreamEvent` describes the named SSE payloads;
+serializer-derived SSE fixtures are validated frame-by-frame, not merely as strings.
 
 ## Regeneration and drift checks
 

@@ -1,6 +1,6 @@
 import { management } from '../../packages/api-client';
 import type { paths as ManagementPaths } from '../../packages/api-client/generated/management-v1';
-import type { paths as GatewayPaths } from '../../packages/api-client/generated/gateway-v1';
+import type { paths as GatewayPaths, components as GatewayComponents } from '../../packages/api-client/generated/gateway-v1';
 
 // Compile-only fixtures: unused @ts-expect-error directives fail tsc if a guard disappears.
 type TopUpHeaders = ManagementPaths['/management/v1/organizations/{organizationId}/billing/topups']['post']['parameters']['header'];
@@ -11,8 +11,13 @@ const missingReplayProof: TopUpHeaders = { 'X-CSRF-Token': 'csrf' };
 const invalidQuoteAmount: Parameters<typeof management.quotes>[2] = 9007199254740992;
 type ResponsesRequest = GatewayPaths['/v1/responses']['post']['requestBody']['content']['application/json'];
 const statelessResponse: ResponsesRequest = { model: 'example-chat', input: 'Hello', store: false, stream: false };
-// @ts-expect-error Responses SSE is not advertised until GATEWAY-006.
 const streamingResponse: ResponsesRequest = { model: 'example-chat', input: 'Hello', stream: true };
+type ResponsesEvent = GatewayComponents['schemas']['ResponsesStreamEvent'];
+const textDelta: ResponsesEvent = { type: 'response.output_text.delta', sequence_number: 0,
+  item_id: 'msg_example', output_index: 0, content_index: 0, delta: 'Hello', logprobs: [] };
+// @ts-expect-error Tool streaming is outside the supported Responses subset.
+const unsupportedResponseEvent: ResponsesEvent = { type: 'response.function_call_arguments.delta', sequence_number: 1 };
+void [textDelta, unsupportedResponseEvent];
 // @ts-expect-error Conversation storage is not implemented.
 const storedResponse: ResponsesRequest = { model: 'example-chat', input: 'Hello', store: true };
 // @ts-expect-error Embeddings are not implemented.

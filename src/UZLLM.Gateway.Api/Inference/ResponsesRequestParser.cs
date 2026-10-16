@@ -17,13 +17,13 @@ public static class ResponsesRequestParser
             foreach (var field in new[] { "stream", "store" })
                 if (root.TryGetProperty(field, out var value))
                 {
-                    if (value.ValueKind == JsonValueKind.True)
+                    if (field == "store" && value.ValueKind == JsonValueKind.True)
                         throw new GatewayRequestException($"{field}=true is not supported.", "unsupported_parameter");
-                    if (value.ValueKind != JsonValueKind.False)
-                        throw new GatewayRequestException($"{field} must be false or omitted.");
+                    if (value.ValueKind is not (JsonValueKind.False or JsonValueKind.True))
+                        throw new GatewayRequestException($"{field} must be a boolean.");
                 }
             var converted = new JsonObject();
-            foreach (var field in new[] { "model", "temperature", "top_p", "uzllm" })
+            foreach (var field in new[] { "model", "temperature", "top_p", "uzllm", "stream" })
                 if (root.TryGetProperty(field, out var value))
                     converted[field] = JsonNode.Parse(value.GetRawText());
             if (root.TryGetProperty("uzllm", out var extension))

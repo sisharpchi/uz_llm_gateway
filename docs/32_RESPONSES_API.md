@@ -2,6 +2,11 @@
 
 ## Scope and compatibility
 
+This document preserves GATEWAY-005's non-streaming increment and historical
+validation. GATEWAY-006 subsequently enables `stream=true` for the same input
+subset; its [SSE contract and evidence](33_RESPONSES_SSE.md) supersede the stream
+rejection/unsupported statements below without changing stored-state restrictions.
+
 FR-043, FR-046/047/050–053/075–077/100–106/130–132; NFR-030–035/040–046/
 050/060–063/066/070–084; ADR-004/007/010/020/022/024.
 User explicitly selected this P1 task while OPS-006 remains externally blocked.

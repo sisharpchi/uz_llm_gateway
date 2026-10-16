@@ -17,9 +17,10 @@ corrective work; [production readiness](docs/18_PRODUCTION_READINESS.md)
 separates repository evidence from live merchant/provider and infrastructure
 prerequisites. This is not yet a paid-launch claim.
 
-`POST /v1/responses` adds a stateless non-streaming text subset through the same
+`POST /v1/responses` adds a stateless text JSON/SSE subset through the same
 provider, authorization and financial pipeline. Unsupported features are rejected,
-not silently ignored. [Capability matrix and accounting semantics](docs/32_RESPONSES_API.md).
+not silently ignored. [Input capability matrix](docs/32_RESPONSES_API.md) and
+[SSE lifecycle/accounting semantics](docs/33_RESPONSES_SSE.md).
 
 Usage analytics now uses durable hourly read models with a five-second Worker
 poll, live partial-hour reads, explicit backlog/freshness and gross/refund/net

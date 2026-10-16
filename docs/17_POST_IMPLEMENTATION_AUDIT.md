@@ -152,7 +152,9 @@ blocked; no paid-launch gate is passed by this follow-up.
 `GATEWAY-005` adds the [bounded stateless non-streaming text Responses contract](32_RESPONSES_API.md)
 through the existing native chat adapters and financial pipeline. This supersedes
 the snapshot's statement that all Responses operations are missing; Responses
-streaming, embeddings and server-managed conversations remain unsupported.
+streaming was subsequently delivered by `GATEWAY-006`
+([SSE lifecycle and evidence](33_RESPONSES_SSE.md)); embeddings and server-managed
+conversations remain unsupported.
 Operation-scoped duplicate suppression, verified/unknown evidence, cancellation,
 normalized errors and generated contract parity require the linked task evidence.
 No financial schema or accounting model is redesigned. OPS-006 and external

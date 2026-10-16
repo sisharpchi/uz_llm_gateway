@@ -213,13 +213,32 @@ test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async
   expect(responseReplay.response.headers()['x-original-request-id']).toBe(response.response.headers()['x-request-id']);
   const changedReplay = await json(request, 'post', '/v1/responses', { data: { ...responseRequest, input: 'Different' }, headers: responseHeaders });
   expect(changedReplay.response.status()).toBe(409);
-  const unsupportedResponse = await json(request, 'post', '/v1/responses', { data: { ...responseRequest, stream: true }, headers: { Authorization: `Bearer ${gatewaySecret}` } });
-  expect(unsupportedResponse.response.status()).toBe(400);
-  expect(unsupportedResponse.body.error.code).toBe('unsupported_parameter');
+  // GATEWAY-006: read incrementally in the real browser through TLS/edge, not APIRequestContext's buffered body.
+  const streamHeaders = { Authorization: `Bearer ${gatewaySecret}`, 'Idempotency-Key': randomUUID() };
+  const responseStream = await page.evaluate(async ({ responseRequest, streamHeaders }) => {
+    const response = await fetch('/v1/responses', { method: 'POST', headers: { ...streamHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...responseRequest, stream: true }) });
+    const reader = response.body!.getReader(); const decoder = new TextDecoder(); let body = ''; let incremental = false;
+    while (true) {
+      const chunk = await reader.read(); if (chunk.done) break;
+      body += decoder.decode(chunk.value, { stream: true });
+      if (body.includes('event: response.output_text.delta') && !body.includes('event: response.completed')) incremental = true;
+    }
+    return { status: response.status, contentType: response.headers.get('content-type'), cache: response.headers.get('cache-control'), body, incremental };
+  }, { responseRequest, streamHeaders });
+  expect(responseStream.status).toBe(200); expect(responseStream.incremental).toBe(true);
+  expect(responseStream.contentType).toContain('text/event-stream'); expect(responseStream.cache).toBe('no-store');
+  expect(responseStream.body).not.toContain('[DONE]');
+  const responseEvents = responseStream.body.trim().split('\n\n').map(frame => JSON.parse(frame.split('\n')[1].slice(6)));
+  expect(responseEvents.map(event => event.sequence_number)).toEqual(responseEvents.map((_, index) => index));
+  expect(responseEvents.at(-1).type).toBe('response.completed');
+  expect(responseEvents.at(-1).response.output[0].content[0].text).toBe('Fixture complete.');
+  expect(responseEvents.at(-1).response.usage.total_tokens).toBe(11);
+  expect((await json(request, 'post', '/v1/responses', { data: { ...responseRequest, stream: true }, headers: streamHeaders })).response.status()).toBe(409);
   const responseWallet = await json(request, 'get', walletPath);
-  expect(responseWallet.body.postedBalanceMicroUsd).toBe('10999967');
+  expect(responseWallet.body.postedBalanceMicroUsd).toBe('10999956');
   expect(responseWallet.body.reservedBalanceMicroUsd).toBe('0');
-  await expect.poll(async () => (await json(request, 'get', activityPath)).body.items.length).toBe(3);
+  await expect.poll(async () => (await json(request, 'get', activityPath)).body.items.length).toBe(4);
   const responseActivity = (await json(request, 'get', activityPath)).body.items;
   expect(responseActivity.every((item: { chargedMicroUsd: string }) => item.chargedMicroUsd === '11')).toBe(true);
   // The new path inherits the same real key permission gate, with no extra debit.
@@ -228,7 +247,7 @@ test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async
   expect(denyResponse.status()).toBe(204);
   const deniedResponse = await json(request, 'post', '/v1/responses', { data: responseRequest, headers: { Authorization: `Bearer ${gatewaySecret}` } });
   expect(deniedResponse.response.status()).toBe(403);
-  expect((await json(request, 'get', walletPath)).body.postedBalanceMicroUsd).toBe('10999967');
+  expect((await json(request, 'get', walletPath)).body.postedBalanceMicroUsd).toBe('10999956');
   expect((await request.put(base + keyPermissionPath, { headers: auth, data: {} })).status()).toBe(204);
 
   // FRONTEND-006: real UI commands through TLS edge/session/CSRF/PostgreSQL.

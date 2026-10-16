@@ -134,10 +134,10 @@ test('gateway request example and rejection boundaries agree with the bounded ch
   assert.equal(validate({ ...media.example, stop: [''] }), false);
 });
 
-test('Responses schema advertises only stateless text non-streaming with existing security and error contracts', () => {
+test('Responses schema advertises stateless text JSON/SSE with existing security and error contracts', () => {
   const operation = documents.gateway.paths['/v1/responses'].post;
   assert.deepEqual(operation.security, [{ GatewayKey: [] }]);
-  assert.deepEqual(Object.keys(operation.responses['200'].content), ['application/json']);
+  assert.deepEqual(Object.keys(operation.responses['200'].content), ['application/json', 'text/event-stream']);
   assert.ok(operation.responses['409'].headers['X-Original-Request-Id']);
   assert.ok(operation.responses['429'].headers['Retry-After']);
   for (const status of ['200', '400', '401', '402', '403', '404', '409', '413', '415', '429', '502', '503']) {
@@ -145,16 +145,38 @@ test('Responses schema advertises only stateless text non-streaming with existin
     assert.deepEqual(operation.responses[status].headers['Cache-Control'].schema.enum, ['no-store']);
   }
   const media = operation.requestBody.content['application/json']; const validate = validator(documents.gateway, media.schema);
-  for (const value of [media.example, { model: 'example-chat', input: [{ role: 'user', content: [{ type: 'input_text', text: 'Hello' }] }], instructions: 'Guide', stream: false }])
+  for (const value of [media.example, { ...media.example, stream: true }, { model: 'example-chat', input: [{ role: 'user', content: [{ type: 'input_text', text: 'Hello' }] }], instructions: 'Guide', stream: false }])
     assert.ok(validate(value), JSON.stringify(validate.errors));
-  for (const value of [{ stream: true }, { store: true }, { tools: [] }, { previous_response_id: 'resp_old' },
+  for (const value of [{ stream: 'true' }, { store: true }, { tools: [] }, { previous_response_id: 'resp_old' },
     { input: [] }, { input: '' }, { max_output_tokens: 15 }, { max_output_tokens: '32' }, { max_output_tokens: 2147483648 },
     { input: [{ role: 'tool', content: 'x' }] }, { input: [{ role: 'user', content: [{ type: 'input_image', image_url: 'https://example.test/image' }] }] }])
     assert.equal(validate({ ...media.example, ...value }), false, JSON.stringify(value));
-  const examples = read('examples.json').filter(item => item.path === '/v1/responses' && item.status === 200);
+  const examples = read('examples.json').filter(item => item.path === '/v1/responses' && item.status === 200 && item.mediaType === 'application/json');
   assert.equal(examples.length, 4);
   assert.ok(examples.some(item => item.body.usage === null));
   assert.ok(examples.some(item => item.body.status === 'incomplete' && item.body.incomplete_details.reason === 'max_output_tokens'));
+});
+
+test('Responses SSE serializer fixtures match named event schemas and terminal usage semantics', () => {
+  const fixtures = read('examples.json').filter(item => item.path === '/v1/responses' && item.mediaType === 'text/event-stream');
+  assert.equal(fixtures.length, 5);
+  const validate = validator(documents.gateway, documents.gateway.components.schemas.ResponsesStreamEvent);
+  const terminals = [];
+  for (const fixture of fixtures) {
+    assert.equal(fixture.body.includes('[DONE]'), false);
+    const events = fixture.body.trim().split('\n\n').map((frame, index) => {
+      const [name, data] = frame.split('\n'); const event = JSON.parse(data.slice(6));
+      assert.equal(name, 'event: ' + event.type); assert.equal(event.sequence_number, index);
+      assert.ok(validate(event), JSON.stringify(validate.errors)); return event;
+    });
+    assert.equal(events[0].type, 'response.created');
+    terminals.push(events.at(-1));
+  }
+  assert.ok(terminals.some(event => event.type === 'response.completed' && event.response.usage === null));
+  assert.ok(terminals.some(event => event.type === 'response.incomplete' && event.response.incomplete_details.reason === 'max_output_tokens'));
+  assert.ok(terminals.some(event => event.type === 'response.failed' && event.response.error.code === 'finalization_pending'));
+  assert.equal(validate({ type: 'response.output_text.delta', sequence_number: 0 }), false);
+  assert.equal(validate({ type: 'response.tool_call.delta', sequence_number: 0 }), false);
 });
 
 test('usage rollup wire keeps gross refunds and net amounts distinct and reports lag', () => {

@@ -30,7 +30,7 @@ public static class GatewayEndpointExtensions
             IInferenceGateway gateway, CancellationToken cancellationToken) =>
             await gateway.ResponsesAsync(context, cancellationToken))
             .WithName("CreateResponse")
-            .WithSummary("Create a stateless non-streaming text Response")
+            .WithSummary("Create a stateless text Response or Responses SSE stream")
             .Produces(StatusCodes.Status200OK)
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized)

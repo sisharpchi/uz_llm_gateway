@@ -38,7 +38,7 @@ public sealed partial class GatewayExecutionTests
     }
 
     [Theory]
-    [InlineData("\"stream\":true")]
+    [InlineData("\"stream\":\"true\"")]
     [InlineData("\"store\":true")]
     [InlineData("\"previous_response_id\":\"resp_old\"")]
     [InlineData("\"conversation\":\"conv_old\"")]

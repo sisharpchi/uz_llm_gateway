@@ -47,8 +47,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create a stateless non-streaming text Response
-         * @description Stateless non-streaming text Responses subset, translated through existing chat adapters. input accepts text or 1–256 text message items (including instructions). stream/store must be false or omitted; no conversation retrieval, tools, vision, structured-output or reasoning controls. Unsupported fields return 400 before reservation/dispatch. Missing usage is null and remains pending evidence, not zero cost. Existing authorization, limits, routing, BYOK/Hybrid consent and financial controls apply. Idempotency operation is responses, separate from chat.completions.
+         * Create a stateless text Response or Responses SSE stream
+         * @description Stateless text Responses JSON/SSE subset, translated through existing chat adapters. input accepts text or 1–256 text message items (including instructions). stream is optional boolean; store must be false or omitted; no conversation retrieval, tools, vision, structured-output or reasoning controls. Unsupported fields return 400 before reservation/dispatch. Missing usage is null and remains pending evidence, not zero cost. Existing authorization, limits, routing, BYOK/Hybrid consent and financial controls apply. Idempotency operation is responses, separate from chat.completions.
          */
         post: operations["CreateResponse"];
         delete?: never;
@@ -60,7 +60,181 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        ResponsesStreamEvent: {
+            response: {
+                /** Format: int64 */
+                created_at: number;
+                error: null | {
+                    code: string;
+                    message: string;
+                };
+                id: string;
+                incomplete_details: null | {
+                    /** @enum {string} */
+                    reason: "max_output_tokens" | "content_filter";
+                };
+                instructions?: null | string;
+                /** Format: int64 */
+                max_output_tokens?: null | number;
+                metadata?: Record<string, never>;
+                model: string;
+                /** @enum {string} */
+                object: "response";
+                output: {
+                    content: ({
+                        annotations: Record<string, never>[];
+                        logprobs: Record<string, never>[];
+                        text: string;
+                        /** @enum {string} */
+                        type: "output_text";
+                    } | {
+                        refusal: string;
+                        /** @enum {string} */
+                        type: "refusal";
+                    })[];
+                    id: string;
+                    /** @enum {string} */
+                    role: "assistant";
+                    /** @enum {string} */
+                    status: "in_progress" | "completed" | "incomplete";
+                    /** @enum {string} */
+                    type: "message";
+                }[];
+                /** @enum {boolean} */
+                parallel_tool_calls?: false;
+                previous_response_id?: null;
+                reasoning?: {
+                    effort: null;
+                    summary: null;
+                };
+                /** @enum {string} */
+                status: "in_progress" | "completed" | "incomplete" | "failed";
+                /** @enum {boolean} */
+                store: false;
+                temperature?: null | number;
+                text?: {
+                    format: {
+                        /** @enum {string} */
+                        type: "text";
+                    };
+                };
+                /** @enum {string} */
+                tool_choice?: "none";
+                tools?: Record<string, never>[];
+                top_p?: null | number;
+                /** @enum {string} */
+                truncation?: "disabled";
+                usage: null | {
+                    /** Format: int64 */
+                    input_tokens: number;
+                    input_tokens_details: {
+                        /** Format: int64 */
+                        cached_tokens: number;
+                    };
+                    /** Format: int64 */
+                    output_tokens: number;
+                    output_tokens_details: {
+                        /** Format: int64 */
+                        reasoning_tokens: number;
+                    };
+                    /** Format: int64 */
+                    total_tokens: number;
+                };
+            };
+            sequence_number: number;
+            /** @enum {string} */
+            type: "response.created" | "response.in_progress" | "response.completed" | "response.incomplete" | "response.failed";
+        } | {
+            item: {
+                content: ({
+                    annotations: Record<string, never>[];
+                    logprobs: Record<string, never>[];
+                    text: string;
+                    /** @enum {string} */
+                    type: "output_text";
+                } | {
+                    refusal: string;
+                    /** @enum {string} */
+                    type: "refusal";
+                })[];
+                id: string;
+                /** @enum {string} */
+                role: "assistant";
+                /** @enum {string} */
+                status: "in_progress" | "completed" | "incomplete";
+                /** @enum {string} */
+                type: "message";
+            };
+            /** Format: int64 */
+            output_index: number;
+            sequence_number: number;
+            /** @enum {string} */
+            type: "response.output_item.added" | "response.output_item.done";
+        } | {
+            /** Format: int64 */
+            content_index: number;
+            item_id: string;
+            /** Format: int64 */
+            output_index: number;
+            part: {
+                annotations: Record<string, never>[];
+                logprobs: Record<string, never>[];
+                text: string;
+                /** @enum {string} */
+                type: "output_text";
+            } | {
+                refusal: string;
+                /** @enum {string} */
+                type: "refusal";
+            };
+            sequence_number: number;
+            /** @enum {string} */
+            type: "response.content_part.added" | "response.content_part.done";
+        } | {
+            /** Format: int64 */
+            content_index: number;
+            delta: string;
+            item_id: string;
+            logprobs: Record<string, never>[];
+            /** Format: int64 */
+            output_index: number;
+            sequence_number: number;
+            /** @enum {string} */
+            type: "response.output_text.delta";
+        } | {
+            /** Format: int64 */
+            content_index: number;
+            delta: string;
+            item_id: string;
+            /** Format: int64 */
+            output_index: number;
+            sequence_number: number;
+            /** @enum {string} */
+            type: "response.refusal.delta";
+        } | {
+            /** Format: int64 */
+            content_index: number;
+            item_id: string;
+            logprobs: Record<string, never>[];
+            /** Format: int64 */
+            output_index: number;
+            sequence_number: number;
+            text: string;
+            /** @enum {string} */
+            type: "response.output_text.done";
+        } | {
+            /** Format: int64 */
+            content_index: number;
+            item_id: string;
+            /** Format: int64 */
+            output_index: number;
+            refusal: string;
+            sequence_number: number;
+            /** @enum {string} */
+            type: "response.refusal.done";
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -578,8 +752,7 @@ export interface operations {
                     model: string;
                     /** @enum {boolean} */
                     store?: false;
-                    /** @enum {boolean} */
-                    stream?: false;
+                    stream?: boolean;
                     temperature?: number;
                     top_p?: number;
                     /** @description provider_key_id must be non-empty. Managed fallback opt-in requires provider_key_id. Fallback codes must be canonical and distinct from the requested model; BYOK cross-model fallback requires Managed opt-in. */
@@ -595,7 +768,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description One response with text/refusal message; completed or incomplete. No SSE. Unknown usage is null. */
+            /** @description JSON response or named Responses SSE events (ResponsesStreamEvent schema), not chat chunks/[DONE]. Sequence numbers start at zero. Terminal response.completed/incomplete follows upstream closure and financial cleanup; response.failed reports partial-stream/finalization errors. Unknown usage is null, never zero. No fallback after output. Streaming terminal snapshots retain at most 1048576 text/refusal characters; exceeding the bound fails safely, never truncates as success. */
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
@@ -685,6 +858,7 @@ export interface operations {
                             total_tokens: number;
                         };
                     };
+                    "text/event-stream": string;
                 };
             };
             /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */

@@ -1,5 +1,726 @@
 {
   "components": {
+    "schemas": {
+      "ResponsesStreamEvent": {
+        "oneOf": [
+          {
+            "properties": {
+              "response": {
+                "properties": {
+                  "created_at": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "code",
+                      "message"
+                    ],
+                    "type": [
+                      "null",
+                      "object"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "incomplete_details": {
+                    "properties": {
+                      "reason": {
+                        "enum": [
+                          "max_output_tokens",
+                          "content_filter"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason"
+                    ],
+                    "type": [
+                      "null",
+                      "object"
+                    ]
+                  },
+                  "instructions": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "max_output_tokens": {
+                    "format": "int64",
+                    "type": [
+                      "null",
+                      "integer"
+                    ]
+                  },
+                  "metadata": {
+                    "type": "object"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "object": {
+                    "enum": [
+                      "response"
+                    ],
+                    "type": "string"
+                  },
+                  "output": {
+                    "items": {
+                      "properties": {
+                        "content": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "properties": {
+                                  "annotations": {
+                                    "items": {
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "logprobs": {
+                                    "items": {
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "enum": [
+                                      "output_text"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "text",
+                                  "annotations",
+                                  "logprobs"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "properties": {
+                                  "refusal": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "enum": [
+                                      "refusal"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "refusal"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "enum": [
+                            "assistant"
+                          ],
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "in_progress",
+                            "completed",
+                            "incomplete"
+                          ],
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "message"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type",
+                        "role",
+                        "status",
+                        "content"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "parallel_tool_calls": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "previous_response_id": {
+                    "type": "null"
+                  },
+                  "reasoning": {
+                    "properties": {
+                      "effort": {
+                        "type": "null"
+                      },
+                      "summary": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "effort",
+                      "summary"
+                    ],
+                    "type": "object"
+                  },
+                  "status": {
+                    "enum": [
+                      "in_progress",
+                      "completed",
+                      "incomplete",
+                      "failed"
+                    ],
+                    "type": "string"
+                  },
+                  "store": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "temperature": {
+                    "type": [
+                      "null",
+                      "number"
+                    ]
+                  },
+                  "text": {
+                    "properties": {
+                      "format": {
+                        "properties": {
+                          "type": {
+                            "enum": [
+                              "text"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "format"
+                    ],
+                    "type": "object"
+                  },
+                  "tool_choice": {
+                    "enum": [
+                      "none"
+                    ],
+                    "type": "string"
+                  },
+                  "tools": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "top_p": {
+                    "type": [
+                      "null",
+                      "number"
+                    ]
+                  },
+                  "truncation": {
+                    "enum": [
+                      "disabled"
+                    ],
+                    "type": "string"
+                  },
+                  "usage": {
+                    "properties": {
+                      "input_tokens": {
+                        "format": "int64",
+                        "type": "integer"
+                      },
+                      "input_tokens_details": {
+                        "properties": {
+                          "cached_tokens": {
+                            "format": "int64",
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "cached_tokens"
+                        ],
+                        "type": "object"
+                      },
+                      "output_tokens": {
+                        "format": "int64",
+                        "type": "integer"
+                      },
+                      "output_tokens_details": {
+                        "properties": {
+                          "reasoning_tokens": {
+                            "format": "int64",
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "reasoning_tokens"
+                        ],
+                        "type": "object"
+                      },
+                      "total_tokens": {
+                        "format": "int64",
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "input_tokens",
+                      "output_tokens",
+                      "total_tokens",
+                      "input_tokens_details",
+                      "output_tokens_details"
+                    ],
+                    "type": [
+                      "null",
+                      "object"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "object",
+                  "created_at",
+                  "status",
+                  "error",
+                  "incomplete_details",
+                  "model",
+                  "output",
+                  "usage",
+                  "store"
+                ],
+                "type": "object"
+              },
+              "sequence_number": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "response.created",
+                  "response.in_progress",
+                  "response.completed",
+                  "response.incomplete",
+                  "response.failed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence_number",
+              "response"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "item": {
+                "properties": {
+                  "content": {
+                    "items": {
+                      "oneOf": [
+                        {
+                          "properties": {
+                            "annotations": {
+                              "items": {
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "logprobs": {
+                              "items": {
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "output_text"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text",
+                            "annotations",
+                            "logprobs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "properties": {
+                            "refusal": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "refusal"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "refusal"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "type": "array"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "enum": [
+                      "assistant"
+                    ],
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "in_progress",
+                      "completed",
+                      "incomplete"
+                    ],
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "message"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "role",
+                  "status",
+                  "content"
+                ],
+                "type": "object"
+              },
+              "output_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sequence_number": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "response.output_item.added",
+                  "response.output_item.done"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence_number",
+              "output_index",
+              "item"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "content_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "item_id": {
+                "type": "string"
+              },
+              "output_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "part": {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "annotations": {
+                        "items": {
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "logprobs": {
+                        "items": {
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "enum": [
+                          "output_text"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "text",
+                      "annotations",
+                      "logprobs"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "refusal": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "enum": [
+                          "refusal"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "refusal"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "sequence_number": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "response.content_part.added",
+                  "response.content_part.done"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence_number",
+              "item_id",
+              "output_index",
+              "content_index",
+              "part"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "content_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "delta": {
+                "type": "string"
+              },
+              "item_id": {
+                "type": "string"
+              },
+              "logprobs": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "output_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sequence_number": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "response.output_text.delta"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence_number",
+              "item_id",
+              "output_index",
+              "content_index",
+              "delta",
+              "logprobs"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "content_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "delta": {
+                "type": "string"
+              },
+              "item_id": {
+                "type": "string"
+              },
+              "output_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sequence_number": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "response.refusal.delta"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence_number",
+              "item_id",
+              "output_index",
+              "content_index",
+              "delta"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "content_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "item_id": {
+                "type": "string"
+              },
+              "logprobs": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "output_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "sequence_number": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "response.output_text.done"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence_number",
+              "item_id",
+              "output_index",
+              "content_index",
+              "text",
+              "logprobs"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "content_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "item_id": {
+                "type": "string"
+              },
+              "output_index": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "refusal": {
+                "type": "string"
+              },
+              "sequence_number": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "response.refusal.done"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sequence_number",
+              "item_id",
+              "output_index",
+              "content_index",
+              "refusal"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
     "securitySchemes": {
       "GatewayKey": {
         "description": "Project-scoped UZLLM gateway key; never a provider key.",
@@ -9,7 +730,7 @@
     }
   },
   "info": {
-    "description": "Implemented OpenAI-compatible models/chat and stateless non-streaming text Responses subset. Embeddings are not yet supported. Breaking changes require a versioned path and 180 days of migration overlap.",
+    "description": "Implemented OpenAI-compatible models/chat and stateless text Responses JSON/SSE subset. Embeddings are not yet supported. Breaking changes require a versioned path and 180 days of migration overlap.",
     "title": "UZLLM Gateway API",
     "version": "1.0.0"
   },
@@ -1439,7 +2160,7 @@
     },
     "/v1/responses": {
       "post": {
-        "description": "Stateless non-streaming text Responses subset, translated through existing chat adapters. input accepts text or 1–256 text message items (including instructions). stream/store must be false or omitted; no conversation retrieval, tools, vision, structured-output or reasoning controls. Unsupported fields return 400 before reservation/dispatch. Missing usage is null and remains pending evidence, not zero cost. Existing authorization, limits, routing, BYOK/Hybrid consent and financial controls apply. Idempotency operation is responses, separate from chat.completions.",
+        "description": "Stateless text Responses JSON/SSE subset, translated through existing chat adapters. input accepts text or 1–256 text message items (including instructions). stream is optional boolean; store must be false or omitted; no conversation retrieval, tools, vision, structured-output or reasoning controls. Unsupported fields return 400 before reservation/dispatch. Missing usage is null and remains pending evidence, not zero cost. Existing authorization, limits, routing, BYOK/Hybrid consent and financial controls apply. Idempotency operation is responses, separate from chat.completions.",
         "operationId": "CreateResponse",
         "parameters": [
           {
@@ -1566,9 +2287,6 @@
                     "type": "boolean"
                   },
                   "stream": {
-                    "enum": [
-                      false
-                    ],
                     "type": "boolean"
                   },
                   "temperature": {
@@ -1933,9 +2651,14 @@
                   ],
                   "type": "object"
                 }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "One response with text/refusal message; completed or incomplete. No SSE. Unknown usage is null.",
+            "description": "JSON response or named Responses SSE events (ResponsesStreamEvent schema), not chat chunks/[DONE]. Sequence numbers start at zero. Terminal response.completed/incomplete follows upstream closure and financial cleanup; response.failed reports partial-stream/finalization errors. Unknown usage is null, never zero. No fallback after output. Streaming terminal snapshots retain at most 1048576 text/refusal characters; exceeding the bound fails safely, never truncates as success.",
             "headers": {
               "Cache-Control": {
                 "schema": {
@@ -2616,7 +3339,7 @@
             "GatewayKey": []
           }
         ],
-        "summary": "Create a stateless non-streaming text Response",
+        "summary": "Create a stateless text Response or Responses SSE stream",
         "tags": [
           "UZLLM.Gateway.Api"
         ]

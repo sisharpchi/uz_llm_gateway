@@ -155,7 +155,9 @@ Add OpenAI-style Responses API after chat completion stability.
 translated through existing native chat adapters with the same authorization,
 limits, reservation/evidence/settlement and explicit execution-mode controls.
 No stored conversation, tools, modalities or Responses-specific reasoning controls
-are implied. SSE is GATEWAY-006. [Capability matrix](32_RESPONSES_API.md).
+are implied. `GATEWAY-006` adds [Responses SSE](33_RESPONSES_SSE.md) for the same
+subset with incremental text/refusal, terminal evidence, no replay after output,
+and cancellation-independent financial cleanup. [Input capability matrix](32_RESPONSES_API.md).
 
 ### FR-044 — Embeddings [P1]
 Add normalized embedding API.

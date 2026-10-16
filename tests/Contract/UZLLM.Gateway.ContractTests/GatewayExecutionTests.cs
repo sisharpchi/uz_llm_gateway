@@ -1612,6 +1612,8 @@ public sealed partial class GatewayExecutionTests
         public AdmissionStatus NextAdmission = AdmissionStatus.Reserved;
         public FinalizationStatus NextFinalization = FinalizationStatus.Settled;
         public Exception? ReserveFailure, FinalizationFailure;
+        public Action? BeforeFinalize;
+        public CancellationToken FinalizationToken;
         public Task<AdmissionResult> ReserveAsync(ManagedAdmissionInput input,
             CancellationToken cancellationToken = default)
         {
@@ -1642,6 +1644,9 @@ public sealed partial class GatewayExecutionTests
         }
         public Task<FinalizationResult> FinalizeAsync(Guid reservationId, CancellationToken cancellationToken = default)
         {
+            FinalizationToken = cancellationToken;
+            cancellationToken.ThrowIfCancellationRequested();
+            BeforeFinalize?.Invoke();
             Finalizes++;
             if (FinalizationFailure is not null) throw FinalizationFailure;
             return Task.FromResult(new FinalizationResult(NextFinalization, null));
@@ -1671,6 +1676,8 @@ public sealed partial class GatewayExecutionTests
         public ExecutionState? AttemptFinalState;
         public ClaimResult? ExistingClaim;
         public string? LastOperation;
+        public string? FinishedProviderRequestId;
+        public CancellationToken EvidenceToken;
         public Task<UsageAttempt> StartAttemptAsync(Guid id, Guid providerModelId,
             CancellationToken cancellationToken = default)
         { Attempts++; return Task.FromResult(new UsageAttempt(Guid.NewGuid(), requestId, Attempts, providerModelId,
@@ -1678,17 +1685,19 @@ public sealed partial class GatewayExecutionTests
         public Task<bool> MarkDispatchedAsync(Guid attemptId, CancellationToken cancellationToken = default) => Task.FromResult(true);
         public Task<bool> FinishAttemptAsync(Guid attemptId, ExecutionState next, string? providerRequestId,
             string? errorCategory, CancellationToken cancellationToken = default)
-        { AttemptFinalState = next; return Task.FromResult(true); }
+        { AttemptFinalState = next; FinishedProviderRequestId = providerRequestId; return Task.FromResult(true); }
         public Task<bool> FinishRequestAsync(Guid id, ExecutionState execution, DeliveryState delivery,
             int httpStatus, string routeStrategy, CancellationToken cancellationToken = default)
         { Delivery = delivery; RouteStrategy = routeStrategy; return Task.FromResult(true); }
         public Task<UsageEvidence?> RecordVerifiedAsync(VerifiedUsageInput input,
             CancellationToken cancellationToken = default)
-        { VerifiedEvidence++; VerifiedPriceId = input.PriceVersionId;
+        { EvidenceToken = cancellationToken; cancellationToken.ThrowIfCancellationRequested();
+            VerifiedEvidence++; VerifiedPriceId = input.PriceVersionId;
             return Task.FromResult<UsageEvidence?>(null); }
         public Task<UsageEvidence?> RecordUnknownAsync(Guid id, Guid attemptId,
             CancellationToken cancellationToken = default)
-        { UnknownEvidence++; return Task.FromResult<UsageEvidence?>(null); }
+        { EvidenceToken = cancellationToken; cancellationToken.ThrowIfCancellationRequested();
+            UnknownEvidence++; return Task.FromResult<UsageEvidence?>(null); }
         public Task<ClaimResult> PrepareAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClaimResult?> TryPrepareInTransactionAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClaimResult> ResolveDuplicateAsync(PrepareUsageRequest input, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -1716,6 +1725,7 @@ public sealed partial class GatewayExecutionTests
         public bool FailAfterStreamItems;
         public CancellationToken ObservedStreamToken;
         public bool StreamDisposed;
+        public Action<ProviderStreamEvent>? BeforeStreamEvent;
         public Task<ProviderCompletion> CompleteAsync(ProviderChatRequest request,
             ProviderExecutionContext context, CancellationToken cancellationToken = default)
         {
@@ -1741,6 +1751,7 @@ public sealed partial class GatewayExecutionTests
                 if (Error is not null) throw new ProviderExecutionException(Error);
                 foreach (var item in StreamItems)
                 {
+                    BeforeStreamEvent?.Invoke(item);
                     cancellationToken.ThrowIfCancellationRequested();
                     yield return item;
                     await Task.Yield();

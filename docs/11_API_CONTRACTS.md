@@ -191,11 +191,11 @@ reconciliation rather than charging zero.
 `POST /v1/responses` uses the Gateway Bearer key, not a Management session or
 provider secret. It accepts required `model` and `input` (text or bounded text
 message items), optional `instructions`, `max_output_tokens` (integer >=16),
-`temperature`, `top_p`, false/omitted `stream` and `store`, and the existing
+`temperature`, `top_p`, optional boolean `stream`, false/omitted `store`, and the existing
 `uzllm` routing/BYOK/Hybrid extension. [Exact bounds and capability matrix](32_RESPONSES_API.md).
 Unknown fields, duplicate JSON properties, unsupported items/features and
-invalid bounds return 400 before reservation/dispatch; `stream=true` is not
-supported by this increment. No GET/DELETE/conversation operations exist.
+invalid bounds return 400 before reservation/dispatch. `stream=true` selects the
+[Responses SSE lifecycle](33_RESPONSES_SSE.md); no GET/DELETE/conversation operations exist.
 
 Output is `object: response` with a `resp_` ID, `created_at`, selected `model`,
 `status: completed|incomplete`, nullable `incomplete_details`, one assistant
@@ -211,7 +211,16 @@ are scoped to organization/key/**responses** for 24 hours: repeated or changed
 bodies return 409 with the original request ID, not response replay. Chat uses a
 different operation identity. Managed/BYOK/Hybrid routing, permissions, budgets,
 wallet and operator gates are unchanged. Unknown usage returns null and retains
-the hold for reconciliation; failed finalization returns 503 finalization_pending.
+the hold for reconciliation; failed finalization returns 503 finalization_pending
+before headers or `response.failed` with that code after SSE starts. Named SSE
+events carry zero-based increasing sequence_number, stable response/item IDs,
+incremental text/refusal deltas and a terminal completed/incomplete/failed response
+snapshot, never chat chunks or `[DONE]`. Completion requires a supported upstream
+finish and successful bounded financial cleanup. Missing finish, transport error,
+unsupported output or snapshot overflow cannot fabricate completion. The total
+stream text/refusal snapshot bound is 1,048,576 UTF-16 characters. Disconnect
+cancels provider I/O, not durable evidence/settlement cleanup; no fallback follows
+any emitted event. No resume/replay or conversation store is implied.
 Stateless Responses storage does not disable separately consented project payload
 retention or promise upstream ZDR. Provider calls use existing chat adapters,
 not a transparent proxy to the native OpenAI Responses endpoint.

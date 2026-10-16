@@ -74,6 +74,14 @@ Content-Type: application/json
 
 {"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":100,"uzllm":{"provider_key_id":"{{providerKeyId}}","allow_managed_fallback":true}}
 
+### Stateless Responses SSE (no chat [DONE] marker or stored conversation)
+POST {{baseUrl}}/v1/responses
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+Accept: text/event-stream
+
+{"model":"gpt-4o-mini","input":"Hello","max_output_tokens":100,"stream":true,"store":false}
+
 ### Explicit unsupported parameter error
 POST {{baseUrl}}/v1/chat/completions
 Authorization: Bearer {{apiKey}}

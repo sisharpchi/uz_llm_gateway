@@ -247,6 +247,11 @@ ProviderError
 - count/estimate usage safely when provider does not return usage;
 - flush downstream incrementally.
 
+`GATEWAY-006` keeps provider parsing incremental for Responses as well. Its
+Gateway writer retains only a bounded text/refusal snapshot (1,048,576 UTF-16
+characters) for Responses terminal events; it never delays deltas until completion
+or buffers the raw upstream stream. [SSE lifecycle and financial evidence](33_RESPONSES_SSE.md).
+
 ### Billing caution
 
 Client cancellation does not necessarily mean provider did not charge.

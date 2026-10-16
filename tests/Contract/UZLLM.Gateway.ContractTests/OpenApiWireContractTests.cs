@@ -66,6 +66,25 @@ public sealed class OpenApiWireContractTests : IDisposable
             snapshots.Add(new("gateway", "/v1/responses", "post", 200, "application/json", FixedTimestamp(Body(context))));
         }
 
+        foreach (var finish in new[] { "stop", "length", "content_filter", "unknown-usage", "failure" })
+        {
+            context = Context();
+            var writer = new OpenAiResponsesWriter(context, responseRequest);
+            await writer.WriteStreamEventAsync(new(ProviderStreamKind.TextDelta, Text: "Hello"), "example-chat", id, CancellationToken.None);
+            if (finish == "content_filter") await writer.WriteStreamEventAsync(new(ProviderStreamKind.Refusal, Text: "Synthetic refusal"), "example-chat", id, CancellationToken.None);
+            await writer.WriteStreamEventAsync(new(ProviderStreamKind.Finish, FinishReason: finish is "unknown-usage" or "failure" ? "stop" : finish), "example-chat", id, CancellationToken.None);
+            if (finish != "unknown-usage") await writer.WriteStreamEventAsync(new(ProviderStreamKind.Usage, Usage: new(12, 5, 4, 2)), "example-chat", id, CancellationToken.None);
+            if (finish == "failure") await writer.WriteStreamErrorAsync("Finalization is pending reconciliation.", "finalization_pending", CancellationToken.None);
+            else await writer.FinishStreamAsync(CancellationToken.None);
+            var frames = GatewayExecutionTests.ResponsesEvents(Encoding.UTF8.GetString(((MemoryStream)context.Response.Body).ToArray()));
+            var sse = string.Concat(frames.Select(frame => {
+                var node = System.Text.Json.Nodes.JsonNode.Parse(frame.GetRawText())!.AsObject();
+                if (node["response"] is { } response) response["created_at"] = 1790812800;
+                return "event: " + node["type"]!.GetValue<string>() + "\ndata: " + node.ToJsonString() + "\n\n";
+            }));
+            snapshots.Add(new("gateway", "/v1/responses", "post", 200, "text/event-stream", JsonSerializer.SerializeToElement(sse)));
+        }
+
         foreach (var status in new[] { 400, 401, 402, 403, 409, 413, 415, 429, 502, 503 })
         {
             context = Context();

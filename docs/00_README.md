@@ -184,6 +184,7 @@ This creates clear boundaries without paying the operational cost of many micros
 30. `30_ALERTS_PRIVACY_UX.md`
 31. `31_LOCALIZATION_ACCESSIBILITY.md`
 32. `32_RESPONSES_API.md`
+33. `33_RESPONSES_SSE.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

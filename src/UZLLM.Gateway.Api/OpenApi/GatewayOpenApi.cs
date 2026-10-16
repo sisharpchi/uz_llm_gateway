@@ -15,7 +15,7 @@ public static class GatewayOpenApi
             options.AddDocumentTransformer((document, _, _) =>
             {
                 document.Info = new() { Title = "UZLLM Gateway API", Version = "1.0.0",
-                    Description = "Implemented OpenAI-compatible models/chat and stateless non-streaming text Responses subset. Embeddings are not yet supported. "
+                    Description = "Implemented OpenAI-compatible models/chat and stateless text Responses JSON/SSE subset. Embeddings are not yet supported. "
                         + "Breaking changes require a versioned path and 180 days of migration overlap." };
                 document.Servers = [new() { Url = "/" }];
                 document.Components ??= new();
@@ -24,6 +24,8 @@ public static class GatewayOpenApi
                     ["GatewayKey"] = new OpenApiSecurityScheme { Type = SecuritySchemeType.Http,
                         Scheme = "bearer", Description = "Project-scoped UZLLM gateway key; never a provider key." }
                 };
+                document.Components.Schemas ??= new Dictionary<string, IOpenApiSchema>();
+                document.Components.Schemas["ResponsesStreamEvent"] = GatewayOperationTransformer.ResponseStreamEvent();
                 return Task.CompletedTask;
             });
         });
@@ -59,8 +61,8 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
         if (inference)
         {
             operation.Description = responses
-                ? "Stateless non-streaming text Responses subset, translated through existing chat adapters. input accepts text or 1–256 "
-                    + "text message items (including instructions). stream/store must be false or omitted; no conversation retrieval, "
+                ? "Stateless text Responses JSON/SSE subset, translated through existing chat adapters. input accepts text or 1–256 "
+                    + "text message items (including instructions). stream is optional boolean; store must be false or omitted; no conversation retrieval, "
                     + "tools, vision, structured-output or reasoning controls. Unsupported fields return 400 before reservation/dispatch. "
                     + "Missing usage is null and remains pending evidence, not zero cost. Existing authorization, limits, routing, "
                     + "BYOK/Hybrid consent and financial controls apply. Idempotency operation is responses, separate from chat.completions."
@@ -89,7 +91,11 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
             }
             else
             {
-                operation.Responses["200"].Description = "One response with text/refusal message; completed or incomplete. No SSE. Unknown usage is null.";
+                operation.Responses["200"].Description = "JSON response or named Responses SSE events (ResponsesStreamEvent schema), not chat chunks/[DONE]. "
+                    + "Sequence numbers start at zero. Terminal response.completed/incomplete follows upstream closure and financial cleanup; "
+                    + "response.failed reports partial-stream/finalization errors. Unknown usage is null, never zero. No fallback after output. "
+                    + "Streaming terminal snapshots retain at most 1048576 text/refusal characters; exceeding the bound fails safely, never truncates as success.";
+                operation.Responses["200"].Content!["text/event-stream"] = new OpenApiMediaType { Schema = String() };
                 foreach (var response in operation.Responses.Values)
                     response.Headers!["Cache-Control"] = new OpenApiHeader { Schema = Enum("no-store") };
             }
@@ -133,11 +139,33 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
             ("max_output_tokens", new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "16", Maximum = int.MaxValue.ToString() }),
             ("temperature", chat.Properties["temperature"]), ("top_p", chat.Properties["top_p"]),
             ("uzllm", chat.Properties["uzllm"]),
-            ("stream", new OpenApiSchema { Type = JsonSchemaType.Boolean, Enum = [JsonValue.Create(false)!] }),
+            ("stream", new OpenApiSchema { Type = JsonSchemaType.Boolean }),
             ("store", new OpenApiSchema { Type = JsonSchemaType.Boolean, Enum = [JsonValue.Create(false)!] })), "model", "input");
         request.AdditionalPropertiesAllowed = false;
         request.Description = "Stateless text subset. Instructions plus input count <=256; JSON property names must be unique at each object.";
         return request;
+    }
+
+    public static OpenApiSchema ResponseStreamEvent()
+    {
+        var snapshot = Response();
+        snapshot.Properties!["status"] = Enum("in_progress", "completed", "incomplete", "failed");
+        snapshot.Properties["error"] = Nullable(Required(Object(("code", String()), ("message", String())), "code", "message"));
+        var message = (OpenApiSchema)snapshot.Properties["output"].Items!;
+        message.Properties!["status"] = Enum("in_progress", "completed", "incomplete");
+        var part = message.Properties["content"].Items!;
+        OpenApiSchema Event(string[] types, params (string Name, IOpenApiSchema Schema)[] fields) =>
+            Required(Object([("type", Enum(types)), ("sequence_number", new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "0" }), ..fields]),
+                ["type", "sequence_number", ..fields.Select(field => field.Name)]);
+        (string, IOpenApiSchema)[] address = [("item_id", String()), ("output_index", Integer()), ("content_index", Integer())];
+        return new OpenApiSchema { OneOf = [
+            Event(["response.created", "response.in_progress", "response.completed", "response.incomplete", "response.failed"], ("response", snapshot)),
+            Event(["response.output_item.added", "response.output_item.done"], ("output_index", Integer()), ("item", message)),
+            Event(["response.content_part.added", "response.content_part.done"], [..address, ("part", part)]),
+            Event(["response.output_text.delta"], [..address, ("delta", String()), ("logprobs", Array(new OpenApiSchema { Type = JsonSchemaType.Object }))]),
+            Event(["response.refusal.delta"], [..address, ("delta", String())]),
+            Event(["response.output_text.done"], [..address, ("text", String()), ("logprobs", Array(new OpenApiSchema { Type = JsonSchemaType.Object }))]),
+            Event(["response.refusal.done"], [..address, ("refusal", String())]) ] };
     }
 
     public static OpenApiSchema Response()
