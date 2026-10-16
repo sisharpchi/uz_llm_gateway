@@ -836,7 +836,7 @@ namespace UZLLM.Persistence.Migrations
 
                     b.ToTable("model", "catalog", t =>
                         {
-                            t.HasCheckConstraint("CK_catalog_model_limits", "context_length > 0 AND max_output_tokens > 0 AND max_output_tokens <= context_length");
+                            t.HasCheckConstraint("CK_catalog_model_limits", "context_length > 0 AND max_output_tokens <= context_length AND (max_output_tokens > 0 OR (max_output_tokens = 0 AND capabilities_json = '[\"Embeddings\"]'::jsonb))");
 
                             t.HasCheckConstraint("CK_catalog_model_status", "status IN ('Active', 'Disabled')");
                         });

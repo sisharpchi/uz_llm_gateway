@@ -126,6 +126,14 @@ keys with rotated history.
 - status
 
 ### `catalog.model`
+
+`GATEWAY-007`: embedding-only models use `capabilities_json:["Embeddings"]`
+and `max_output_tokens:0` with positive per-input context. The versioned
+`AddEmbeddingModelLimits` constraint permits zero only for that capability set
+and preserves all legacy positive-output rows; no price/history is rewritten.
+Embedding mappings require input-only effective prices (output zero, cached null,
+no extra dimensions). [Migration and accounting boundary](34_EMBEDDINGS_API.md).
+
 - id
 - canonical_code
 - display_name

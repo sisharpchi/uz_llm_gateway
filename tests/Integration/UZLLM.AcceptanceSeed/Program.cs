@@ -50,6 +50,23 @@ db.Set<CatalogModelPriceEntity>().Add(new CatalogModelPriceEntity
     OutputPriceMicroUsdPerMillion = 1_000_000,
     ExtraPricingJson = "{}", CreatedAt = now
 });
+var embeddingModelId = Guid.CreateVersion7();
+var embeddingMappingId = Guid.CreateVersion7();
+db.Set<CatalogModelEntity>().Add(new CatalogModelEntity
+{
+    Id = embeddingModelId, CanonicalCode = "fixture-embedding", DisplayName = "Fixture embedding",
+    ContextLength = 8192, MaxOutputTokens = 0, CapabilitiesJson = "[\"Embeddings\"]", Status = "Active", CreatedAt = now
+});
+db.Set<CatalogProviderModelEntity>().Add(new CatalogProviderModelEntity
+{
+    Id = embeddingMappingId, ProviderId = providerId, ModelId = embeddingModelId,
+    UpstreamModelCode = "fixture-embedding", Status = "Active", CapabilityOverridesJson = "[]", CreatedAt = now
+});
+db.Set<CatalogModelPriceEntity>().Add(new CatalogModelPriceEntity
+{
+    Id = Guid.CreateVersion7(), ProviderModelId = embeddingMappingId, EffectiveFrom = now.AddMinutes(-1),
+    InputPriceMicroUsdPerMillion = 1_000_000, OutputPriceMicroUsdPerMillion = 0, ExtraPricingJson = "{}", CreatedAt = now
+});
 db.Set<BillingFeePolicyVersionEntity>().Add(new BillingFeePolicyVersionEntity
 {
     Id = Guid.CreateVersion7(), PolicyCode = "default", MarkupBasisPoints = 0,

@@ -13,7 +13,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535 ||
 }
 
 createServer({ cert: readFileSync(cert), key: readFileSync(key) }, async (request, response) => {
-  if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
+  if (request.method !== 'POST' || !['/v1/chat/completions', '/v1/embeddings'].includes(request.url)) {
     response.writeHead(404).end();
     return;
   }
@@ -27,6 +27,18 @@ createServer({ cert: readFileSync(cert), key: readFileSync(key) }, async (reques
   let body;
   try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { response.writeHead(400).end(); return; }
+  if (request.url === '/v1/embeddings') {
+    if (body.model !== 'fixture-embedding' || body.encoding_format !== 'float'
+        || !Array.isArray(body.input) || body.input.length < 1 || body.input.length > 32
+        || body.input.some(value => typeof value !== 'string' || !value.trim())) {
+      response.writeHead(400).end(); return;
+    }
+    response.writeHead(200, { 'content-type': 'application/json', 'x-request-id': randomUUID() });
+    response.end(JSON.stringify({ object: 'list', model: body.model,
+      data: body.input.map((_, index) => ({ object: 'embedding', index, embedding: [0.25, -0.5] })),
+      usage: { prompt_tokens: body.input.length * 2, total_tokens: body.input.length * 2 } }));
+    return;
+  }
   if (typeof body.stream !== 'boolean' || !body.model || !Array.isArray(body.messages)) {
     response.writeHead(400).end();
     return;

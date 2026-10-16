@@ -43,6 +43,12 @@ public static class GatewayEndpointExtensions
             .Produces(StatusCodes.Status429TooManyRequests)
             .Produces(StatusCodes.Status502BadGateway)
             .Produces(StatusCodes.Status503ServiceUnavailable);
+        endpoints.MapPost("/v1/embeddings", async (HttpContext context,
+            IInferenceGateway gateway, CancellationToken cancellationToken) =>
+            await gateway.EmbeddingsAsync(context, cancellationToken))
+            .WithName("CreateEmbeddings")
+            .WithSummary("Embed bounded text inputs as float vectors")
+            .Produces(StatusCodes.Status200OK);
         return endpoints;
     }
 }

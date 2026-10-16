@@ -497,6 +497,15 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
                   END IF;
                 END $$;
                 """);
+        // Disposable fixture only: production Down refuses zero-output embedding
+        // rows. Normalize this test-only metadata before exercising historical Down.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
+            DO $$ BEGIN
+              IF to_regclass('catalog.model') IS NOT NULL THEN
+                UPDATE catalog.model SET max_output_tokens = 1 WHERE max_output_tokens = 0;
+              END IF;
+            END $$;
+            """);
         var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
         await migrator.MigrateAsync("0");
     }

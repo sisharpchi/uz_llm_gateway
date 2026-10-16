@@ -20,8 +20,13 @@ const unsupportedResponseEvent: ResponsesEvent = { type: 'response.function_call
 void [textDelta, unsupportedResponseEvent];
 // @ts-expect-error Conversation storage is not implemented.
 const storedResponse: ResponsesRequest = { model: 'example-chat', input: 'Hello', store: true };
-// @ts-expect-error Embeddings are not implemented.
-type UnimplementedEmbeddings = GatewayPaths['/v1/embeddings'];
+type EmbeddingsRequest = GatewayPaths['/v1/embeddings']['post']['requestBody']['content']['application/json'];
+const embeddingBatch: EmbeddingsRequest = { model: 'example-embedding', input: ['Hello', 'World'], encoding_format: 'float' };
+// @ts-expect-error Token-ID inputs are outside the bounded text contract.
+const tokenEmbedding: EmbeddingsRequest = { model: 'example-embedding', input: [1, 2] };
+// @ts-expect-error Base64 encoding is not implemented.
+const base64Embedding: EmbeddingsRequest = { model: 'example-embedding', input: 'Hello', encoding_format: 'base64' };
+void [embeddingBatch, tokenEmbedding, base64Embedding];
 // @ts-expect-error The contract does not expose a DELETE session operation.
 const unsupportedSessionMethod: NonNullable<ManagementPaths['/management/v1/auth/session']['delete']> = {};
 type WalletResult = Awaited<ReturnType<typeof management.wallet>>;

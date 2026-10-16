@@ -227,6 +227,38 @@ not a transparent proxy to the native OpenAI Responses endpoint.
 
 ---
 
+## 2b. Bounded text embeddings [P1]
+
+`POST /v1/embeddings` accepts Gateway Bearer authentication, required `model`,
+`input` as a nonblank string or 1–32 such strings, and optional
+`encoding_format: "float"`. Each text is bounded by 8192 UTF-8 bytes and the
+selected model's context. JSON properties must be unique; unknown properties,
+token-ID input, base64, `dimensions`, `stream`, `user` and cross-model fallback
+return 400 before reservation/dispatch. No input truncation or model substitution.
+
+The optional `uzllm` object accepts `provider_key_id`, `allow_managed_fallback`
+and `routing: "priority"|"price"`. Existing grant, permission, wallet, budget,
+operator and explicit Hybrid-consent rules apply. An inherited incompatible
+chat performance strategy requires an explicit supported override; vectors from
+different canonical models are not interchangeable. Only the OpenAI native
+adapter currently supplies embeddings.
+
+Response: `{ "object": "list", "model": "<canonical-code>", "data": [
+{ "object": "embedding", "index": 0, "embedding": [0.25, -0.5] } ],
+"usage": { "prompt_tokens": 2, "total_tokens": 2 } }`.
+Vectors are float arrays with 1–4096 finite values, consistent dimensions and
+one contiguous zero-based index per input, sorted into input order. Usage is
+nullable when unavailable/invalid, never an inferred zero charge. No SSE.
+
+All results/errors are `no-store`; existing error envelopes/statuses and
+correlation/provider/model/billing-mode headers apply. UUID `Idempotency-Key`
+claims use organization/key/**embeddings** for 24 hours, independently of chat
+and Responses; repeats/conflicting bodies return 409 and the original request
+ID, not a replayed vector body. A batch has one logical request/reservation,
+one final charge and one fixed request fee. Persist evidence before settlement;
+ambiguous execution retains the hold for recovery. Financial cleanup failure
+returns 503 `finalization_pending`. [Capability, pricing and recovery details](34_EMBEDDINGS_API.md).
+
 ## 3. Gateway extensions
 
 Prefer namespace-like extension to reduce collision risk:

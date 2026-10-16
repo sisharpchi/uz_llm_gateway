@@ -98,6 +98,16 @@ holds or caps and cannot alter Managed/BYOK/Hybrid consent or wallet admission.
 
 ## 6. Managed vs BYOK billing
 
+`GATEWAY-007` embedding batches use input-only catalog rates: zero output rate,
+no cached-input rate and no extra price dimensions. The maximum provider hold
+is `ceil(min(context_length,8192) * input_count * input_rate / 1_000_000)`;
+apply the existing fee policy once to the batch, not once per vector. Admission
+uses at least one micro-USD for a Managed hold (as existing inference does).
+BYOK keeps its separate external hold and versioned wallet fee. Verified usage
+normalizes to input tokens with output/cached tokens zero; settlement reuses
+TX-04/TX-05 and never prices vector dimensions. Missing or inconsistent usage
+remains pending evidence. [Embeddings accounting](34_EMBEDDINGS_API.md).
+
 ### Managed
 Customer charge affects UZLLM wallet.
 

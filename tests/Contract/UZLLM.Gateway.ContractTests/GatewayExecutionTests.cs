@@ -1292,16 +1292,17 @@ public sealed partial class GatewayExecutionTests
             long anthropicInputRate = 2000, long anthropicOutputRate = 4000,
             bool openAiTools = false, bool fallbackModel = false,
             bool fallbackTools = false, bool googleProvider = false,
-            bool deepSeekProvider = false, long? deepSeekCachedInputRate = 500)
+            bool deepSeekProvider = false, long? deepSeekCachedInputRate = 500,
+            bool embeddingModel = false, long embeddingOutputRate = 0, int embeddingContextLength = 8192)
         {
             Finance = new FakeFinance(RequestId, organizationId, projectId, apiKeyId, feeId);
             Usage = new FakeUsage(RequestId);
             Health = new FakeHealth(mappingId);
             var now = DateTimeOffset.UtcNow;
-            var model = new CanonicalModel(Guid.NewGuid(), "gpt-test", "GPT Test", 8192, 512,
-                [CatalogCapability.Text], CatalogStatus.Active, now);
+            var model = new CanonicalModel(Guid.NewGuid(), "gpt-test", "GPT Test", embeddingModel ? embeddingContextLength : 8192, embeddingModel ? 0 : 512,
+                embeddingModel ? [CatalogCapability.Embeddings] : [CatalogCapability.Text], CatalogStatus.Active, now);
             var price = new ModelPrice(priceId, mappingId, now.AddDays(-1), null,
-                1000, 2000, null, "{}", now);
+                1000, embeddingModel ? embeddingOutputRate : 2000, null, "{}", now);
             var mapping = new ProviderModel(mappingId, providerId, model.Id, "gpt-test", null,
                 CatalogStatus.Active, openAiTools ? [CatalogCapability.Tools] : [], now);
             var provider = new CatalogProvider(providerId, "openai", "OpenAI", CatalogStatus.Active, now);
@@ -1396,6 +1397,11 @@ public sealed partial class GatewayExecutionTests
             return gateway.ResponsesAsync(Context, Context.RequestAborted);
         }
         public Task ListAsync() => gateway.ListModelsAsync(Context, Context.RequestAborted);
+        public Task RunEmbeddingsAsync(string json = "{\"model\":\"gpt-test\",\"input\":[\"Hello\",\"World\"]}")
+        {
+            Context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            return gateway.EmbeddingsAsync(Context, Context.RequestAborted);
+        }
         public void UseByok(bool allowManagedFallback, bool priceRouting = false,
             string providerCode = "openai", bool stream = false)
         {
@@ -1709,8 +1715,23 @@ public sealed partial class GatewayExecutionTests
         public Task<IReadOnlyList<UsageEvidence>> ListEvidenceAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class FakeAdapter(string providerCode) : ILlmProviderAdapter
+    private sealed class FakeAdapter(string providerCode) : ILlmProviderAdapter, IEmbeddingProviderAdapter
     {
+        public bool SupportsEmbeddings => providerCode == "openai" && Eligible;
+        public int EmbeddingCalls;
+        public ProviderUsage? EmbeddingUsage = new(2, 0, 0, null);
+        public Task<ProviderEmbeddingResult> EmbedAsync(ProviderEmbeddingRequest request,
+            ProviderExecutionContext context, CancellationToken cancellationToken = default)
+        {
+            EmbeddingCalls++;
+            LastContext = context;
+            BeforeComplete?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Error is not null) throw new ProviderExecutionException(Error);
+            if (context.OrganizationId is not null && ByokError is not null) throw new ProviderExecutionException(ByokError);
+            return Task.FromResult(new ProviderEmbeddingResult(request.Inputs.Select((_, index) =>
+                new ProviderEmbedding(index, [0.25f, -0.5f])).ToArray(), EmbeddingUsage, "embedding-upstream"));
+        }
         public string ProviderCode => providerCode;
         public bool Eligible = true;
         public bool Supports(ProviderChatRequest request, bool stream) => Eligible;

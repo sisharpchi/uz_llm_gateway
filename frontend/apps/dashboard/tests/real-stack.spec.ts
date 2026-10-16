@@ -241,13 +241,31 @@ test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async
   await expect.poll(async () => (await json(request, 'get', activityPath)).body.items.length).toBe(4);
   const responseActivity = (await json(request, 'get', activityPath)).body.items;
   expect(responseActivity.every((item: { chargedMicroUsd: string }) => item.chargedMicroUsd === '11')).toBe(true);
+  // GATEWAY-007: actual native embeddings HTTP, input-only pricing and durable settlement.
+  const embeddingRequest = { model: 'fixture-embedding', input: ['Hello', 'World'], encoding_format: 'float' };
+  const embeddingHeaders = { Authorization: `Bearer ${gatewaySecret}`, 'Idempotency-Key': randomUUID() };
+  const embedding = await json(request, 'post', '/v1/embeddings', { data: embeddingRequest, headers: embeddingHeaders });
+  expect(embedding.response.status(), JSON.stringify(embedding.body)).toBe(200);
+  expect(embedding.response.headers()['cache-control']).toBe('no-store');
+  expect(embedding.body.model).toBe('fixture-embedding');
+  expect(embedding.body.data).toEqual([{ object: 'embedding', index: 0, embedding: [0.25, -0.5] },
+    { object: 'embedding', index: 1, embedding: [0.25, -0.5] }]);
+  expect(embedding.body.usage).toEqual({ prompt_tokens: 4, total_tokens: 4 });
+  expect((await json(request, 'post', '/v1/embeddings', { data: embeddingRequest, headers: embeddingHeaders })).response.status()).toBe(409);
+  const embeddingWallet = (await json(request, 'get', walletPath)).body;
+  expect(embeddingWallet.postedBalanceMicroUsd).toBe('10999952');
+  expect(embeddingWallet.reservedBalanceMicroUsd).toBe('0');
+  await expect.poll(async () => (await json(request, 'get', activityPath)).body.items.length).toBe(5);
+  expect((await json(request, 'get', activityPath)).body.items.find((item: { modelCode: string }) => item.modelCode === 'fixture-embedding').chargedMicroUsd).toBe('4');
   // The new path inherits the same real key permission gate, with no extra debit.
   const keyPermissionPath = `/management/v1/api-keys/${key.body.apiKey.id}/permissions`;
   const denyResponse = await request.put(base + keyPermissionPath, { headers: auth, data: { allowedModels: [] } });
   expect(denyResponse.status()).toBe(204);
   const deniedResponse = await json(request, 'post', '/v1/responses', { data: responseRequest, headers: { Authorization: `Bearer ${gatewaySecret}` } });
   expect(deniedResponse.response.status()).toBe(403);
-  expect((await json(request, 'get', walletPath)).body.postedBalanceMicroUsd).toBe('10999956');
+  const deniedEmbedding = await json(request, 'post', '/v1/embeddings', { data: embeddingRequest, headers: { Authorization: `Bearer ${gatewaySecret}` } });
+  expect(deniedEmbedding.response.status()).toBe(403);
+  expect((await json(request, 'get', walletPath)).body.postedBalanceMicroUsd).toBe('10999952');
   expect((await request.put(base + keyPermissionPath, { headers: auth, data: {} })).status()).toBe(204);
 
   // FRONTEND-006: real UI commands through TLS edge/session/CSRF/PostgreSQL.

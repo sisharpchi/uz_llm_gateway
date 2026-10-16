@@ -11,8 +11,8 @@ public sealed record OpenAiAdapterOptions(Uri BaseAddress)
     public static OpenAiAdapterOptions Production { get; } = new(new Uri("https://api.openai.com/v1/"));
 }
 
-public sealed class OpenAiChatAdapter(HttpClient client,
-    IProviderCredentialResolver credentials, OpenAiAdapterOptions options) : ILlmProviderAdapter
+public sealed partial class OpenAiChatAdapter(HttpClient client,
+    IProviderCredentialResolver credentials, OpenAiAdapterOptions options) : ILlmProviderAdapter, IEmbeddingProviderAdapter
 {
     public string ProviderCode => "openai";
 

@@ -18,9 +18,11 @@ public sealed class CatalogService(ICatalogStore store, TimeProvider timeProvide
 
     public async Task<CanonicalModel> AddModelAsync(string canonicalCode, string displayName, int contextLength, int maxOutputTokens, IEnumerable<CatalogCapability> capabilities, CancellationToken cancellationToken = default)
     {
-        if (contextLength <= 0 || maxOutputTokens <= 0 || maxOutputTokens > contextLength)
+        var normalizedCapabilities = NormalizeCapabilities(capabilities, nameof(capabilities));
+        var embeddingOnly = normalizedCapabilities.SequenceEqual([CatalogCapability.Embeddings]);
+        if (contextLength <= 0 || (embeddingOnly ? maxOutputTokens != 0 : maxOutputTokens <= 0) || maxOutputTokens > contextLength)
         {
-            throw new ArgumentOutOfRangeException(nameof(maxOutputTokens), "Model context and output limits must be positive, and output cannot exceed context.");
+            throw new ArgumentOutOfRangeException(nameof(maxOutputTokens), "Embedding-only models require zero output; generation models require positive output within context.");
         }
 
         var model = new CanonicalModel(
@@ -29,7 +31,7 @@ public sealed class CatalogService(ICatalogStore store, TimeProvider timeProvide
             NormalizeText(displayName, 200, nameof(displayName)),
             contextLength,
             maxOutputTokens,
-            NormalizeCapabilities(capabilities, nameof(capabilities)),
+            normalizedCapabilities,
             CatalogStatus.Active,
             timeProvider.GetUtcNow());
         if (!await store.TryAddModelAsync(model, cancellationToken))

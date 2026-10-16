@@ -33,6 +33,18 @@ public sealed class OpenApiWireContractTests : IDisposable
         var id = Guid.Parse("11111111-1111-4111-8111-111111111111");
         var now = DateTimeOffset.Parse("2026-10-01T00:00:00Z");
         var snapshots = new List<WireExample>();
+        var embeddingInput = document.RootElement.GetProperty("paths").GetProperty("/v1/embeddings")
+            .GetProperty("post").GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("example");
+        var embeddingParsed = EmbeddingsRequestParser.Parse(Encoding.UTF8.GetBytes(embeddingInput.GetRawText()));
+        Assert.Equal(2, embeddingParsed.EmbeddingRequest!.Inputs.Count);
+        foreach (var known in new[] { true, false })
+        {
+            var embeddingContext = Context();
+            await OpenAiEmbeddingsWriter.WriteAsync(embeddingContext, new ProviderEmbeddingResult(
+                [new(0, [0.25f, -0.5f]), new(1, [-0.5f, 0.25f])], known ? new(5, 0, 0, null) : null, "upstream"),
+                embeddingParsed.Model, CancellationToken.None);
+            snapshots.Add(new("gateway", "/v1/embeddings", "post", 200, "application/json", Body(embeddingContext)));
+        }
         var context = Context();
         await new OpenAiCompletionWriter(context).WriteCompletionAsync(new ProviderCompletion(
             "upstream", "upstream-model", new ProviderMessage("assistant",
@@ -206,7 +218,8 @@ public sealed class OpenApiWireContractTests : IDisposable
         var paths = document.RootElement.GetProperty("paths").EnumerateObject().Select(item => item.Name).ToArray();
         Assert.All(paths, path => Assert.StartsWith(prefix, path));
         if (name == "gateway") Assert.Contains("/v1/responses", paths);
-        Assert.DoesNotContain("/v1/embeddings", paths);
+        if (name == "gateway") Assert.Contains("/v1/embeddings", paths);
+        else Assert.DoesNotContain("/v1/embeddings", paths);
     }
 
     [Fact]

@@ -22,6 +22,7 @@ public interface IInferenceGateway
     Task ListModelsAsync(HttpContext context, CancellationToken cancellationToken);
     Task ChatAsync(HttpContext context, CancellationToken cancellationToken);
     Task ResponsesAsync(HttpContext context, CancellationToken cancellationToken);
+    Task EmbeddingsAsync(HttpContext context, CancellationToken cancellationToken);
 }
 
 public sealed class InferenceGateway(
@@ -61,7 +62,11 @@ public sealed class InferenceGateway(
                     && ProjectSettingsPolicy.AllowsModel(projectSettings, model.Model.CanonicalCode))
                 .Select(model => model with { ProviderMappings = model.ProviderMappings
                     .Where(mapping => ApiKeyPermissionPolicy.AllowsProvider(identity.Permissions, mapping.Provider.Code)
-                        && ProjectSettingsPolicy.AllowsProvider(projectSettings, mapping.Provider.Code)).ToArray() })
+                        && ProjectSettingsPolicy.AllowsProvider(projectSettings, mapping.Provider.Code)
+                        && (model.Model.MaxOutputTokens != 0 || mapping.Provider.Code == "openai"
+                            && model.Model.Capabilities.Contains(CatalogCapability.Embeddings)
+                            && mapping.Price.OutputPriceMicroUsdPerMillion == 0
+                            && mapping.Price.CachedInputPriceMicroUsdPerMillion is null)).ToArray() })
                 .ToArray();
             await context.Response.WriteAsJsonAsync(new
             {
@@ -105,17 +110,23 @@ public sealed class InferenceGateway(
         "The project does not permit the requested model or provider.");
 
     public Task ChatAsync(HttpContext context, CancellationToken cancellationToken) =>
-        InferAsync(context, false, cancellationToken);
+        InferAsync(context, "chat.completions", cancellationToken);
 
     public Task ResponsesAsync(HttpContext context, CancellationToken cancellationToken)
     {
         context.Response.Headers.CacheControl = "no-store";
-        return InferAsync(context, true, cancellationToken);
+        return InferAsync(context, "responses", cancellationToken);
     }
 
-    private async Task InferAsync(HttpContext context, bool responses, CancellationToken cancellationToken)
+    public Task EmbeddingsAsync(HttpContext context, CancellationToken cancellationToken)
     {
-        using var activity = UzllmTelemetry.ActivitySource.StartActivity(responses ? "gateway.responses" : "gateway.chat");
+        context.Response.Headers.CacheControl = "no-store";
+        return InferAsync(context, "embeddings", cancellationToken);
+    }
+
+    private async Task InferAsync(HttpContext context, string operation, CancellationToken cancellationToken)
+    {
+        using var activity = UzllmTelemetry.ActivitySource.StartActivity(operation == "chat.completions" ? "gateway.chat" : "gateway." + operation);
         var requestTimer = Stopwatch.StartNew();
         SetGatewayRequestId(context, Guid.CreateVersion7());
         LimitLease? lease = null;
@@ -140,9 +151,16 @@ public sealed class InferenceGateway(
             if (!context.Request.HasJsonContentType())
                 throw new GatewayRequestException("Content-Type must be application/json.", "unsupported_media_type");
             var raw = await ReadRequestBodyAsync(context.Request, options.MaximumRequestBytes, cancellationToken);
-            var parsed = responses ? ResponsesRequestParser.Parse(raw) : ChatRequestParser.Parse(raw);
+            var parsed = operation switch
+            {
+                "embeddings" => EmbeddingsRequestParser.Parse(raw),
+                "responses" => ResponsesRequestParser.Parse(raw),
+                _ => ChatRequestParser.Parse(raw)
+            };
             var projectSettings = tenant.Settings ?? new ProjectSettings();
             parsed = parsed with { Routing = ProjectSettingsPolicy.ResolveRouting(projectSettings, parsed.Routing) };
+            if (parsed.EmbeddingRequest is not null && parsed.Routing is not (null or "priority" or "price"))
+                throw new GatewayRequestException("Embeddings supports priority or price routing; override an incompatible project default explicitly.", "unsupported_parameter");
             var managedEnabled = await platformControls.IsEnabledAsync(PlatformFeature.ManagedTraffic,
                 cancellationToken);
             if (parsed.ProviderKeyId is null && !managedEnabled)
@@ -207,7 +225,7 @@ public sealed class InferenceGateway(
                 await WriteErrorAsync(context, PermissionDenied(), cancellationToken);
                 return;
             }
-            var outputLimit = parsed.ProviderRequest.MaxOutputTokens ?? model.Model.MaxOutputTokens;
+            var outputLimit = parsed.EmbeddingRequest is null ? parsed.ProviderRequest.MaxOutputTokens ?? model.Model.MaxOutputTokens : 0;
             if (!ProjectSettingsPolicy.AllowsModel(projectSettings, requestedCode)
                 || pinnedProvider is not null && !ProjectSettingsPolicy.AllowsProvider(projectSettings, pinnedProvider)
                 || (parsed.FallbackModels?.Any(code => !ProjectSettingsPolicy.AllowsModel(projectSettings, code)) ?? false))
@@ -274,16 +292,14 @@ public sealed class InferenceGateway(
                 foreach (var mapping in mappings.Where(value => value.Provider.Id == byok.ProviderId))
                 {
                     if (!ProviderPriceReady(mapping)) { pricingFailure = true; continue; }
-                    if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
+                    if (!SupportsRequest(adapters.Get(mapping.Provider.Code), parsed))
                     {
                         constraintFailure ??= RequestConstraintOutcome.UnsupportedCapability;
                         continue;
                     }
                     var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
                         .Select(value => value.ToString()).ToArray();
-                    var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
-                        model.Model.MaxOutputTokens, outputLimit, parsed.EstimatedInputTokens,
-                        parsed.RequiredCapabilities, supported));
+                    var allowed = ValidateRequestConstraints(model.Model, outputLimit, parsed, supported);
                     if (allowed.Outcome != RequestConstraintOutcome.Allowed)
                     {
                         constraintFailure ??= allowed.Outcome;
@@ -301,15 +317,16 @@ public sealed class InferenceGateway(
                     if (healthState == ProviderHealthState.Open) continue;
                     try
                     {
-                        var external = GatewayCostEstimator.MaximumProviderCost(model.Model,
-                            mapping.Price, outputLimit);
+                        var external = parsed.EmbeddingRequest is { } embedding
+                            ? GatewayCostEstimator.MaximumEmbeddingProviderCost(model.Model, mapping.Price, embedding.Inputs.Count)
+                            : GatewayCostEstimator.MaximumProviderCost(model.Model, mapping.Price, outputLimit);
                         candidates.Add(new RouteCandidate(mapping, byok.Id,
                             GatewayCostEstimator.MaximumByokFee(external, byokFee),
                             model.Model, outputLimit, true, external));
                         break;
                     }
                     catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
-                    { logger.LogError(exception, "Unsupported BYOK price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
+                    { pricingFailure |= parsed.EmbeddingRequest is not null; logger.LogError(exception, "Unsupported BYOK price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
                 }
             }
             var includeManaged = byok is null || parsed.AllowManagedFallback && managedEnabled
@@ -329,16 +346,14 @@ public sealed class InferenceGateway(
                 {
                     if (candidates.Count == 2 && parsed.Routing is null) break;
                     if (!ProviderPriceReady(mapping)) { pricingFailure = true; continue; }
-                    if (!adapters.Get(mapping.Provider.Code).Supports(parsed.ProviderRequest, parsed.Stream))
+                    if (!SupportsRequest(adapters.Get(mapping.Provider.Code), parsed))
                     {
                         constraintFailure ??= RequestConstraintOutcome.UnsupportedCapability;
                         continue;
                     }
                     var supported = model.Model.Capabilities.Concat(mapping.Mapping.CapabilityOverrides)
                         .Select(value => value.ToString()).ToArray();
-                    var allowed = constraints.Validate(new RequestConstraintInput(model.Model.ContextLength,
-                        model.Model.MaxOutputTokens, outputLimit, parsed.EstimatedInputTokens,
-                        parsed.RequiredCapabilities, supported));
+                    var allowed = ValidateRequestConstraints(model.Model, outputLimit, parsed, supported);
                     if (allowed.Outcome != RequestConstraintOutcome.Allowed)
                     {
                         constraintFailure ??= allowed.Outcome;
@@ -366,13 +381,14 @@ public sealed class InferenceGateway(
                     if (healthState == ProviderHealthState.Open) continue;
                     try
                     {
-                        var maximumCharge = GatewayCostEstimator.MaximumCharge(model.Model, mapping.Price,
-                            fee, outputLimit);
+                        var maximumCharge = parsed.EmbeddingRequest is { } embedding
+                            ? GatewayCostEstimator.MaximumEmbeddingCharge(model.Model, mapping.Price, fee, embedding.Inputs.Count)
+                            : GatewayCostEstimator.MaximumCharge(model.Model, mapping.Price, fee, outputLimit);
                         candidates.Add(new RouteCandidate(mapping, credentialId.Value,
                             maximumCharge, model.Model, outputLimit));
                     }
                     catch (Exception exception) when (exception is OverflowException or InvalidOperationException)
-                    { logger.LogError(exception, "Unsupported price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
+                    { pricingFailure |= parsed.EmbeddingRequest is not null; logger.LogError(exception, "Unsupported price dimensions for mapping {MappingId}", mapping.Mapping.Id); }
                 }
             }
             if (parsed.Routing == "price" && fee is not null)
@@ -437,10 +453,7 @@ public sealed class InferenceGateway(
                         var supported = fallbackModel.Model.Capabilities
                             .Concat(mapping.Mapping.CapabilityOverrides)
                             .Select(value => value.ToString()).ToArray();
-                        if (constraints.Validate(new RequestConstraintInput(
-                            fallbackModel.Model.ContextLength, fallbackModel.Model.MaxOutputTokens,
-                            fallbackOutput, parsed.EstimatedInputTokens,
-                            parsed.RequiredCapabilities, supported)).Outcome
+                        if (ValidateRequestConstraints(fallbackModel.Model, fallbackOutput, parsed, supported).Outcome
                             != RequestConstraintOutcome.Allowed) continue;
                         var credentialId = await readStore.FindPlatformCredentialAsync(
                             mapping.Provider.Id, cancellationToken);
@@ -673,6 +686,7 @@ public sealed class InferenceGateway(
         string? providerRequestId = null;
         ProviderError? providerError = null;
         ProviderCompletion? completion = null;
+        ProviderEmbeddingResult? embeddingResult = null;
         var dispatched = false;
         var completed = false;
         var disconnected = false;
@@ -696,6 +710,7 @@ public sealed class InferenceGateway(
                 providerRequestId = null;
                 providerError = null;
                 completion = null;
+                embeddingResult = null;
                 dispatched = completed = false;
                 if (index > 0)
                 {
@@ -766,7 +781,14 @@ public sealed class InferenceGateway(
                 long? lastProviderEventMs = null;
                 try
                 {
-                    if (parsed.Stream)
+                    if (parsed.EmbeddingRequest is { } embedding)
+                    {
+                        embeddingResult = await ((IEmbeddingProviderAdapter)adapter).EmbedAsync(embedding, providerContext, deadline.Token);
+                        providerRequestId = embeddingResult.ProviderRequestId;
+                        providerUsage = embeddingResult.Usage;
+                        completed = true;
+                    }
+                    else if (parsed.Stream)
                     {
                         await foreach (var item in adapter.StreamAsync(adapterRequest,
                             providerContext, deadline.Token))
@@ -838,7 +860,7 @@ public sealed class InferenceGateway(
                 if (providerError is not null) telemetry.RecordProviderFailure(providerMetric);
                 await RecordHealthAsync(healthPermit, providerError, completed);
                 healthPermit = null;
-                if (!candidate.IsByok)
+                if (!candidate.IsByok && parsed.EmbeddingRequest is null)
                     performanceObservations.Add(new ProviderPerformanceObservation(attempt.Id,
                         mapping.Mapping.Id, parsed.Stream, completed && providerError is null, firstTokenMs,
                         providerUsage?.OutputTokens, Math.Max(1,
@@ -984,6 +1006,8 @@ public sealed class InferenceGateway(
             }
             if (parsed.Stream)
                 await writer.FinishStreamAsync(cancellationToken);
+            else if (embeddingResult is not null)
+                await OpenAiEmbeddingsWriter.WriteAsync(context, embeddingResult, selectedCandidate.Model.CanonicalCode, cancellationToken);
             else if (completion is not null)
                 await writer.WriteCompletionAsync(completion,
                     selectedCandidate.Model.CanonicalCode == requestedModelCode
@@ -1070,6 +1094,23 @@ public sealed class InferenceGateway(
     }
 
     private static bool SupportedProvider(string code) => code is "openai" or "anthropic" or "google" or "deepseek";
+    private static bool SupportsRequest(ILlmProviderAdapter adapter, ParsedChatRequest request) =>
+        request.EmbeddingRequest is not null ? adapter is IEmbeddingProviderAdapter { SupportsEmbeddings: true } : adapter.Supports(request.ProviderRequest, request.Stream);
+
+    private RequestConstraintDecision ValidateRequestConstraints(CanonicalModel model, int outputLimit,
+        ParsedChatRequest request, IReadOnlyCollection<string> supported)
+    {
+        if (request.EmbeddingRequest is { } embedding)
+        {
+            if (model.MaxOutputTokens != 0 || !supported.Contains("Embeddings", StringComparer.OrdinalIgnoreCase))
+                return new(RequestConstraintOutcome.UnsupportedCapability, "Embeddings");
+            return embedding.Inputs.Any(input => System.Text.Encoding.UTF8.GetByteCount(input) > Math.Min(model.ContextLength, 8192))
+                ? new(RequestConstraintOutcome.ContextExceeded, null) : new(RequestConstraintOutcome.Allowed, null);
+        }
+        if (model.MaxOutputTokens == 0) return new(RequestConstraintOutcome.UnsupportedCapability, "Text");
+        return constraints.Validate(new RequestConstraintInput(model.ContextLength, model.MaxOutputTokens,
+            outputLimit, request.EstimatedInputTokens, request.RequiredCapabilities, supported));
+    }
     private static bool ProviderPriceReady(CatalogProviderModelSummary mapping) =>
         mapping.Provider.Code != "deepseek" || mapping.Price.CachedInputPriceMicroUsdPerMillion is not null;
     private static int ProviderPriority(string code) => code switch

@@ -6,15 +6,34 @@ namespace UZLLM.Gateway.Api.Inference;
 
 public static class GatewayCostEstimator
 {
+    public static UsdMicroAmount MaximumEmbeddingProviderCost(CanonicalModel model, ModelPrice price, int inputCount)
+    {
+        ValidatePriceDimensions(price);
+        if (model.MaxOutputTokens != 0 || inputCount is < 1 or > 32
+            || price.OutputPriceMicroUsdPerMillion != 0 || price.CachedInputPriceMicroUsdPerMillion is not null)
+            throw new InvalidOperationException("Embeddings requires input-only model pricing.");
+        return new UsdMicroAmount(Math.Max(1, checked((long)decimal.Ceiling(
+            (decimal)Math.Min(model.ContextLength, 8192) * inputCount * price.InputPriceMicroUsdPerMillion / 1_000_000m))));
+    }
+
+    public static UsdMicroAmount MaximumEmbeddingCharge(CanonicalModel model, ModelPrice price,
+        FeePolicyVersion fee, int inputCount)
+    {
+        var external = MaximumEmbeddingProviderCost(model, price, inputCount);
+        return new UsdMicroAmount(Math.Max(1, checked((long)decimal.Ceiling(
+            (decimal)external.Value * (10_000m + fee.MarkupBasisPoints) / 10_000m + fee.FixedFee.Value))));
+    }
+
     // Rank against the catalog price snapshot, never against live provider quotes.
     // Reservation still uses MaximumCharge across every selected attempt.
     public static decimal EstimatedCustomerCost(CanonicalModel model, ModelPrice price,
         FeePolicyVersion fee, int estimatedInputTokens, int outputLimit)
     {
         ValidatePriceDimensions(price);
-        if (estimatedInputTokens < 0 || outputLimit <= 0 || outputLimit > model.MaxOutputTokens)
+        if (estimatedInputTokens < 0 || (model.MaxOutputTokens == 0 ? outputLimit != 0 : outputLimit <= 0) || outputLimit > model.MaxOutputTokens)
             throw new ArgumentOutOfRangeException(nameof(outputLimit));
-        var input = Math.Min(estimatedInputTokens, model.ContextLength);
+        if (model.MaxOutputTokens == 0) MaximumEmbeddingProviderCost(model, price, 1);
+        var input = model.MaxOutputTokens == 0 ? estimatedInputTokens : Math.Min(estimatedInputTokens, model.ContextLength);
         var inputRate = Math.Max(price.InputPriceMicroUsdPerMillion,
             price.CachedInputPriceMicroUsdPerMillion ?? 0);
         var providerCost = ((decimal)input * inputRate

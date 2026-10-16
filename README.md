@@ -22,6 +22,10 @@ provider, authorization and financial pipeline. Unsupported features are rejecte
 not silently ignored. [Input capability matrix](docs/32_RESPONSES_API.md) and
 [SSE lifecycle/accounting semantics](docs/33_RESPONSES_SSE.md).
 
+`POST /v1/embeddings` adds bounded OpenAI-native text/float vectors with
+input-only metering and the same tenant, key, budget and explicit execution-mode
+controls. [Supported inputs, pricing and recovery](docs/34_EMBEDDINGS_API.md).
+
 Usage analytics now uses durable hourly read models with a five-second Worker
 poll, live partial-hour reads, explicit backlog/freshness and gross/refund/net
 charge fields. See [rollup semantics and operations](docs/21_USAGE_ROLLUPS.md).

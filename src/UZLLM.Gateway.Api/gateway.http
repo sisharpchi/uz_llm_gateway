@@ -2,6 +2,14 @@
 @apiKey = uzllm_live_replace_with_issued_key
 @providerKeyId = 00000000-0000-0000-0000-000000000003
 
+### Text/float embeddings (publish an embedding-only model and input price first)
+POST {{baseUrl}}/v1/embeddings
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+Idempotency-Key: 22222222-2222-4222-8222-222222222222
+
+{"model":"example-embedding","input":["Hello","World"],"encoding_format":"float"}
+
 ### Stateless non-streaming text Response (model must be published in your catalog)
 POST {{baseUrl}}/v1/responses
 Authorization: Bearer {{apiKey}}

@@ -46,7 +46,26 @@ test('versioned documents cover implemented surfaces and resolve all schema refe
     visit(document);
     for (const schema of Object.values(document.components.schemas ?? {})) validator(document, schema);
   }
-  assert.deepEqual(Object.keys(documents.gateway.paths).sort(), ['/v1/chat/completions', '/v1/models', '/v1/responses']);
+  assert.deepEqual(Object.keys(documents.gateway.paths).sort(), ['/v1/chat/completions', '/v1/embeddings', '/v1/models', '/v1/responses']);
+});
+
+test('embeddings schema bounds text batches and rejects unimplemented encoding and controls', () => {
+  const operation = documents.gateway.paths['/v1/embeddings'].post;
+  assert.ok(operation.security.some(item => item.GatewayKey));
+  assert.equal(operation.responses['200'].content['text/event-stream'], undefined);
+  const validate = validator(documents.gateway, operation.requestBody.content['application/json'].schema);
+  for (const input of ['Hello', ['Hello', 'World'], Array(32).fill('Hello')])
+    assert.ok(validate({ model: 'example-embedding', input, encoding_format: 'float' }));
+  for (const input of [[], [1, 2], [[1, 2]], Array(33).fill('Hello'), ' ', 'a'.repeat(8193)])
+    assert.equal(validate({ model: 'example-embedding', input }), false);
+  for (const extra of [{ encoding_format: 'base64' }, { dimensions: 3 }, { stream: false },
+    { uzllm: { fallback_models: ['other'] } }])
+    assert.equal(validate({ model: 'example-embedding', input: 'Hello', ...extra }), false);
+  const fixtures = read('examples.json').filter(item => item.path === '/v1/embeddings');
+  assert.equal(fixtures.length, 2);
+  assert.deepEqual(fixtures[0].body.data.map(item => item.index), [0, 1]);
+  assert.deepEqual(fixtures[0].body.usage, { prompt_tokens: 5, total_tokens: 5 });
+  assert.equal(fixtures[1].body.usage, null);
 });
 
 test('API-key permission contract preserves null empty deny rules and authenticated replacement', () => {

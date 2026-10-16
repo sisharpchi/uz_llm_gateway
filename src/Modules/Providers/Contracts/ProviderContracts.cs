@@ -30,6 +30,19 @@ public sealed record ProviderExecutionContext(Guid RequestId, Guid ProviderId,
 public sealed record ProviderUsage(int InputTokens, int OutputTokens,
     int CachedInputTokens, int? ReasoningTokens);
 
+/// <summary>Bounded text inputs; vector encoding is a Gateway/adapter wire concern.</summary>
+public sealed record ProviderEmbeddingRequest(IReadOnlyList<string> Inputs);
+public sealed record ProviderEmbedding(int Index, IReadOnlyList<float> Values);
+public sealed record ProviderEmbeddingResult(IReadOnlyList<ProviderEmbedding> Data,
+    ProviderUsage? Usage, string? ProviderRequestId);
+
+public interface IEmbeddingProviderAdapter
+{
+    bool SupportsEmbeddings => true;
+    Task<ProviderEmbeddingResult> EmbedAsync(ProviderEmbeddingRequest request,
+        ProviderExecutionContext context, CancellationToken cancellationToken = default);
+}
+
 public sealed record ProviderCompletion(string Id, string Model, ProviderMessage Message,
     string? FinishReason, ProviderUsage? Usage, string? ProviderRequestId,
     string? Refusal = null);

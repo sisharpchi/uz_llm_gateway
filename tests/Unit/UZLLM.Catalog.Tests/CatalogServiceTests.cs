@@ -5,6 +5,16 @@ namespace UZLLM.Catalog.Tests;
 
 public sealed class CatalogServiceTests
 {
+    [Fact]
+    public async Task Embeddings_model_requires_zero_output_without_relaxing_generation_limits()
+    {
+        var service = new CatalogService(new InMemoryCatalogStore(), TimeProvider.System);
+        var model = await service.AddModelAsync("embedding-test", "Embedding", 8192, 0, [CatalogCapability.Embeddings]);
+        Assert.Equal(0, model.MaxOutputTokens);
+        Assert.Equal(new[] { CatalogCapability.Embeddings }, model.Capabilities);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.AddModelAsync("bad", "Bad", 8192, 0, [CatalogCapability.Text]));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.AddModelAsync("bad", "Bad", 8192, 1, [CatalogCapability.Embeddings]));
+    }
     private static readonly DateTimeOffset Start = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]

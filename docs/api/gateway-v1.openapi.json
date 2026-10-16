@@ -730,7 +730,7 @@
     }
   },
   "info": {
-    "description": "Implemented OpenAI-compatible models/chat and stateless text Responses JSON/SSE subset. Embeddings are not yet supported. Breaking changes require a versioned path and 180 days of migration overlap.",
+    "description": "Implemented OpenAI-compatible models/chat, stateless text Responses JSON/SSE and bounded text/float embeddings. Breaking changes require a versioned path and 180 days of migration overlap.",
     "title": "UZLLM Gateway API",
     "version": "1.0.0"
   },
@@ -1885,6 +1885,868 @@
           }
         ],
         "summary": "Create an OpenAI-compatible chat completion or SSE stream",
+        "tags": [
+          "UZLLM.Gateway.Api"
+        ]
+      }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "description": "OpenAI native text/float subset: one string or 1–32 strings; each nonblank input <=8192 UTF-8 bytes and catalog context. No token-ID inputs, base64, dimensions, stream, user or cross-model fallback. Only priority/price routing; override incompatible project strategy explicitly. Existing tenant/key/financial/Managed/BYOK/Hybrid controls apply. Input-only verified usage, one request fee per batch; unknown usage is null/pending reconciliation, not zero. Idempotency operation is embeddings, independent of chat.completions/responses.",
+        "operationId": "CreateEmbeddings",
+        "parameters": [
+          {
+            "description": "Non-empty UUID, scoped to organization/key/operation for 24 hours. Replay returns 409 and X-Original-Request-Id; completion bodies are not replayed.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "encoding_format": "float",
+                "input": [
+                  "Hello",
+                  "World"
+                ],
+                "model": "example-embedding"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "description": "Unique JSON properties; UTF-8 byte (not character) bounds and model context enforced at runtime. Hybrid requires nonempty provider_key_id.",
+                "properties": {
+                  "encoding_format": {
+                    "enum": [
+                      "float"
+                    ],
+                    "type": "string"
+                  },
+                  "input": {
+                    "oneOf": [
+                      {
+                        "maxLength": 8192,
+                        "minLength": 1,
+                        "pattern": "\\S",
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "maxLength": 8192,
+                          "minLength": 1,
+                          "pattern": "\\S",
+                          "type": "string"
+                        },
+                        "maxItems": 32,
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "model": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "type": "string"
+                  },
+                  "uzllm": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "allow_managed_fallback": {
+                        "type": "boolean"
+                      },
+                      "provider_key_id": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "routing": {
+                        "enum": [
+                          "priority",
+                          "price"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "model",
+                  "input"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "properties": {
+                          "embedding": {
+                            "items": {
+                              "format": "float",
+                              "type": "number"
+                            },
+                            "maxItems": 4096,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "index": {
+                            "maximum": 31,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "object": {
+                            "enum": [
+                              "embedding"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "object",
+                          "index",
+                          "embedding"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "object": {
+                      "enum": [
+                        "list"
+                      ],
+                      "type": "string"
+                    },
+                    "usage": {
+                      "properties": {
+                        "prompt_tokens": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "total_tokens": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "prompt_tokens",
+                        "total_tokens"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "object",
+                    "model",
+                    "data",
+                    "usage"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Ordered float vectors; usage is prompt_tokens=total_tokens or null when evidence is unknown. No SSE.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Billing-Mode": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Model": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Provider": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uzllm-Requested-Model": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Original-Request-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "param": {
+                          "type": [
+                            "null",
+                            "string"
+                          ]
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message",
+                        "type",
+                        "code",
+                        "param"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAI error envelope. No retry/fallback is implied by an HTTP status alone.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Correlation ID.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GatewayKey": []
+          }
+        ],
+        "summary": "Embed bounded text inputs as float vectors",
         "tags": [
           "UZLLM.Gateway.Api"
         ]

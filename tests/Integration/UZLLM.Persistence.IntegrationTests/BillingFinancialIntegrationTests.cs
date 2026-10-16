@@ -18,7 +18,7 @@ using UZLLM.Management.Api.Administration;
 namespace UZLLM.Persistence.IntegrationTests;
 
 [Collection(nameof(PersistenceIntegrationCollection))]
-public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixture fixture)
+public sealed partial class BillingFinancialIntegrationTests(PersistenceIntegrationFixture fixture)
 {
     private static readonly DateTimeOffset Start = new(2026, 9, 24, 0, 0, 0, TimeSpan.Zero);
 
@@ -1534,7 +1534,7 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         Assert.Equal(1, await db.Set<BillingLedgerEntryEntity>().CountAsync(value => value.Type == "UsageCharge"));
     }
 
-    private async Task<BillingSeed> SeedAsync(string extraPricingJson = "{}")
+    private async Task<BillingSeed> SeedAsync(string extraPricingJson = "{}", bool embedding = false)
     {
         await using var provider = fixture.CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
@@ -1571,7 +1571,8 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         db.Set<CatalogModelEntity>().Add(new CatalogModelEntity
         {
             Id = seed.ModelId, CanonicalCode = "billing-test-model", DisplayName = "Billing test model",
-            ContextLength = 100_000, MaxOutputTokens = 50_000, CapabilitiesJson = "[]",
+            ContextLength = embedding ? 8192 : 100_000, MaxOutputTokens = embedding ? 0 : 50_000,
+            CapabilitiesJson = embedding ? "[\"Embeddings\"]" : "[]",
             Status = "Active", CreatedAt = Start
         });
         db.Set<CatalogProviderModelEntity>().Add(new CatalogProviderModelEntity
@@ -1582,7 +1583,7 @@ public sealed class BillingFinancialIntegrationTests(PersistenceIntegrationFixtu
         db.Set<CatalogModelPriceEntity>().Add(new CatalogModelPriceEntity
         {
             Id = seed.PriceId, ProviderModelId = seed.ProviderModelId, EffectiveFrom = Start,
-            InputPriceMicroUsdPerMillion = 1_000_000, OutputPriceMicroUsdPerMillion = 1_000_000,
+            InputPriceMicroUsdPerMillion = 1_000_000, OutputPriceMicroUsdPerMillion = embedding ? 0 : 1_000_000,
             ExtraPricingJson = extraPricingJson, CreatedAt = Start
         });
         db.Set<BillingFeePolicyVersionEntity>().Add(new BillingFeePolicyVersionEntity

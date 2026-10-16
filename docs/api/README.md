@@ -7,8 +7,9 @@ implemented `/v1` and `/management/v1` surfaces (OpenAPI 3.1.1, contract 1.0.0).
 Native payment/Telegram callbacks and health endpoints are not Management
 client operations; their protocols remain documented in `../11_API_CONTRACTS.md`.
 `/v1/responses` exposes the [stateless text subset](../32_RESPONSES_API.md)
-and [Responses SSE lifecycle](../33_RESPONSES_SSE.md). Conversation storage and
-embeddings remain absent. `ResponsesStreamEvent` describes the named SSE payloads;
+and [Responses SSE lifecycle](../33_RESPONSES_SSE.md). `/v1/embeddings` exposes
+the [bounded text/float subset](../34_EMBEDDINGS_API.md); conversation storage
+remains absent. `ResponsesStreamEvent` describes the named SSE payloads;
 serializer-derived SSE fixtures are validated frame-by-frame, not merely as strings.
 
 ## Regeneration and drift checks

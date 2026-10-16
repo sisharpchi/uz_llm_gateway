@@ -462,3 +462,17 @@ never guesses a live rate from token usage. If supplier prices change outside
 the published windows, disable the mapping and reconcile provider invoices;
 the existing cost model cannot assert exact external spend without a matching
 price snapshot.
+
+## Embeddings execution boundary (`GATEWAY-007`)
+
+The [text/float embeddings subset](34_EMBEDDINGS_API.md) uses a separate
+`IEmbeddingProviderAdapter` contract implemented only by the OpenAI adapter.
+It reuses Gateway authentication, tenant/project/key policy, leases,
+price-version checks and reservation/evidence/settlement orchestration, but
+never invokes chat completion/stream translation. Capabilities and zero-output,
+input-only pricing must pass before a hold is acquired. Priority/price ranking
+is supported; chat performance strategies require an explicit supported override
+and embedding calls never write chat performance samples. Cross-model fallback
+is rejected because vectors are not interchangeable. Verified pre-execution
+same-model fallback remains bounded by the existing attempt/deadline/hold;
+unknown execution and cancellation never authorize replay or zero-cost release.

@@ -411,7 +411,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
         {
             entity.ToTable("model", "catalog", table =>
             {
-                table.HasCheckConstraint("CK_catalog_model_limits", "context_length > 0 AND max_output_tokens > 0 AND max_output_tokens <= context_length");
+                table.HasCheckConstraint("CK_catalog_model_limits", "context_length > 0 AND max_output_tokens <= context_length AND (max_output_tokens > 0 OR (max_output_tokens = 0 AND capabilities_json = '[\"Embeddings\"]'::jsonb))");
                 table.HasCheckConstraint("CK_catalog_model_status", "status IN ('Active', 'Disabled')");
             });
             entity.HasKey(model => model.Id);

@@ -15,7 +15,7 @@ public static class GatewayOpenApi
             options.AddDocumentTransformer((document, _, _) =>
             {
                 document.Info = new() { Title = "UZLLM Gateway API", Version = "1.0.0",
-                    Description = "Implemented OpenAI-compatible models/chat and stateless text Responses JSON/SSE subset. Embeddings are not yet supported. "
+                    Description = "Implemented OpenAI-compatible models/chat, stateless text Responses JSON/SSE and bounded text/float embeddings. "
                         + "Breaking changes require a versioned path and 180 days of migration overlap." };
                 document.Servers = [new() { Url = "/" }];
                 document.Components ??= new();
@@ -40,7 +40,8 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
     {
         var chat = context.Description.RelativePath == "v1/chat/completions";
         var responses = context.Description.RelativePath == "v1/responses";
-        var inference = chat || responses;
+        var embeddings = context.Description.RelativePath == "v1/embeddings";
+        var inference = chat || responses || embeddings;
         if (!inference && context.Description.RelativePath != "v1/models")
             throw new InvalidOperationException("Document the new gateway operation before publishing it.");
         operation.Security = [new OpenApiSecurityRequirement
@@ -48,7 +49,7 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
         operation.Responses = new();
         operation.Responses["200"] = new OpenApiResponse { Description = "Successful inference/model discovery.",
             Content = new Dictionary<string, OpenApiMediaType>
-            { ["application/json"] = new() { Schema = responses ? Response() : chat ? Completion() : Models() } } };
+            { ["application/json"] = new() { Schema = embeddings ? Embeddings() : responses ? Response() : chat ? Completion() : Models() } } };
         foreach (var status in inference ? new[] { 400, 401, 402, 403, 404, 409, 413, 415, 429, 502, 503 } : [401, 403, 503])
             operation.Responses[status.ToString()] = new OpenApiResponse
             {
@@ -60,7 +61,13 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
             { ["X-Request-Id"] = new OpenApiHeader { Schema = String(), Description = "Correlation ID." } };
         if (inference)
         {
-            operation.Description = responses
+            operation.Description = embeddings
+                ? "OpenAI native text/float subset: one string or 1–32 strings; each nonblank input <=8192 UTF-8 bytes and catalog context. "
+                    + "No token-ID inputs, base64, dimensions, stream, user or cross-model fallback. Only priority/price routing; "
+                    + "override incompatible project strategy explicitly. Existing tenant/key/financial/Managed/BYOK/Hybrid controls apply. "
+                    + "Input-only verified usage, one request fee per batch; unknown usage is null/pending reconciliation, not zero. "
+                    + "Idempotency operation is embeddings, independent of chat.completions/responses."
+                : responses
                 ? "Stateless text Responses JSON/SSE subset, translated through existing chat adapters. input accepts text or 1–256 "
                     + "text message items (including instructions). stream is optional boolean; store must be false or omitted; no conversation retrieval, "
                     + "tools, vision, structured-output or reasoning controls. Unsupported fields return 400 before reservation/dispatch. "
@@ -71,7 +78,9 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
                 + "After output begins, no replay/fallback occurs. Unknown usage leaves settlement pending, never a zero-cost claim.";
             operation.RequestBody = new OpenApiRequestBody { Required = true,
                 Content = new Dictionary<string, OpenApiMediaType> { ["application/json"] = new()
-                { Schema = responses ? ResponseRequest() : Request(), Example = JsonNode.Parse(responses
+                { Schema = embeddings ? EmbeddingsRequest() : responses ? ResponseRequest() : Request(), Example = JsonNode.Parse(embeddings
+                    ? """{"model":"example-embedding","input":["Hello","World"],"encoding_format":"float"}"""
+                    : responses
                     ? """{"model":"example-chat","input":"Hello","max_output_tokens":32,"store":false}"""
                     : """{"model":"example-chat","messages":[{"role":"user","content":"Hello"}],"max_completion_tokens":32,"stream":false}""") } } };
             operation.Parameters = [new OpenApiParameter { Name = "Idempotency-Key", In = ParameterLocation.Header,
@@ -89,13 +98,19 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
                     + "Interrupted streams use event: error with the error envelope; HTTP status cannot change after headers. "
                     + "Usage/finish/tool/refusal chunks may appear before the terminal marker.";
             }
-            else
+            else if (responses)
             {
                 operation.Responses["200"].Description = "JSON response or named Responses SSE events (ResponsesStreamEvent schema), not chat chunks/[DONE]. "
                     + "Sequence numbers start at zero. Terminal response.completed/incomplete follows upstream closure and financial cleanup; "
                     + "response.failed reports partial-stream/finalization errors. Unknown usage is null, never zero. No fallback after output. "
                     + "Streaming terminal snapshots retain at most 1048576 text/refusal characters; exceeding the bound fails safely, never truncates as success.";
                 operation.Responses["200"].Content!["text/event-stream"] = new OpenApiMediaType { Schema = String() };
+                foreach (var response in operation.Responses.Values)
+                    response.Headers!["Cache-Control"] = new OpenApiHeader { Schema = Enum("no-store") };
+            }
+            else if (embeddings)
+            {
+                operation.Responses["200"].Description = "Ordered float vectors; usage is prompt_tokens=total_tokens or null when evidence is unknown. No SSE.";
                 foreach (var response in operation.Responses.Values)
                     response.Headers!["Cache-Control"] = new OpenApiHeader { Schema = Enum("no-store") };
             }
@@ -121,6 +136,27 @@ public sealed class GatewayOperationTransformer : IOpenApiOperationTransformer
     public static OpenApiSchema Error() => Required(Object(("error", Required(Object(
         ("message", String()), ("type", String()), ("code", String()), ("param", Nullable(String()))),
         "message", "type", "code", "param"))), "error");
+
+    public static OpenApiSchema EmbeddingsRequest()
+    {
+        var text = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 8192, Pattern = "\\S" };
+        var extension = Object(("provider_key_id", new OpenApiSchema { Type = JsonSchemaType.String, Format = "uuid" }),
+            ("allow_managed_fallback", new OpenApiSchema { Type = JsonSchemaType.Boolean }), ("routing", Enum("priority", "price")));
+        extension.AdditionalPropertiesAllowed = false;
+        var request = Required(Object(("model", new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 200, Pattern = "\\S" }),
+            ("input", new OpenApiSchema { OneOf = [text, new OpenApiSchema { Type = JsonSchemaType.Array, Items = text, MinItems = 1, MaxItems = 32 }] }),
+            ("encoding_format", Enum("float")), ("uzllm", extension)), "model", "input");
+        request.AdditionalPropertiesAllowed = false;
+        request.Description = "Unique JSON properties; UTF-8 byte (not character) bounds and model context enforced at runtime. Hybrid requires nonempty provider_key_id.";
+        return request;
+    }
+
+    public static OpenApiSchema Embeddings() => Required(Object(("object", Enum("list")), ("model", String()),
+        ("data", new OpenApiSchema { Type = JsonSchemaType.Array, MinItems = 1, MaxItems = 32,
+            Items = Required(Object(("object", Enum("embedding")), ("index", new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "0", Maximum = "31" }),
+                ("embedding", new OpenApiSchema { Type = JsonSchemaType.Array, MinItems = 1, MaxItems = 4096,
+                    Items = new OpenApiSchema { Type = JsonSchemaType.Number, Format = "float" } })), "object", "index", "embedding") }),
+        ("usage", Nullable(Required(Object(("prompt_tokens", Integer()), ("total_tokens", Integer())), "prompt_tokens", "total_tokens")))), "object", "model", "data", "usage");
 
     public static OpenApiSchema ResponseRequest()
     {

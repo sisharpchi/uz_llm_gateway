@@ -154,8 +154,20 @@ through the existing native chat adapters and financial pipeline. This supersede
 the snapshot's statement that all Responses operations are missing; Responses
 streaming was subsequently delivered by `GATEWAY-006`
 ([SSE lifecycle and evidence](33_RESPONSES_SSE.md)); embeddings and server-managed
-conversations remain unsupported.
+conversations remain unsupported in that snapshot.
 Operation-scoped duplicate suppression, verified/unknown evidence, cancellation,
 normalized errors and generated contract parity require the linked task evidence.
 No financial schema or accounting model is redesigned. OPS-006 and external
 provider/merchant/HA/PITR launch gates remain separate and unpassed.
+
+## Subsequent embeddings follow-up — 2026-10-17
+
+`GATEWAY-007` introduces the [bounded native OpenAI text/float embeddings subset](34_EMBEDDINGS_API.md)
+with input-only Catalog metadata, operation-scoped duplicate suppression and
+the existing financial/evidence/recovery path. The earlier missing-embeddings
+statement is historical, not a claim that native token IDs/base64/dimensions,
+other embedding providers or cross-model vector substitution are implemented.
+The Management/dashboard catalog remains its explicitly chat-only discovery
+surface; Gateway `/v1/models` and the API guide describe embeddings. No financial
+model or module boundary is replaced; the zero-output Catalog constraint change
+requires the explicit Migrator. OPS-006/external launch gates remain unpassed.

@@ -20,6 +20,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Embed bounded text inputs as float vectors
+         * @description OpenAI native text/float subset: one string or 1–32 strings; each nonblank input <=8192 UTF-8 bytes and catalog context. No token-ID inputs, base64, dimensions, stream, user or cross-model fallback. Only priority/price routing; override incompatible project strategy explicitly. Existing tenant/key/financial/Managed/BYOK/Hybrid controls apply. Input-only verified usage, one request fee per batch; unknown usage is null/pending reconciliation, not zero. Idempotency operation is embeddings, independent of chat.completions/responses.
+         */
+        post: operations["CreateEmbeddings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/models": {
         parameters: {
             query?: never;
@@ -597,6 +617,289 @@ export interface operations {
             /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
             503: {
                 headers: {
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    CreateEmbeddings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Non-empty UUID, scoped to organization/key/operation for 24 hours. Replay returns 409 and X-Original-Request-Id; completion bodies are not replayed. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "encoding_format": "float",
+                 *       "input": [
+                 *         "Hello",
+                 *         "World"
+                 *       ],
+                 *       "model": "example-embedding"
+                 *     }
+                 */
+                "application/json": {
+                    /** @enum {string} */
+                    encoding_format?: "float";
+                    input: string | string[];
+                    model: string;
+                    uzllm?: {
+                        allow_managed_fallback?: boolean;
+                        /** Format: uuid */
+                        provider_key_id?: string;
+                        /** @enum {string} */
+                        routing?: "priority" | "price";
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Ordered float vectors; usage is prompt_tokens=total_tokens or null when evidence is unknown. No SSE. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    "X-Uzllm-Billing-Mode"?: string;
+                    "X-Uzllm-Model"?: string;
+                    "X-Uzllm-Provider"?: string;
+                    "X-Uzllm-Requested-Model"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: {
+                            embedding: number[];
+                            index: number;
+                            /** @enum {string} */
+                            object: "embedding";
+                        }[];
+                        model: string;
+                        /** @enum {string} */
+                        object: "list";
+                        usage: null | {
+                            /** Format: int64 */
+                            prompt_tokens: number;
+                            /** Format: int64 */
+                            total_tokens: number;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            402: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "X-Original-Request-Id"?: string;
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            429: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "Retry-After"?: string;
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            502: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    /** @description Correlation ID. */
+                    "X-Request-Id"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: {
+                            code: string;
+                            message: string;
+                            param: null | string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+            /** @description OpenAI error envelope. No retry/fallback is implied by an HTTP status alone. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
                     /** @description Correlation ID. */
                     "X-Request-Id"?: string;
                     [name: string]: unknown;

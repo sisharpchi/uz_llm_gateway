@@ -162,6 +162,15 @@ and cancellation-independent financial cleanup. [Input capability matrix](32_RES
 ### FR-044 — Embeddings [P1]
 Add normalized embedding API.
 
+`GATEWAY-007` defines the bounded OpenAI-native text/float subset at
+`POST /v1/embeddings`: a string or 1–32 nonblank strings, each at most 8192
+UTF-8 bytes and within the published model context. Input-only model/pricing,
+operation-scoped idempotency and the existing authorization/financial/explicit
+Managed/BYOK/Hybrid controls apply. Token IDs, base64, custom dimensions,
+streaming, end-user passthrough and cross-model fallback are explicitly rejected.
+Only priority/price routing is supported; chat performance samples are not reused.
+See [exact contract and validation](34_EMBEDDINGS_API.md).
+
 ### FR-045 — Other modalities [P2]
 Image/audio/video endpoints may be added based on demand.
 
