@@ -182,3 +182,20 @@ verification, ZDR certification or residency routing; `PRIVACY-003` remains
 separate. No live provider-policy facts are seeded. `REFUND-002` remains blocked
 on its financial-policy decision; user approval selected this independent
 task without resolving that decision or the OPS-006 staging requirement.
+
+## Subsequent developer-experience follow-up — 2026-10-17
+
+`DX-003` adds [bounded official Node SDK examples](36_SDK_EXAMPLES.md) for models,
+chat JSON/SSE, Responses JSON/SSE and text/float embeddings. Six shipped CLI
+commands run through the disposable real TLS stack; five replay denials, exact
+wallet debit, hold release and Activity are verified. Offline SDK/schema/error/
+cancellation cases disclose billing ambiguity and keep secrets out of browser
+persistence and error logging. The optional browser Playground remains
+unimplemented; no API, financial model, migration or deployed UI changes.
+
+The final unchanged Release rerun passes 1006 tests with zero failures/skips.
+The initial run's existing 400 ms provider-health test failure is retained beside
+its passing isolated/full unchanged rechecks; no health fix or proven root cause
+is claimed. Hosted CI, two-host staging and live provider/merchant qualification
+remain separate. REFUND-002 still requires financial-policy confirmation and
+OPS-006 still requires distinct staging hosts; no paid-launch gate is passed.

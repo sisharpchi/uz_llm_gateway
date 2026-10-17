@@ -187,6 +187,7 @@ This creates clear boundaries without paying the operational cost of many micros
 33. `33_RESPONSES_SSE.md`
 34. `34_EMBEDDINGS_API.md`
 35. `35_PROVIDER_DATA_POLICIES.md`
+36. `36_SDK_EXAMPLES.md`
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

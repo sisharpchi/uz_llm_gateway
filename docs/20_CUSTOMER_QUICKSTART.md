@@ -1,5 +1,11 @@
 # Customer Quickstart
 
+For runnable official OpenAI Node SDK examples covering models, chat JSON/SSE,
+Responses JSON/SSE and text/float embeddings, see
+[server/terminal examples](../examples/node/README.md). Each inference command
+requires explicit billing consent and disables automatic retries. The browser
+quickstart below does not collect or execute your API key.
+
 1. Register, verify your email and sign in to the dashboard. Create an
    organization and active project.
 2. Top up the organization wallet through a configured Payme or CLICK merchant.

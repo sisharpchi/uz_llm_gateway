@@ -1,0 +1,12 @@
+{
+  "name": "@uzllm/sdk-examples",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node run.mjs",
+    "test": "node --test examples.test.mjs"
+  },
+  "dependencies": { "openai": "7.36.0" },
+  "devDependencies": { "ajv": "8.20.0", "ajv-formats": "3.0.1" }
+}

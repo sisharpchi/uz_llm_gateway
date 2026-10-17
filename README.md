@@ -70,6 +70,10 @@ metadata. See [scope and validation](docs/30_ALERTS_PRIVACY_UX.md).
 
 ## Local development
 
+Runnable [Node SDK examples](examples/node/README.md) cover the supported Gateway
+models/chat/Responses/embeddings subset, with explicit billing consent, disabled
+retries and environment-only project credentials. See [scope and validation](docs/36_SDK_EXAMPLES.md).
+
 ### One-command disposable stack (Aspire)
 
 With Docker Desktop running, Node/npm and .NET 10 installed, trust an exportable

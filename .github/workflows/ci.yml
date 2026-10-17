@@ -63,6 +63,10 @@ jobs:
           npm run api:test --prefix frontend/apps
           npm run api:types --prefix frontend/apps
           npm run build --prefix frontend/apps
+      - name: Verify bounded Node SDK examples
+        run: |
+          npm ci --ignore-scripts --prefix examples/node
+          npm test --prefix examples/node
       - name: Verify customer browser regression and localization
         run: npm run test:e2e --workspace @uzllm/dashboard --prefix frontend/apps -- --workers=1
       - name: Run disposable real-stack launch acceptance

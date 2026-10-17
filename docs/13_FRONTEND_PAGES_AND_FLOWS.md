@@ -161,6 +161,10 @@ Detail:
 
 ## 7. Playground [P1]
 
+This page remains aspirational. DX-003 delivers [server/terminal SDK examples](36_SDK_EXAMPLES.md)
+instead of its optional browser playground; it does not collect API secrets in
+the dashboard or mark this page implemented.
+
 Inputs:
 - model;
 - routing;

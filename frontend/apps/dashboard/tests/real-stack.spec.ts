@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { test, expect, type APIRequestContext, type BrowserContext } from '@playwright/test';
 
 const base = process.env.UZLLM_ACCEPTANCE_BASE_URL!;
@@ -267,6 +269,40 @@ test('LAUNCH_002_real_stack_registration_payment_inference_and_dashboard', async
   expect(deniedEmbedding.response.status()).toBe(403);
   expect((await json(request, 'get', walletPath)).body.postedBalanceMicroUsd).toBe('10999952');
   expect((await request.put(base + keyPermissionPath, { headers: auth, data: {} })).status()).toBe(204);
+
+  // DX-003: execute the shipped CLI with the real SDK against this TLS stack.
+  // Environment-only synthetic key; no raw subprocess error/body in test reports.
+  const sdkPath = fileURLToPath(new URL('../../../../examples/node/run.mjs', import.meta.url));
+  const sdkResults: string[] = [];
+  for (const operation of ['models', 'chat', 'chat-stream', 'responses', 'responses-stream', 'embeddings']) {
+    const claim = randomUUID();
+    const sdkEnv = { ...process.env, NODE_EXTRA_CA_CERTS: process.env.UZLLM_ACCEPTANCE_SDK_CA,
+      UZLLM_GATEWAY_URL: base, UZLLM_API_KEY: gatewaySecret, UZLLM_ACK_BILLING: 'yes',
+      UZLLM_MODEL: operation === 'embeddings' ? 'fixture-embedding' : 'fixture-model', UZLLM_IDEMPOTENCY_KEY: claim };
+    const run = () => spawnSync(process.execPath, [sdkPath, operation], { env: sdkEnv, encoding: 'utf8', timeout: 65_000 });
+    const result = run();
+    expect(result.status, `SDK ${operation} exit status`).toBe(0);
+    expect(result.stderr.includes(gatewaySecret)).toBe(false);
+    expect(result.stdout.includes(gatewaySecret)).toBe(false);
+    const output = JSON.parse(result.stdout);
+    expect(output.idempotencyKey).toBe(claim); expect(output.requestId).toBeTruthy();
+    if (operation === 'models') expect(output.models.some((model: { id: string }) => model.id === 'fixture-model')).toBe(true);
+    else {
+      expect(output.usage.total_tokens).toBe(operation === 'embeddings' ? 4 : 11);
+      if (operation === 'embeddings') expect(output.vectors).toEqual([{ index: 0, dimensions: 2 }, { index: 1, dimensions: 2 }]);
+      else { expect(output.text).toBe('Fixture complete.'); if (operation.endsWith('stream')) expect(output.deltas).toBeGreaterThan(0); }
+      const duplicate = run(); expect(duplicate.status).toBe(1);
+      expect(duplicate.stderr.includes(gatewaySecret)).toBe(false);
+      const error = JSON.parse(duplicate.stderr.trim().split('\n').at(-1)!);
+      expect(error.status).toBe(409); expect(error.originalRequestId).toBe(output.requestId);
+      sdkResults.push(output.requestId);
+    }
+  }
+  const sdkWallet = (await json(request, 'get', walletPath)).body;
+  expect(sdkWallet.postedBalanceMicroUsd).toBe('10999904'); // 4 * 11 + 4; duplicate claims cost nothing.
+  expect(sdkWallet.reservedBalanceMicroUsd).toBe('0');
+  const sdkActivity = (await json(request, 'get', activityPath)).body.items;
+  expect(sdkResults.every(id => sdkActivity.some((item: { requestId: string }) => item.requestId.replaceAll('-', '') === id))).toBe(true);
 
   // FRONTEND-006: real UI commands through TLS edge/session/CSRF/PostgreSQL.
   // No route interception. Secret values stay only in test memory; screenshots

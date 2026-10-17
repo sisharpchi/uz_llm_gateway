@@ -155,6 +155,8 @@ try {
   await wait(base + '/edge/health', response => response.status === 204, 'edge');
   env.UZLLM_ACCEPTANCE_BASE_URL = base;
   env.UZLLM_ACCEPTANCE_MAILPIT_URL = `http://127.0.0.1:${mailpitPort}`;
+  // Trust only this disposable edge certificate in SDK child processes. Never disable TLS validation.
+  env.UZLLM_ACCEPTANCE_SDK_CA = join(certs, 'public.crt');
   const result = spawnSync(process.execPath,
     [join(root, 'frontend/apps/dashboard/node_modules/playwright/cli.js'),
       'test', '--config', 'playwright.acceptance.config.ts'], {

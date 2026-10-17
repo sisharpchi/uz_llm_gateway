@@ -1,6 +1,7 @@
 # LAUNCH-002 disposable real-stack acceptance
 
-Run `npm ci --prefix frontend/apps`, then from the repository root:
+Run `npm ci --prefix frontend/apps` and `npm ci --ignore-scripts --prefix examples/node`,
+then from the repository root:
 
 ```text
 node deploy/tests/run-launch-acceptance.mjs
@@ -22,6 +23,12 @@ Worker, Nginx edge and the built dashboard, then runs
 own containers, volume, and temporary certificates. CLICK ingress uses a
 test-only `allow all` file solely inside this loopback-bound, disposable stack;
 production remains default-deny until merchant-verified ranges are installed.
+DX-003 extends the browser vertical with the shipped Node SDK CLI (six operations,
+five replay denials, exact settlement/hold release and Activity). Its subprocesses
+trust the disposable edge certificate via `NODE_EXTRA_CA_CERTS`; they do not
+disable TLS validation or use live credentials. Historical figures below remain
+the original LAUNCH-002 evidence; [DX-003 evidence](../docs/36_SDK_EXAMPLES.md)
+records the newer run separately.
 Mailpit's [official SMTP documentation](https://mailpit.axllent.org/docs/configuration/smtp/)
 describes its STARTTLS configuration.
 
