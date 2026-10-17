@@ -281,7 +281,7 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 
 | ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
 |---|---|---|---|
-| ENTERPRISE-001 · Planned | Specify SSO/SCIM identities, tenant roles and deprovisioning; `docs/`. | SECURITY-004; FR-004–005, ADR-025; new product requirement needed. | Approved threat/contract spec and decomposed implementation tasks; no untested auth endpoint. |
+| ENTERPRISE-001 · Blocked | Specify SSO/SCIM identities, tenant roles and deprovisioning; `docs/`. | SECURITY-004; FR-004–005, ADR-025; new product requirement needed. | Approved threat/contract spec and decomposed implementation tasks; no untested auth endpoint. 2026-10-17 readiness review: user approved P2 specification work, but protocol/reference IdP, provisioning/enforcement and deprovisioned-member API-key policy are not defined. Await the decisions below; no feature code or completed-spec claim. |
 | PRIVACY-003 · Planned | Specify ZDR/residency eligibility and truthful provider claims; `docs/`. | CATALOG-003; NFR-050–052. | Policy evidence matrix and denial cases reviewed; no ZDR promise without provider evidence. |
 | ROUTING-007 · Planned | Specify advanced routing/cache policy and financial impact; `docs/`. | USAGE-004; FR-060–068. | Decision matrix, staleness/fallback/fee cases and benchmark plan approved. |
 | PROVIDER-010 · Planned | Specify custom provider endpoint trust, auth and billing boundary; `docs/`. | SECURITY-006; FR-050–056. | SSRF/credential/cost threat model and contract fixtures designed. |
@@ -336,3 +336,73 @@ block above without erasing its history. It explicitly selects this independent
 P1 task while OPS-006 remains externally blocked. No discretionary debit, cash
 payout, historical spend restoration or production-gate approval is inferred.
 See [implementation scope and evidence](37_WALLET_ADJUSTMENTS.md).
+
+### ENTERPRISE-001 readiness review — 2026-10-17
+
+The user's Continue directly answers the offer to start SSO/SCIM
+**specification** work. It does not approve federation endpoints, migrations,
+new authentication mechanisms, or arbitrary product/security policies.
+OPS-006 remains blocked by unavailable distinct staging hosts.
+
+**Dependency evidence inspected, not rerun:** SECURITY-004 exists in
+[IdentityService](../src/Modules/Identity/Application/IdentityService.cs) and
+[operator MFA regression](../tests/Integration/UZLLM.Persistence.IntegrationTests/OperatorMfaIntegrationTests.cs):
+enroll/confirm/replay, recent verification and audited independent reset.
+ADR-025 requires the existing server-backed session and separate operator
+boundary to remain intact.
+
+**Missing product authority:** FR-004 and FR-005 define roles/invitations,
+not enterprise federation/provisioning. Functional Requirements section 14
+only names SSO/SAML and SCIM as P2; no protocol profile, reference IdP,
+account-linking, enforcement or lifecycle contract exists. These cannot be
+inferred from the earlier permission to begin writing a specification.
+
+**Concrete repository constraints:**
+
+- [Identity contracts](../src/Modules/Identity/Contracts/IdentityContracts.cs)
+  and [persistence](../src/BuildingBlocks/UZLLM.Persistence/IdentityEntities.cs)
+  implement global email/password accounts and account sessions, not
+  organization-scoped federation identities or SCIM resources. The database
+  design's conceptual `external_auth_ref` is not an implemented identity field.
+- [TeamService.RevokeAsync](../src/Modules/Organizations/Application/TeamService.cs)
+  enforces manager/last-owner checks and commits membership/audit together.
+  [RevokeMemberAsync](../src/Modules/Organizations/Infrastructure/PostgreSqlTeamStore.cs)
+  revokes that organization's membership and deletes its project grants;
+  it does not suspend the global account or revoke gateway keys.
+- [Gateway key authentication](../src/Modules/ApiKeys/Application/ApiKeyServices.cs)
+  checks secret, key status/expiry and active project. Its
+  [store](../src/Modules/ApiKeys/Infrastructure/PostgreSqlApiKeyStore.cs) does not
+  join creator membership. `CreatedByAccountId` records creation, not an
+  explicit human/service-key ownership distinction. Retaining all keys after
+  deprovisioning can retain credential access; revoking all creator keys can
+  interrupt organization workloads. A new policy must choose intentionally.
+
+**Product decisions required before a binding spec:**
+
+1. First supported protocol/profile and reference IdP: SAML 2.0 + SCIM 2.0
+   is the proposed starting scope consistent with the existing SSO/SAML label;
+   choose Microsoft Entra ID, Okta or another reference IdP. Confirm whether
+   initial SCIM covers Users only or Groups/role synchronization too. OIDC
+   must be explicitly selected/included, not silently substituted for SAML.
+2. Provisioning and login enforcement: proposed initial scope is SCIM-managed
+   enterprise membership, no implicit email-based account merge/JIT creation,
+   and organization opt-in SSO. Define whether/when SSO becomes mandatory and
+   the approved recovery path. External claims must not grant platform
+   operator privileges or bypass the existing recent-MFA boundary.
+3. Deprovisioned credentials: proposed conservative policy revokes tenant
+   membership/grants and keys created by that member **in that organization**,
+   without suspending the global account or other tenants. This can stop
+   workloads; alternatively require explicit service-key ownership/transfer
+   semantics before preserving such keys. Neither option is approved yet.
+
+Existing reservations must still settle/reconcile, and financial/audit history
+must not be erased by identity lifecycle changes. These are existing invariants,
+not choices to weaken. Live IdP credentials/onboarding are **not** required to
+write the specification; product decisions are the blocker, not live fixtures.
+After confirmation, write the threat/identity/API/lifecycle contract, proposed
+requirements and dependency-safe follow-on tasks, then obtain review approval
+before marking ENTERPRISE-001 Completed. No other backlog task is started.
+
+This is a documentation-only, explicitly incomplete readiness review. Static
+relative-link, task-scope and whitespace checks are its validation; no .NET,
+frontend, protocol or live IdP tests were run or claimed for this review.
