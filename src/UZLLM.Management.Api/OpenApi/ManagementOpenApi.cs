@@ -104,6 +104,14 @@ public static class ManagementOpenApi
                 foreach (var entry in document.Paths) paths.Add(entry.Key.TrimEnd('/'), entry.Value);
                 document.Paths = paths;
                 document.Components ??= new();
+                // GetOrCreateSchemaAsync can inline the array item without its
+                // nullable approval arm. Fix this property only, not the shared
+                // approval definition (which must stay non-null for oneOf refs).
+                if (document.Components.Schemas?.TryGetValue(nameof(AdminWalletAdjustmentResponse) + "List", out var adjustments) == true
+                    && adjustments.Items?.Properties is { } adjustmentProperties)
+                    adjustmentProperties["approval"] = new OpenApiSchema { AnyOf =
+                        [new OpenApiSchema { Type = JsonSchemaType.Null },
+                         new OpenApiSchemaReference(nameof(AdminWalletAdjustmentApprovalResponse), document)] };
                 document.Components.SecuritySchemes = new Dictionary<string, IOpenApiSecurityScheme>
                 {
                     ["Session"] = new OpenApiSecurityScheme { Type = SecuritySchemeType.ApiKey,
@@ -339,6 +347,11 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Read<AdminFeePolicyResponse[]>("/admin/fee-policies/{code}", 400, 404, 409);
         Read<AdminFxRateResponse[]>("/admin/fx-rates", 400, 404, 409);
         Read<AdminSettlementRefundResponse[]>("/admin/refunds", 400, 404, 409);
+        Read<AdminWalletAdjustmentResponse[]>("/admin/wallet-adjustments", 400, 404, 409);
+        Read<AdminWalletAdjustmentResponse>("/admin/wallet-adjustments/{id}", 400, 404, 409);
+        Write<AdminWalletAdjustmentResponse>("POST", "/admin/wallet-adjustments", 201, 404, 409);
+        Replay("/admin/wallet-adjustments");
+        Write<AdminWalletAdjustmentResponse>("POST", "/admin/wallet-adjustments/{id}/approve", 200, 404, 409);
         Read<AdminSettlementRefundResponse>("/admin/refunds/{id}", 400, 404, 409);
         Read<AdminLedgerEntryResponse[]>("/admin/organizations/{id}/ledger", 400, 404, 409);
         Read<AdminPaymentResponse[]>("/admin/payments", 400, 404, 409);

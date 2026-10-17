@@ -843,6 +843,159 @@
     "status": 200
   },
   {
+    "body": {
+      "adjustmentKey": "example-credit-key",
+      "amountMicroUsd": "9007199254740993",
+      "approval": null,
+      "createdAt": "2026-10-01T00:00:00+00:00",
+      "duplicate": false,
+      "id": "11111111-1111-4111-8111-111111111111",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "reason": "Documented service credit",
+      "requestedByAccountId": "11111111-1111-4111-8111-111111111111",
+      "status": "Pending"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/wallet-adjustments",
+    "status": 201
+  },
+  {
+    "body": {
+      "adjustmentKey": "example-credit-key",
+      "amountMicroUsd": "9007199254740993",
+      "approval": {
+        "approvedByAccountId": "22222222-2222-4222-8222-222222222222",
+        "createdAt": "2026-10-01T00:01:00+00:00",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "reason": "Independent credit approval"
+      },
+      "createdAt": "2026-10-01T00:00:00+00:00",
+      "duplicate": true,
+      "id": "11111111-1111-4111-8111-111111111111",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "reason": "Documented service credit",
+      "requestedByAccountId": "11111111-1111-4111-8111-111111111111",
+      "status": "Approved"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/wallet-adjustments",
+    "status": 200
+  },
+  {
+    "body": [
+      {
+        "adjustmentKey": "example-credit-key",
+        "amountMicroUsd": "9007199254740993",
+        "approval": null,
+        "createdAt": "2026-10-01T00:00:00+00:00",
+        "duplicate": false,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "reason": "Documented service credit",
+        "requestedByAccountId": "11111111-1111-4111-8111-111111111111",
+        "status": "Pending"
+      },
+      {
+        "adjustmentKey": "example-credit-key",
+        "amountMicroUsd": "9007199254740993",
+        "approval": {
+          "approvedByAccountId": "22222222-2222-4222-8222-222222222222",
+          "createdAt": "2026-10-01T00:01:00+00:00",
+          "id": "11111111-1111-4111-8111-111111111111",
+          "reason": "Independent credit approval"
+        },
+        "createdAt": "2026-10-01T00:00:00+00:00",
+        "duplicate": false,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "reason": "Documented service credit",
+        "requestedByAccountId": "11111111-1111-4111-8111-111111111111",
+        "status": "Approved"
+      }
+    ],
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/wallet-adjustments",
+    "status": 200
+  },
+  {
+    "body": {
+      "adjustmentKey": "example-credit-key",
+      "amountMicroUsd": "9007199254740993",
+      "approval": {
+        "approvedByAccountId": "22222222-2222-4222-8222-222222222222",
+        "createdAt": "2026-10-01T00:01:00+00:00",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "reason": "Independent credit approval"
+      },
+      "createdAt": "2026-10-01T00:00:00+00:00",
+      "duplicate": false,
+      "id": "11111111-1111-4111-8111-111111111111",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "reason": "Documented service credit",
+      "requestedByAccountId": "11111111-1111-4111-8111-111111111111",
+      "status": "Approved"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/wallet-adjustments/{id}",
+    "status": 200
+  },
+  {
+    "body": {
+      "adjustmentKey": "example-credit-key",
+      "amountMicroUsd": "9007199254740993",
+      "approval": {
+        "approvedByAccountId": "22222222-2222-4222-8222-222222222222",
+        "createdAt": "2026-10-01T00:01:00+00:00",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "reason": "Independent credit approval"
+      },
+      "createdAt": "2026-10-01T00:00:00+00:00",
+      "duplicate": false,
+      "id": "11111111-1111-4111-8111-111111111111",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "reason": "Documented service credit",
+      "requestedByAccountId": "11111111-1111-4111-8111-111111111111",
+      "status": "Approved"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/wallet-adjustments/{id}/approve",
+    "status": 200
+  },
+  {
+    "body": {
+      "adjustmentKey": "example-credit-key",
+      "amountMicroUsd": "9007199254740993",
+      "approval": {
+        "approvedByAccountId": "22222222-2222-4222-8222-222222222222",
+        "createdAt": "2026-10-01T00:01:00+00:00",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "reason": "Independent credit approval"
+      },
+      "createdAt": "2026-10-01T00:00:00+00:00",
+      "duplicate": true,
+      "id": "11111111-1111-4111-8111-111111111111",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "reason": "Documented service credit",
+      "requestedByAccountId": "11111111-1111-4111-8111-111111111111",
+      "status": "Approved"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/wallet-adjustments/{id}/approve",
+    "status": 200
+  },
+  {
     "body": [
       {
         "deliveredAt": "2026-10-01T00:00:01+00:00",

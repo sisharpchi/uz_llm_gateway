@@ -63,6 +63,13 @@ Ledger rows are never edited to “fix balance”.
 
 Corrections use compensating entries.
 
+Discretionary adjustments (`REFUND-002`) are positive wallet credits only.
+An immutable request has no financial effect; every amount requires one
+different recently MFA-verified operator's approval. The approval, credit,
+available-credit debt recovery and audit commit atomically. Active holds,
+historical usage charges, budget spend and FX snapshots are not rewritten.
+Settlement-linked refunds remain a separate workflow.
+
 ### Payment invariant
 
 One external provider transaction can credit a wallet at most once.

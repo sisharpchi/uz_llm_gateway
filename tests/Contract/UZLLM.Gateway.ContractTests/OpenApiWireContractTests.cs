@@ -149,6 +149,16 @@ public sealed class OpenApiWireContractTests : IDisposable
         Add("/management/v1/admin/providers/{providerId}/data-policies", "post", 201, adminPolicy);
         Add("/management/v1/admin/providers/{providerId}/data-policies", "get", 200, new[] { adminPolicy });
         Add("/management/v1/admin/provider-data-policies/{id}", "get", 200, adminPolicy);
+        var pendingCredit = new UZLLM.Management.Api.Administration.AdminWalletAdjustmentResponse(id, id, id,
+            "example-credit-key", "9007199254740993", "Documented service credit", now, "Pending", null, false);
+        var approvedCredit = pendingCredit with { Status = "Approved", Approval = new(id,
+            Guid.Parse("22222222-2222-4222-8222-222222222222"), "Independent credit approval", now.AddMinutes(1)) };
+        Add("/management/v1/admin/wallet-adjustments", "post", 201, pendingCredit);
+        Add("/management/v1/admin/wallet-adjustments", "post", 200, approvedCredit with { Duplicate = true });
+        Add("/management/v1/admin/wallet-adjustments", "get", 200, new[] { pendingCredit, approvedCredit });
+        Add("/management/v1/admin/wallet-adjustments/{id}", "get", 200, approvedCredit);
+        Add("/management/v1/admin/wallet-adjustments/{id}/approve", "post", 200, approvedCredit);
+        Add("/management/v1/admin/wallet-adjustments/{id}/approve", "post", 200, approvedCredit with { Duplicate = true });
         Add(org + "/alerts/events", "get", 200, new[] {
             new UZLLM.Modules.Notifications.Infrastructure.AlertEventView(id, id, "LowBalance", null, 100,
                 "Delivered", now, now.AddSeconds(1)) });

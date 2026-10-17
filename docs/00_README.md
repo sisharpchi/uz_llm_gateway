@@ -17,6 +17,10 @@ gaps, `18_PRODUCTION_READINESS.md` defines launch gates, and
 from the next-phase register; paid traffic stays gated until repository and external
 evidence is complete.
 
+Discretionary wallet credits use immutable maker/checker evidence and require
+independent recent-MFA approval for every amount; no manual debit or cash
+payout. See [policy, operations and validation](37_WALLET_ADJUSTMENTS.md).
+
 The sellable MVP requires OpenAI and Anthropic integrations plus Payme and
 CLICK top-ups. It uses USD-denominated credits purchased in UZS with immutable
 FX snapshots. See `16_IMPLEMENTATION_BACKLOG.md` for delivery order.

@@ -294,6 +294,10 @@ Support configurable platform markup/fee policy without changing provider adapte
 
 ### FR-080 — Refund/adjustment [P1]
 Admin may issue audited credit adjustments/refunds.
+REFUND-002 discretionary adjustments are credit-only USD micro-unit credits.
+Every amount requires a second, different recently MFA-verified operator;
+request creation does not post money. Maker, checker, immutable terms and both
+reasons are audited. No discretionary debit or cash payout is authorized.
 
 ### FR-081 — Provider payment reversal [P0]
 A confirmed provider reversal shall recover available credit, record remaining
@@ -426,6 +430,11 @@ Admins can inspect but not silently mutate ledger history.
 
 ### FR-124 — Manual adjustment [P1]
 Audited compensating entry only.
+Discretionary credits use an immutable request plus one immutable approval,
+with organization-scoped request-key idempotency and single approval posting.
+Active holds are preserved; credits follow existing available-credit debt
+recovery rules. Historical usage/spend buckets and FX snapshots are not
+rewritten. Settlement-linked refunds remain separate.
 
 ### FR-125 — Payment reconciliation [P0]
 View gateway payment state versus Payme/CLICK state.

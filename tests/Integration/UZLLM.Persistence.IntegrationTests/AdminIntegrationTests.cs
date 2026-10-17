@@ -75,6 +75,19 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
             await identity.GrantOperatorAccessAsync(operatorAccount.AccountId);
             var operatorSession = (await identity.AuthenticateAsync("admin-operator@example.uz", "correct horse battery staple"))!;
 
+            const string adjustmentsPath = "/management/v1/admin/wallet-adjustments";
+            var customerOrg = Guid.CreateVersion7();
+            var creditDb = scope.ServiceProvider.GetRequiredService<FoundationDbContext>();
+            creditDb.Set<OrganizationEntity>().Add(new() { Id = customerOrg, Name = "Credit test tenant", Status = "Active", CreatedAt = clock.GetUtcNow() });
+            await creditDb.SaveChangesAsync();
+            var creditRequest = new CreateWalletAdjustmentRequest(customerOrg, "http-service-credit", "6000", "Documented service credit");
+            using (var anonymousCredit = await client.GetAsync(adjustmentsPath))
+                Assert.Equal(HttpStatusCode.Unauthorized, anonymousCredit.StatusCode);
+            using (var customerCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, customerSession, creditRequest, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, customerCredit.StatusCode);
+            using (var noMfaCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, operatorSession, creditRequest, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, noMfaCredit.StatusCode);
+
             using (var response = await client.GetAsync("/management/v1/admin/access"))
                 Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
             using (var response = await client.GetAsync("/management/v1/admin/providers"))
@@ -323,6 +336,60 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 secondSession, new { code = secondCode }, true)))
                 Assert.Equal(HttpStatusCode.NoContent, secondConfirm.StatusCode);
 
+            using (var noCsrfCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, operatorSession, creditRequest)))
+                Assert.Equal(HttpStatusCode.Forbidden, noCsrfCredit.StatusCode);
+            using (var invalidCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, operatorSession,
+                creditRequest with { AmountMicroUsd = "-1" }, true)))
+                Assert.Equal(HttpStatusCode.BadRequest, invalidCredit.StatusCode);
+            using (var overrideCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, operatorSession,
+                new { organizationId = customerOrg, adjustmentKey = "http-extra-fields", amountMicroUsd = "6000",
+                    reason = "Documented service credit", direction = "debit" }, true)))
+                Assert.Equal(HttpStatusCode.BadRequest, overrideCredit.StatusCode);
+            AdminWalletAdjustmentResponse requestedCredit;
+            using (var createCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, operatorSession, creditRequest, true)))
+            {
+                Assert.Equal(HttpStatusCode.Created, createCredit.StatusCode);
+                Assert.Equal("no-store", createCredit.Headers.CacheControl?.ToString());
+                requestedCredit = (await createCredit.Content.ReadFromJsonAsync<AdminWalletAdjustmentResponse>())!;
+                Assert.Equal("Pending", requestedCredit.Status);
+                Assert.Null(requestedCredit.Approval);
+                Assert.Equal(adjustmentsPath + "/" + requestedCredit.Id, createCredit.Headers.Location!.OriginalString);
+            }
+            var approvePath = adjustmentsPath + "/" + requestedCredit.Id + "/approve";
+            var approveCredit = new ApproveWalletAdjustmentRequest("Independent HTTP credit approval");
+            using (var selfCredit = await client.SendAsync(Request(HttpMethod.Post, approvePath, operatorSession, approveCredit, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, selfCredit.StatusCode);
+            using (var approveNoCsrf = await client.SendAsync(Request(HttpMethod.Post, approvePath, secondSession, approveCredit)))
+                Assert.Equal(HttpStatusCode.Forbidden, approveNoCsrf.StatusCode);
+            using (var overrideAmount = await client.SendAsync(Request(HttpMethod.Post, approvePath, secondSession,
+                new { reason = "Independent approval", amountMicroUsd = "9000" }, true)))
+                Assert.Equal(HttpStatusCode.BadRequest, overrideAmount.StatusCode);
+            using (var approve = await client.SendAsync(Request(HttpMethod.Post, approvePath, secondSession, approveCredit, true)))
+            {
+                Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
+                var approved = (await approve.Content.ReadFromJsonAsync<AdminWalletAdjustmentResponse>())!;
+                Assert.Equal("Approved", approved.Status);
+                Assert.Equal(secondOperator.AccountId, approved.Approval!.ApprovedByAccountId);
+                Assert.Equal("6000", approved.AmountMicroUsd);
+                Assert.False(approved.Duplicate);
+            }
+            using (var replayCredit = await client.SendAsync(Request(HttpMethod.Post, approvePath, secondSession, approveCredit, true)))
+            {
+                Assert.Equal(HttpStatusCode.OK, replayCredit.StatusCode);
+                Assert.True((await replayCredit.Content.ReadFromJsonAsync<AdminWalletAdjustmentResponse>())!.Duplicate);
+            }
+            using (var changedCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, operatorSession,
+                creditRequest with { AmountMicroUsd = "6001" }, true)))
+                Assert.Equal(HttpStatusCode.Conflict, changedCredit.StatusCode);
+            using (var detailCredit = await client.SendAsync(Request(HttpMethod.Get, adjustmentsPath + "/" + requestedCredit.Id, secondSession)))
+                Assert.Equal(HttpStatusCode.OK, detailCredit.StatusCode);
+            using (var missingCredit = await client.SendAsync(Request(HttpMethod.Get, adjustmentsPath + "/" + Guid.NewGuid(), secondSession)))
+                Assert.Equal(HttpStatusCode.NotFound, missingCredit.StatusCode);
+            using (var listCredit = await client.SendAsync(Request(HttpMethod.Get, adjustmentsPath + "?organizationId=" + customerOrg, secondSession)))
+                Assert.Equal(requestedCredit.Id, Assert.Single((await listCredit.Content.ReadFromJsonAsync<AdminWalletAdjustmentResponse[]>())!).Id);
+            using (var boundedCredit = await client.SendAsync(Request(HttpMethod.Get, adjustmentsPath + "?limit=101", secondSession)))
+                Assert.Equal(HttpStatusCode.BadRequest, boundedCredit.StatusCode);
+
             var resetPath = $"/management/v1/admin/operators/{operatorAccount.AccountId}/mfa/reset";
             var resetBody = new { reason = "Lost authenticator during operator recovery" };
             using (var missingCsrf = await client.SendAsync(Request(HttpMethod.Post, resetPath, secondSession, resetBody)))
@@ -334,10 +401,14 @@ public sealed class AdminIntegrationTests(PersistenceIntegrationFixture fixture)
                 Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
             using (var revoked = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", operatorSession)))
                 Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
+            using (var revokedCredit = await client.SendAsync(Request(HttpMethod.Post, adjustmentsPath, operatorSession, creditRequest, true)))
+                Assert.Equal(HttpStatusCode.Unauthorized, revokedCredit.StatusCode);
             using (var replayReset = await client.SendAsync(Request(HttpMethod.Post, resetPath, secondSession, resetBody, true)))
                 Assert.Equal(HttpStatusCode.NotFound, replayReset.StatusCode);
 
             clock.Advance(TimeSpan.FromMinutes(16));
+            using (var staleCredit = await client.SendAsync(Request(HttpMethod.Post, approvePath, secondSession, approveCredit, true)))
+                Assert.Equal(HttpStatusCode.Forbidden, staleCredit.StatusCode);
             using (var response = await client.SendAsync(Request(HttpMethod.Get, "/management/v1/admin/providers", secondSession)))
                 Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }

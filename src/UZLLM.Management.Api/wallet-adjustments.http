@@ -1,0 +1,36 @@
+@baseUrl = http://localhost:5063
+@makerSession = replace-with-recent-mfa-maker-session
+@makerCsrf = replace-with-maker-csrf
+@checkerSession = replace-with-different-recent-mfa-checker-session
+@checkerCsrf = replace-with-checker-csrf
+@organizationId = replace-with-wallet-organization-uuid
+@requestId = replace-with-created-request-uuid
+
+### Request an immutable credit. No wallet mutation yet; same key/terms replay safely.
+POST {{baseUrl}}/management/v1/admin/wallet-adjustments
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{makerSession}}; __Host-uzllm-csrf={{makerCsrf}}
+X-CSRF-Token: {{makerCsrf}}
+
+{
+  "organizationId": "{{organizationId}}",
+  "adjustmentKey": "support-ticket-12345-credit",
+  "amountMicroUsd": "1000000",
+  "reason": "Documented goodwill service credit"
+}
+
+### Review the exact immutable terms before approving.
+GET {{baseUrl}}/management/v1/admin/wallet-adjustments/{{requestId}}
+Cookie: __Host-uzllm-session={{checkerSession}}
+
+### A different operator approves every amount; cannot override amount or organization.
+POST {{baseUrl}}/management/v1/admin/wallet-adjustments/{{requestId}}/approve
+Content-Type: application/json
+Cookie: __Host-uzllm-session={{checkerSession}}; __Host-uzllm-csrf={{checkerCsrf}}
+X-CSRF-Token: {{checkerCsrf}}
+
+{ "reason": "Independently verified support credit" }
+
+### Bounded operator history, optionally scoped to an organization.
+GET {{baseUrl}}/management/v1/admin/wallet-adjustments?organizationId={{organizationId}}&limit=50
+Cookie: __Host-uzllm-session={{checkerSession}}

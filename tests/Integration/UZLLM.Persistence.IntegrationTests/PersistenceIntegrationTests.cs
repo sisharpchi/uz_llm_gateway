@@ -383,6 +383,15 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // Disposable fixture only: production Down refuses to discard maker/checker history.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
+            .Database.ExecuteSqlRawAsync("""
+                DO $$ BEGIN
+                  IF to_regclass('billing.wallet_adjustment') IS NOT NULL THEN
+                    TRUNCATE TABLE billing.wallet_adjustment_approval, billing.wallet_adjustment;
+                  END IF;
+                END $$;
+                """);
         // Disposable fixture only: production rollback refuses to discard tenant limits.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
             .Database.ExecuteSqlRawAsync("""

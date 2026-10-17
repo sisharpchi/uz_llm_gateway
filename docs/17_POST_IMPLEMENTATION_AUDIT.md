@@ -199,3 +199,31 @@ its passing isolated/full unchanged rechecks; no health fix or proven root cause
 is claimed. Hosted CI, two-host staging and live provider/merchant qualification
 remain separate. REFUND-002 still requires financial-policy confirmation and
 OPS-006 still requires distinct staging hosts; no paid-launch gate is passed.
+
+## Subsequent discretionary-credit follow-up — 2026-10-17
+
+The user's Continue directly answering the DX-003 policy handoff confirms
+credit-only adjustments and a different recently MFA-verified checker for
+every amount. This supersedes the earlier REFUND-002 policy block without
+erasing that historical review or changing the P0 staging gate.
+
+`REFUND-002` adds immutable credit requests and single independent approvals,
+organization/key replay protection, wallet-first serialization and atomic
+ledger/debt/audit effects. Pending requests post no money. The maker and checker
+cannot match; approval cannot override terms. Audit failure before commit and
+cancelled/uncommitted operations roll back; unknown commit responses must use
+the same operation identity for recovery. Active holds and captured spend
+remain intact. No discretionary debit, cash payout, historical FX change or
+new frontend screen is introduced.
+
+Verified evidence includes 17 new policy cases, 5 new PostgreSQL financial
+cases, the extended real HTTP operator/MFA/CSRF boundary and serializer/schema/
+TypeScript fixtures. The final Release baseline passes **1028 tests across 16
+assemblies**, with zero failures/skips (PostgreSQL 234/234). Targeted fixture
+mistakes and OpenAPI inline-nullability failures were corrected, not accepted
+or hidden. Fresh disposable TLS-stack regression also passes 5/5 scenarios;
+all 24 implementation/contract file hashes remain unchanged through final
+validation. See [scope, migration and dated validation](37_WALLET_ADJUSTMENTS.md).
+Current production readiness still depends on distinct staging hosts,
+fault/restore qualification and live business/merchant/provider evidence;
+this follow-up does not pass those gates.

@@ -49,6 +49,32 @@ test('versioned documents cover implemented surfaces and resolve all schema refe
   assert.deepEqual(Object.keys(documents.gateway.paths).sort(), ['/v1/chat/completions', '/v1/embeddings', '/v1/models', '/v1/responses']);
 });
 
+test('wallet credits expose exact amounts independent approval and protected mutation contracts', () => {
+  const document = documents.management;
+  const path = '/management/v1/admin/wallet-adjustments';
+  const create = document.paths[path].post;
+  const approve = document.paths[path + '/{id}/approve'].post;
+  for (const operation of [create, approve]) {
+    assert.ok(operation.security.some(item => item.Session));
+    assert.ok(operation.parameters.some(item => item.name === 'X-CSRF-Token' && item.required));
+    for (const status of ['200', '400', '401', '403', '404', '409']) assert.ok(operation.responses[status]);
+  }
+  assert.ok(create.responses['201']);
+  const validate = validator(document, approve.requestBody.content['application/json'].schema);
+  assert.ok(validate({ reason: 'Independent credit approval' }));
+  for (const extra of [{ amountMicroUsd: '9000' }, { organizationId: '11111111-1111-4111-8111-111111111111' }, { direction: 'debit' }])
+    assert.equal(validate({ reason: 'Independent credit approval', ...extra }), false);
+  const fixtures = read('examples.json').filter(item => item.path.startsWith(path));
+  assert.equal(fixtures.length, 6);
+  const pending = fixtures.find(item => item.status === 201).body;
+  assert.equal(pending.status, 'Pending');
+  assert.equal(pending.approval, null);
+  assert.equal(pending.amountMicroUsd, '9007199254740993');
+  const approved = fixtures.find(item => item.path.endsWith('/approve')).body;
+  assert.notEqual(approved.requestedByAccountId, approved.approval.approvedByAccountId);
+  assert.ok(fixtures.some(item => item.body.duplicate === true));
+});
+
 test('embeddings schema bounds text batches and rejects unimplemented encoding and controls', () => {
   const operation = documents.gateway.paths['/v1/embeddings'].post;
   assert.ok(operation.security.some(item => item.GatewayKey));

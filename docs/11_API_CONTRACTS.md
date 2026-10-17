@@ -882,6 +882,44 @@ actor, settlement, organization, reason, amount and `duplicate` flag. `GET`
 routes are operator-only, newest-first, with a 1–100 limit. This is wallet
 credit, not a cash refund or provider payment reversal.
 
+### Discretionary wallet credits (`REFUND-002`)
+
+Under `/management/v1/admin`:
+
+```text
+GET  /wallet-adjustments?organizationId=<optional>&limit=50
+GET  /wallet-adjustments/{id}
+POST /wallet-adjustments
+POST /wallet-adjustments/{id}/approve
+```
+
+All four require a current operator session and recent MFA (15 minutes);
+mutations additionally require session-bound CSRF. Create body:
+`{ "organizationId": "uuid", "adjustmentKey": "support-ticket-12345",
+"amountMicroUsd": "1000000", "reason": "Documented service credit" }`.
+Amount is a positive Int64 decimal **string**, key 8–120 and reason 8–500
+printable trimmed Unicode scalar characters (matching PostgreSQL length).
+Unknown command fields are rejected. Create
+returns `201`/Location or `200` for identical key/maker/amount/reason replay;
+no wallet credit occurs yet. Changed terms/maker return `409`.
+
+Approve body is only `{ "reason": "Independent credit approval" }`. A
+different operator is required for every amount (`403` on self-approval).
+Returns `200` after atomic approval/credit/debt recovery/audit, or identical
+checker/reason replay with `duplicate: true`; conflicting checker/reason or
+unsupported balance capacity returns `409`. Missing wallet/request returns
+`404`, malformed input `400`, missing session `401`, missing permission/MFA/CSRF
+`403`. Reads are newest-first, limit 1–100, and missing detail returns `404`.
+
+Resources expose `id`, `organizationId`, `requestedByAccountId`, immutable
+`adjustmentKey`, `amountMicroUsd`, `reason`, `createdAt`, `status` (`Pending` or
+`Approved`), nullable `approval` (`id`, `approvedByAccountId`, `reason`,
+`createdAt`), and `duplicate`. All responses are `no-store`. Pending requests
+have no automatic expiry or financial effect. No edit/delete, manual debit,
+cash payout, customer adjustment-history UI or new budget state is introduced.
+
+### Other operator controls and financial reads
+
 `PATCH` bodies are `{ "enabled": false, "reason": "incident INC-42" }`.
 Prices must be future-effective; scheduling closes the current interval in the
 same transaction and never rewrites its rate values. Ledger is read-only.

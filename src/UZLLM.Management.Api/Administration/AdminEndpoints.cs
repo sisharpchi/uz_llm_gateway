@@ -14,6 +14,7 @@ public static class AdminEndpoints
     public static IServiceCollection AddUzllmAdministration(this IServiceCollection services) => services
         .AddScoped<IAdminReadStore, PostgreSqlAdminReadStore>()
         .AddScoped<IProviderDataPolicyAdminService, ProviderDataPolicyAdminService>()
+        .AddScoped<IWalletAdjustmentAdminService, WalletAdjustmentAdminService>()
         .AddScoped<IAdminService, AdminService>();
 
     public static IEndpointRouteBuilder MapUzllmAdminEndpoints(this IEndpointRouteBuilder endpoints)
@@ -43,6 +44,27 @@ public static class AdminEndpoints
         });
 
         admin.MapGet("/accounts", (string query, IAdminService service, CancellationToken ct) => service.SearchAccountsAsync(query, ct));
+        admin.MapGet("/wallet-adjustments", (Guid? organizationId, int? limit, IWalletAdjustmentAdminService service,
+            CancellationToken ct) => service.ListAsync(organizationId, limit ?? 50, ct))
+            .WithSummary("Read bounded credit requests and independent approval evidence");
+        admin.MapGet("/wallet-adjustments/{id:guid}", async Task<Microsoft.AspNetCore.Http.HttpResults.Results<
+            Microsoft.AspNetCore.Http.HttpResults.Ok<AdminWalletAdjustmentResponse>, Microsoft.AspNetCore.Http.HttpResults.NotFound>>
+            (Guid id, IWalletAdjustmentAdminService service, CancellationToken ct) =>
+                await service.FindAsync(id, ct) is { } value ? TypedResults.Ok(value) : TypedResults.NotFound())
+            .WithSummary("Read immutable wallet credit request terms before approval");
+        admin.MapPost("/wallet-adjustments", async Task<IResult> (CreateWalletAdjustmentRequest request,
+            HttpContext http, IWalletAdjustmentAdminService service, CancellationToken ct) =>
+        {
+            var value = await service.RequestAsync(Actor(http), request, ct);
+            return value.Duplicate ? TypedResults.Ok(value)
+                : TypedResults.Created($"/management/v1/admin/wallet-adjustments/{value.Id}", value);
+        }).RequireManagementCsrf().WithSummary("Request credit only; no money posts before independent approval");
+        admin.MapPost("/wallet-adjustments/{id:guid}/approve", async Task<IResult> (Guid id,
+            ApproveWalletAdjustmentRequest request, HttpContext http, IWalletAdjustmentAdminService service, CancellationToken ct) =>
+        {
+            try { return TypedResults.Ok(await service.ApproveAsync(Actor(http), id, request, ct)); }
+            catch (UnauthorizedAccessException) { return TypedResults.StatusCode(StatusCodes.Status403Forbidden); }
+        }).RequireManagementCsrf().WithSummary("Independently approve every credit amount exactly once");
         admin.MapGet("/organizations", (string query, IAdminService service, CancellationToken ct) => service.SearchOrganizationsAsync(query, ct));
         admin.MapGet("/providers", (IAdminService service, CancellationToken ct) => service.ListProvidersAsync(ct));
         admin.MapGet("/providers/{providerId:guid}/data-policies", (Guid providerId, int? limit,

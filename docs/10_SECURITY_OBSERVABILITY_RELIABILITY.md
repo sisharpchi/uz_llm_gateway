@@ -177,6 +177,13 @@ event in the same database transaction as the configuration change. The
 operator UI never receives platform credential ciphertext or plaintext. Granting
 the first operator role is an out-of-band privileged provisioning step.
 
+Discretionary wallet credits add a two-person boundary for every amount:
+request maker and approval checker must differ. Both mutations require current
+operator access, recent MFA and session CSRF. Immutable request terms cannot
+be overridden by the approval payload. Maker/checker IDs, both reasons and
+the ledger reference remain auditable; replay does not add another audit event
+or credit. This does not authorize discretionary debits or cash payouts.
+
 ---
 
 ## 5. Payment webhook security

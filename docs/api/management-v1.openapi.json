@@ -1408,6 +1408,151 @@
         },
         "type": "array"
       },
+      "AdminWalletAdjustmentApprovalResponse": {
+        "properties": {
+          "approvedByAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "approvedByAccountId",
+          "reason",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "AdminWalletAdjustmentResponse": {
+        "properties": {
+          "adjustmentKey": {
+            "type": "string"
+          },
+          "amountMicroUsd": {
+            "type": "string"
+          },
+          "approval": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AdminWalletAdjustmentApprovalResponse"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "duplicate": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requestedByAccountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "requestedByAccountId",
+          "adjustmentKey",
+          "amountMicroUsd",
+          "reason",
+          "createdAt",
+          "status",
+          "approval",
+          "duplicate"
+        ],
+        "type": "object"
+      },
+      "AdminWalletAdjustmentResponseList": {
+        "items": {
+          "properties": {
+            "adjustmentKey": {
+              "type": "string"
+            },
+            "amountMicroUsd": {
+              "type": "string"
+            },
+            "approval": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/AdminWalletAdjustmentApprovalResponse"
+                }
+              ]
+            },
+            "createdAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "duplicate": {
+              "type": "boolean"
+            },
+            "id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "organizationId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "requestedByAccountId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "organizationId",
+            "requestedByAccountId",
+            "adjustmentKey",
+            "amountMicroUsd",
+            "reason",
+            "createdAt",
+            "status",
+            "approval",
+            "duplicate"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "AlertDestinationViewList": {
         "items": {
           "properties": {
@@ -1717,6 +1862,18 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ApproveWalletAdjustmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
         "type": "object"
       },
       "BudgetPolicyResponse": {
@@ -2371,6 +2528,31 @@
         "required": [
           "settlementId",
           "refundKey",
+          "amountMicroUsd",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "CreateWalletAdjustmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "adjustmentKey": {
+            "type": "string"
+          },
+          "amountMicroUsd": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "adjustmentKey",
           "amountMicroUsd",
           "reason"
         ],
@@ -10990,6 +11172,665 @@
             "Session": []
           }
         ],
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/admin/wallet-adjustments": {
+      "get": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "get_management_v1_admin_wallet_adjustments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "organizationId",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWalletAdjustmentResponseList"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read bounded credit requests and independent approval evidence",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      },
+      "post": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "post_management_v1_admin_wallet_adjustments",
+        "parameters": [
+          {
+            "description": "Must match the readable CSRF cookie and the current session.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWalletAdjustmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWalletAdjustmentResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWalletAdjustmentResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Request credit only; no money posts before independent approval",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/admin/wallet-adjustments/{id}": {
+      "get": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "get_management_v1_admin_wallet_adjustments_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWalletAdjustmentResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read immutable wallet credit request terms before approval",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/admin/wallet-adjustments/{id}/approve": {
+      "post": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "post_management_v1_admin_wallet_adjustments_id_approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must match the readable CSRF cookie and the current session.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveWalletAdjustmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWalletAdjustmentResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Independently approve every credit amount exactly once",
         "tags": [
           "UZLLM.Management.Api"
         ]

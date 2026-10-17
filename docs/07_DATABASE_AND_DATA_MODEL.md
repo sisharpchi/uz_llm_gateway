@@ -217,6 +217,23 @@ Possible types:
 
 Reservations can be modeled separately.
 
+### Discretionary credit evidence (`REFUND-002`)
+
+`billing.wallet_adjustment` owns immutable organization, maker account,
+positive micro-USD amount, normalized key/reason and creation timestamp.
+`(organization_id, adjustment_key)` is unique. `billing.wallet_adjustment_approval`
+owns the checker, approval reason/time and unique request ID; a composite FK
+binds request/organization/maker and a CHECK rejects maker = checker.
+Both account references restrict deletion. UPDATE/DELETE triggers and a
+populated-history downgrade guard protect both tables. Status is derived from
+approval existence; pending requests neither reserve nor credit money.
+
+Wallet-first row locking serializes request-key creation and approval with
+other financial operations. Approval, `AdjustmentCredit` ledger (reference
+`wallet_adjustment`, request ID), existing debt recovery and audit use the same
+PostgreSQL transaction. Unique ledger reference and approval request constraints
+backstop replay; Redis and external transports are not involved.
+
 ### `billing.reservation`
 - id
 - organization_id

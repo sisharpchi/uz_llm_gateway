@@ -51,6 +51,13 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## External / business prerequisites (never code-task completion)
 
+If discretionary wallet credits are exposed in the release, include the
+`REFUND-002` independent-maker/checker, replay/concurrency, audit rollback and
+hold/debt evidence in its Financial/Security gate review. The approved software
+policy is credit-only with different recent-MFA approval for every amount;
+it does not replace fiscal/legal approvals or authorize cash payouts/debits.
+See [policy and repository evidence](37_WALLET_ADJUSTMENTS.md).
+
 | Prerequisite | Owner evidence to attach before paid launch |
 |---|---|
 | Provider commercial access | Agreements, approved use/resale terms, production credentials, model availability, quotas and pricing evidence for each offered provider. |

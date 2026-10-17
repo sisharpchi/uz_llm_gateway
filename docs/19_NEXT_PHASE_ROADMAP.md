@@ -49,6 +49,11 @@ can prove live payment/provider agreements.
 are separate increments. `REFUND-001` is a wallet credit for a prior settled
 charge; cash payout is not silently implied.
 
+`REFUND-002` uses the subsequently user-confirmed credit-only policy: every
+amount needs a different recently MFA-verified checker, immutable terms and
+atomic ledger/debt/audit effects. No discretionary debit, cash payout or new
+frontend screen is implied. [Scope and evidence](37_WALLET_ADJUSTMENTS.md).
+
 `DEVEX-001` is an independent local developer-workflow task requested after
 the P0 register was drafted. It does not depend on the blocked `OPS-006`
 two-host staging run and cannot satisfy that production gate. Selecting it

@@ -30,6 +30,10 @@ Management also exposes [dated provider data-policy observations](docs/35_PROVID
 with audited operator publication and authorized customer reads. Unknown is
 explicit; conditional reports are not ZDR certification or residency routing.
 
+Operators can request [audited discretionary wallet credits](docs/37_WALLET_ADJUSTMENTS.md).
+Every amount requires a different recently MFA-verified operator's approval;
+request creation alone cannot change balances. No manual debit or cash payout.
+
 Usage analytics now uses durable hourly read models with a five-second Worker
 poll, live partial-hour reads, explicit backlog/freshness and gross/refund/net
 charge fields. See [rollup semantics and operations](docs/21_USAGE_ROLLUPS.md).

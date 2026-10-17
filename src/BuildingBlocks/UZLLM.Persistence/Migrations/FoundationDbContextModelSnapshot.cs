@@ -761,6 +761,108 @@ namespace UZLLM.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.BillingWalletAdjustmentApprovalEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ApprovedByAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_account_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid>("RequestedByAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_account_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByAccountId");
+
+                    b.HasIndex("RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("RequestId", "OrganizationId", "RequestedByAccountId");
+
+                    b.ToTable("wallet_adjustment_approval", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_wallet_adjustment_approval_reason", "length(btrim(reason)) BETWEEN 8 AND 500");
+
+                            t.HasCheckConstraint("CK_wallet_adjustment_two_person", "requested_by_account_id <> approved_by_account_id");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingWalletAdjustmentEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AdjustmentKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("adjustment_key");
+
+                    b.Property<long>("AmountMicroUsd")
+                        .HasColumnType("bigint")
+                        .HasColumnName("amount_micro_usd");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RequestedByAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_account_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedByAccountId");
+
+                    b.HasIndex("OrganizationId", "AdjustmentKey")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "CreatedAt");
+
+                    b.ToTable("wallet_adjustment", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_wallet_adjustment_positive", "amount_micro_usd > 0");
+
+                            t.HasCheckConstraint("CK_wallet_adjustment_text", "length(btrim(adjustment_key)) BETWEEN 8 AND 120 AND length(btrim(reason)) BETWEEN 8 AND 500");
+                        });
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.BillingWalletEntity", b =>
                 {
                     b.Property<Guid>("OrganizationId")
@@ -900,32 +1002,85 @@ namespace UZLLM.Persistence.Migrations
 
             modelBuilder.Entity("UZLLM.Persistence.CatalogProviderDataPolicyEntity", b =>
                 {
-                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("ProviderId").HasColumnType("uuid").HasColumnName("provider_id");
-                    b.Property<string>("Retention").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("retention");
-                    b.Property<string>("Training").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("training");
-                    b.Property<string>("Residency").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("residency");
-                    b.Property<string[]>("Regions").IsRequired().HasColumnType("text[]").HasColumnName("regions");
-                    b.Property<string>("Scope").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("scope");
-                    b.Property<string>("Conditions").IsRequired().HasMaxLength(2000).HasColumnType("character varying(2000)").HasColumnName("conditions");
-                    b.Property<string>("SourceUrl").IsRequired().HasMaxLength(2048).HasColumnType("character varying(2048)").HasColumnName("source_url");
-                    b.Property<DateTimeOffset>("SourceObservedAt").HasColumnType("timestamp with time zone").HasColumnName("source_observed_at");
-                    b.Property<DateTimeOffset>("PublishedAt").HasColumnType("timestamp with time zone").HasColumnName("published_at");
-                    b.Property<Guid>("PublishedByAccountId").HasColumnType("uuid").HasColumnName("published_by_account_id");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Conditions")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("conditions");
+
+                    b.Property<Guid>("ProviderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("provider_id");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid>("PublishedByAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_account_id");
+
+                    b.PrimitiveCollection<string[]>("Regions")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("regions");
+
+                    b.Property<string>("Residency")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("residency");
+
+                    b.Property<string>("Retention")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("retention");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("scope");
+
+                    b.Property<DateTimeOffset>("SourceObservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_observed_at");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("source_url");
+
+                    b.Property<string>("Training")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("training");
+
                     b.HasKey("Id");
-                    b.HasIndex("ProviderId", "SourceObservedAt").IsUnique();
+
                     b.HasIndex("PublishedByAccountId");
+
+                    b.HasIndex("ProviderId", "SourceObservedAt")
+                        .IsUnique();
+
                     b.ToTable("provider_data_policy", "catalog", t =>
                         {
-                            t.HasCheckConstraint("CK_provider_data_policy_retention", "retention IN ('Unknown', 'MayRetain', 'NoRetentionReported')");
-                            t.HasCheckConstraint("CK_provider_data_policy_training", "training IN ('Unknown', 'MayTrain', 'NoTrainingReported')");
-                            t.HasCheckConstraint("CK_provider_data_policy_residency", "cardinality(regions) <= 16 AND ((residency = 'Unknown' AND cardinality(regions) = 0) OR (residency = 'ProviderReported' AND cardinality(regions) > 0))");
                             t.HasCheckConstraint("CK_provider_data_policy_dates", "source_observed_at > '1970-01-01'::timestamptz AND source_observed_at <= published_at");
+
+                            t.HasCheckConstraint("CK_provider_data_policy_residency", "cardinality(regions) <= 16 AND ((residency = 'Unknown' AND cardinality(regions) = 0) OR (residency = 'ProviderReported' AND cardinality(regions) > 0))");
+
+                            t.HasCheckConstraint("CK_provider_data_policy_retention", "retention IN ('Unknown', 'MayRetain', 'NoRetentionReported')");
+
+                            t.HasCheckConstraint("CK_provider_data_policy_training", "training IN ('Unknown', 'MayTrain', 'NoTrainingReported')");
                         });
-                    b.HasOne("UZLLM.Persistence.CatalogProviderEntity", null).WithMany()
-                        .HasForeignKey("ProviderId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null).WithMany()
-                        .HasForeignKey("PublishedByAccountId").OnDelete(DeleteBehavior.Restrict).IsRequired();
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.CatalogProviderEntity", b =>
@@ -3306,6 +3461,37 @@ namespace UZLLM.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.BillingWalletAdjustmentApprovalEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.BillingWalletAdjustmentEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RequestId", "OrganizationId", "RequestedByAccountId")
+                        .HasPrincipalKey("Id", "OrganizationId", "RequestedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingWalletAdjustmentEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.BillingWalletEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.BillingWalletEntity", b =>
                 {
                     b.HasOne("UZLLM.Persistence.OrganizationEntity", "Organization")
@@ -3326,6 +3512,21 @@ namespace UZLLM.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("ProviderModel");
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.CatalogProviderDataPolicyEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.CatalogProviderEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ProviderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PublishedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.CatalogProviderModelEntity", b =>

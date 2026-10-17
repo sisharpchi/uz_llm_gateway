@@ -44,9 +44,31 @@ Example:
 | Top-up | +10.00 |
 | Usage charge | -0.063 |
 | Refund | +1.00 |
-| Manual debit adjustment | -0.50 |
+| Payment-reversal debt recovery (`AdjustmentDebit`) | -0.50 |
 
 Reservation is temporary state and may be separate from posted ledger.
+
+### Discretionary credits (`REFUND-002`)
+
+Confirmed policy: credit-only, with a different recently MFA-verified operator
+approving **every positive amount**. No manual debit or cash payout is authorized.
+The maker records immutable organization/key/amount/reason; creation posts no
+money. The checker reviews those terms and supplies an independent reason.
+Current operator grant, recent MFA and CSRF are required at each mutation.
+Maker authorization is checked when requesting, checker authorization when
+approving; a historical maker grant need not stay active indefinitely.
+
+The wallet row is locked before checking replay/capacity. Approval, one
+`AdjustmentCredit`, available-credit debt recovery and audit commit together;
+audit failure before commit rolls back everything. If a commit acknowledgement
+or response is lost, read/retry the same operation identity instead of assuming
+no credit or using a new key. Active reservations survive unchanged.
+Credits never erase historical usage, restore spend budgets, revalue FX or
+become settlement refunds. Identical organization key/maker/amount/reason
+replays return the original request; changed terms conflict. Approval replays
+require the same checker and normalized reason. A competing checker conflicts.
+Pending requests have no automatic expiry, edit/delete/cancel or posting job;
+they may simply remain unapproved. See [contract and evidence](37_WALLET_ADJUSTMENTS.md).
 
 ---
 

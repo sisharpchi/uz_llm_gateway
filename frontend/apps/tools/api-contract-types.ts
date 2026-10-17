@@ -3,6 +3,14 @@ import type { paths as ManagementPaths } from '../../packages/api-client/generat
 import type { paths as GatewayPaths, components as GatewayComponents } from '../../packages/api-client/generated/gateway-v1';
 
 // Compile-only fixtures: unused @ts-expect-error directives fail tsc if a guard disappears.
+type CreditCommand = NonNullable<ManagementPaths['/management/v1/admin/wallet-adjustments']['post']['requestBody']>['content']['application/json'];
+const exactCredit: CreditCommand = { organizationId: 'uuid', adjustmentKey: 'example-key', amountMicroUsd: '9007199254740993', reason: 'Documented service credit' };
+// @ts-expect-error Credits must use exact money strings, not JavaScript numbers.
+const lossyCredit: CreditCommand = { ...exactCredit, amountMicroUsd: 9007199254740993 };
+type CreditApproval = NonNullable<ManagementPaths['/management/v1/admin/wallet-adjustments/{id}/approve']['post']['requestBody']>['content']['application/json'];
+const independentCreditApproval: CreditApproval = { reason: 'Independent approval' };
+// @ts-expect-error Approval cannot override immutable amount or organization.
+const changedCreditApproval: CreditApproval = { reason: 'Independent approval', amountMicroUsd: '1' };
 type TopUpHeaders = ManagementPaths['/management/v1/organizations/{organizationId}/billing/topups']['post']['parameters']['header'];
 const validTopUpHeaders: TopUpHeaders = { 'X-CSRF-Token': 'csrf', 'Idempotency-Key': 'replay-key' };
 // @ts-expect-error Financial replay proof is required by the published operation.
