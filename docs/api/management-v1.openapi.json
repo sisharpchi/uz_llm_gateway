@@ -978,6 +978,138 @@
         },
         "type": "array"
       },
+      "AdminProviderDataPolicyResponse": {
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/ProviderDataPolicyResponse"
+          },
+          "publishedByAccountId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy",
+          "publishedByAccountId"
+        ],
+        "type": "object"
+      },
+      "AdminProviderDataPolicyResponseList": {
+        "items": {
+          "properties": {
+            "policy": {
+              "description": "Dated, conditional provider-reported information only. Unknown is explicit; no ZDR or residency guarantee and no routing enforcement.",
+              "properties": {
+                "conditions": {
+                  "maxLength": 2000,
+                  "minLength": 8,
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "providerId": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "publishedAt": {
+                  "format": "date-time",
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "regions": {
+                  "items": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 16,
+                  "type": "array"
+                },
+                "residency": {
+                  "enum": [
+                    "Unknown",
+                    "ProviderReported"
+                  ],
+                  "type": "string"
+                },
+                "retention": {
+                  "enum": [
+                    "Unknown",
+                    "MayRetain",
+                    "NoRetentionReported"
+                  ],
+                  "type": "string"
+                },
+                "scope": {
+                  "maxLength": 500,
+                  "minLength": 8,
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "sourceObservedAt": {
+                  "format": "date-time",
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "sourceUrl": {
+                  "maxLength": 2048,
+                  "minLength": 1,
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "training": {
+                  "enum": [
+                    "Unknown",
+                    "MayTrain",
+                    "NoTrainingReported"
+                  ],
+                  "type": "string"
+                },
+                "versionId": {
+                  "format": "uuid",
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "providerId",
+                "versionId",
+                "retention",
+                "training",
+                "residency",
+                "regions",
+                "scope",
+                "conditions",
+                "sourceUrl",
+                "sourceObservedAt",
+                "publishedAt"
+              ],
+              "type": "object"
+            },
+            "publishedByAccountId": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "required": [
+            "policy",
+            "publishedByAccountId"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "AdminProviderObservationResponse": {
         "properties": {
           "amountTiyin": {
@@ -3704,6 +3836,106 @@
         },
         "type": "object"
       },
+      "ProviderDataPolicyResponse": {
+        "description": "Dated, conditional provider-reported information only. Unknown is explicit; no ZDR or residency guarantee and no routing enforcement.",
+        "properties": {
+          "conditions": {
+            "maxLength": 2000,
+            "minLength": 8,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "regions": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "residency": {
+            "enum": [
+              "Unknown",
+              "ProviderReported"
+            ],
+            "type": "string"
+          },
+          "retention": {
+            "enum": [
+              "Unknown",
+              "MayRetain",
+              "NoRetentionReported"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "maxLength": 500,
+            "minLength": 8,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceObservedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceUrl": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "training": {
+            "enum": [
+              "Unknown",
+              "MayTrain",
+              "NoTrainingReported"
+            ],
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "providerId",
+          "versionId",
+          "retention",
+          "training",
+          "residency",
+          "regions",
+          "scope",
+          "conditions",
+          "sourceUrl",
+          "sourceObservedAt",
+          "publishedAt"
+        ],
+        "type": "object"
+      },
       "ProviderObservationResult": {
         "properties": {
           "caseReasons": {
@@ -3785,6 +4017,79 @@
           "source",
           "uzsTiyinPerUsd",
           "observedAt",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "PublishProviderDataPolicyRequest": {
+        "description": "Dated, conditional provider-reported information only. Unknown is explicit; no ZDR or residency guarantee and no routing enforcement.",
+        "properties": {
+          "conditions": {
+            "maxLength": 2000,
+            "minLength": 8,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "residency": {
+            "enum": [
+              "Unknown",
+              "ProviderReported"
+            ],
+            "type": "string"
+          },
+          "retention": {
+            "enum": [
+              "Unknown",
+              "MayRetain",
+              "NoRetentionReported"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "maxLength": 500,
+            "minLength": 8,
+            "type": "string"
+          },
+          "sourceObservedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceUrl": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "training": {
+            "enum": [
+              "Unknown",
+              "MayTrain",
+              "NoTrainingReported"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "retention",
+          "training",
+          "residency",
+          "regions",
+          "scope",
+          "conditions",
+          "sourceUrl",
+          "sourceObservedAt",
           "reason"
         ],
         "type": "object"
@@ -9279,6 +9584,157 @@
         ]
       }
     },
+    "/management/v1/admin/provider-data-policies/{id}": {
+      "get": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "get_management_v1_admin_provider_data_policies_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProviderDataPolicyResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read an immutable provider-policy publication",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
     "/management/v1/admin/providers": {
       "get": {
         "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
@@ -9733,6 +10189,321 @@
             "Session": []
           }
         ],
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/admin/providers/{providerId}/data-policies": {
+      "get": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "get_management_v1_admin_providers_providerId_data_policies",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProviderDataPolicyResponseList"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read bounded immutable provider-policy history; not a privacy guarantee",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      },
+      "post": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "post_management_v1_admin_providers_providerId_data_policies",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must match the readable CSRF cookie and the current session.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishProviderDataPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProviderDataPolicyResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Publish a dated conditional provider data-policy observation with audit",
         "tags": [
           "UZLLM.Management.Api"
         ]
@@ -14664,6 +15435,141 @@
           }
         ],
         "summary": "List effective managed chat model prices and capabilities for an authorized project",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/organizations/{organizationId}/projects/{projectId}/catalog/providers/{providerCode}/data-policy": {
+      "get": {
+        "operationId": "GetCustomerProviderDataPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "providerCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderDataPolicyResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read dated conditional upstream policy; unknown is not ZDR or a residency guarantee",
         "tags": [
           "UZLLM.Management.Api"
         ]

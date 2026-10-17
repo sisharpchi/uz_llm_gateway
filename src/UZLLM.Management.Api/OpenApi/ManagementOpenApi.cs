@@ -46,6 +46,28 @@ public static class ManagementOpenApi
                             value.Maximum = name == "requestsPerMinute" ? "1000000" : "10000";
                         }
                 }
+                if ((context.JsonTypeInfo.Type == typeof(PublishProviderDataPolicyRequest)
+                    || context.JsonTypeInfo.Type == typeof(ProviderDataPolicyResponse)) && schema.Properties is { } policyProperties)
+                {
+                    foreach (var (name, values) in new Dictionary<string, string[]>
+                    {
+                        ["retention"] = ["Unknown", "MayRetain", "NoRetentionReported"],
+                        ["training"] = ["Unknown", "MayTrain", "NoTrainingReported"],
+                        ["residency"] = ["Unknown", "ProviderReported"]
+                    })
+                        if (policyProperties[name] is OpenApiSchema classification)
+                            classification.Enum = values.Select(value => (JsonNode)JsonValue.Create(value)!).ToList();
+                    if (policyProperties["regions"] is OpenApiSchema regions)
+                    {
+                        regions.MaxItems = 16;
+                        if (regions.Items is OpenApiSchema item) { item.MinLength = 1; item.MaxLength = 80; }
+                    }
+                    foreach (var (name, minimum, maximum) in new[] { ("scope", 8, 500), ("conditions", 8, 2000), ("sourceUrl", 1, 2048) })
+                        if (policyProperties[name] is OpenApiSchema text) { text.MinLength = minimum; text.MaxLength = maximum; }
+                    if (policyProperties.TryGetValue("reason", out var reasonProperty) && reasonProperty is OpenApiSchema reason)
+                    { reason.MinLength = 8; reason.MaxLength = 500; }
+                    schema.Description = "Dated, conditional provider-reported information only. Unknown is explicit; no ZDR or residency guarantee and no routing enforcement.";
+                }
                 if (context.JsonTypeInfo.Type == typeof(ProjectSettings) && schema.Properties is { } settingsProperties)
                 {
                     schema.AdditionalPropertiesAllowed = false;
@@ -261,6 +283,10 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Read<BudgetPolicyResponse[]>("/projects/{projectId}/budgets", 404);
         Write<BudgetPolicyResponse>("PUT", "/projects/{projectId}/budgets/{period}", 200, 404, 409);
         Read<CustomerCatalogResponse>(project + "/catalog/models", 404, 503);
+        Read<ProviderDataPolicyResponse>(project + "/catalog/providers/{providerCode}/data-policy", 400, 404);
+        Read<AdminProviderDataPolicyResponse[]>("/admin/providers/{providerId}/data-policies", 400, 409);
+        Read<AdminProviderDataPolicyResponse>("/admin/provider-data-policies/{id}", 400, 404, 409);
+        Write<AdminProviderDataPolicyResponse>("POST", "/admin/providers/{providerId}/data-policies", 201, 404, 409);
         Read<WalletResponse>(org + "/billing/wallet", 404);
         Write<PaymentQuoteResponse>("POST", org + "/billing/quotes", 200, 503);
         Write<CreatedTopUpResponse>("POST", org + "/billing/topups", 201, 404, 409);

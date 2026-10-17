@@ -724,6 +724,125 @@
     "status": 503
   },
   {
+    "body": {
+      "conditions": null,
+      "providerId": "11111111-1111-4111-8111-111111111111",
+      "publishedAt": null,
+      "regions": [],
+      "residency": "Unknown",
+      "retention": "Unknown",
+      "scope": null,
+      "sourceObservedAt": null,
+      "sourceUrl": null,
+      "training": "Unknown",
+      "versionId": null
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/organizations/{organizationId}/projects/{projectId}/catalog/providers/{providerCode}/data-policy",
+    "status": 200
+  },
+  {
+    "body": {
+      "conditions": "Conditional provider report, not a ZDR guarantee.",
+      "providerId": "11111111-1111-4111-8111-111111111111",
+      "publishedAt": "2026-10-01T00:00:00+00:00",
+      "regions": [
+        "US"
+      ],
+      "residency": "ProviderReported",
+      "retention": "MayRetain",
+      "scope": "Synthetic public API scope",
+      "sourceObservedAt": "2026-09-30T00:00:00+00:00",
+      "sourceUrl": "https://example.com/provider-policy",
+      "training": "NoTrainingReported",
+      "versionId": "11111111-1111-4111-8111-111111111111"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/organizations/{organizationId}/projects/{projectId}/catalog/providers/{providerCode}/data-policy",
+    "status": 200
+  },
+  {
+    "body": {
+      "policy": {
+        "conditions": "Conditional provider report, not a ZDR guarantee.",
+        "providerId": "11111111-1111-4111-8111-111111111111",
+        "publishedAt": "2026-10-01T00:00:00+00:00",
+        "regions": [
+          "US"
+        ],
+        "residency": "ProviderReported",
+        "retention": "MayRetain",
+        "scope": "Synthetic public API scope",
+        "sourceObservedAt": "2026-09-30T00:00:00+00:00",
+        "sourceUrl": "https://example.com/provider-policy",
+        "training": "NoTrainingReported",
+        "versionId": "11111111-1111-4111-8111-111111111111"
+      },
+      "publishedByAccountId": "11111111-1111-4111-8111-111111111111"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/providers/{providerId}/data-policies",
+    "status": 201
+  },
+  {
+    "body": [
+      {
+        "policy": {
+          "conditions": "Conditional provider report, not a ZDR guarantee.",
+          "providerId": "11111111-1111-4111-8111-111111111111",
+          "publishedAt": "2026-10-01T00:00:00+00:00",
+          "regions": [
+            "US"
+          ],
+          "residency": "ProviderReported",
+          "retention": "MayRetain",
+          "scope": "Synthetic public API scope",
+          "sourceObservedAt": "2026-09-30T00:00:00+00:00",
+          "sourceUrl": "https://example.com/provider-policy",
+          "training": "NoTrainingReported",
+          "versionId": "11111111-1111-4111-8111-111111111111"
+        },
+        "publishedByAccountId": "11111111-1111-4111-8111-111111111111"
+      }
+    ],
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/providers/{providerId}/data-policies",
+    "status": 200
+  },
+  {
+    "body": {
+      "policy": {
+        "conditions": "Conditional provider report, not a ZDR guarantee.",
+        "providerId": "11111111-1111-4111-8111-111111111111",
+        "publishedAt": "2026-10-01T00:00:00+00:00",
+        "regions": [
+          "US"
+        ],
+        "residency": "ProviderReported",
+        "retention": "MayRetain",
+        "scope": "Synthetic public API scope",
+        "sourceObservedAt": "2026-09-30T00:00:00+00:00",
+        "sourceUrl": "https://example.com/provider-policy",
+        "training": "NoTrainingReported",
+        "versionId": "11111111-1111-4111-8111-111111111111"
+      },
+      "publishedByAccountId": "11111111-1111-4111-8111-111111111111"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/provider-data-policies/{id}",
+    "status": 200
+  },
+  {
     "body": [
       {
         "deliveredAt": "2026-10-01T00:00:01+00:00",

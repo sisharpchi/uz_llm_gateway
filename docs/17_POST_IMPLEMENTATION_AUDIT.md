@@ -171,3 +171,14 @@ The Management/dashboard catalog remains its explicitly chat-only discovery
 surface; Gateway `/v1/models` and the API guide describe embeddings. No financial
 model or module boundary is replaced; the zero-output Catalog constraint change
 requires the explicit Migrator. OPS-006/external launch gates remain unpassed.
+
+## Subsequent provider-policy follow-up — 2026-10-17
+
+`CATALOG-003` adds [dated provider data-policy provenance](35_PROVIDER_DATA_POLICIES.md)
+with explicit unknown retention/training/residency, conditional source/scope
+disclosure, append-only publication and atomic operator audit. Authorized
+customer reads omit the publisher identity. This is metadata, not provider
+verification, ZDR certification or residency routing; `PRIVACY-003` remains
+separate. No live provider-policy facts are seeded. `REFUND-002` remains blocked
+on its financial-policy decision; user approval selected this independent
+task without resolving that decision or the OPS-006 staging requirement.

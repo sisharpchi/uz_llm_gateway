@@ -426,6 +426,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/admin/provider-data-policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an immutable provider-policy publication
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["get_management_v1_admin_provider_data_policies_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/admin/providers": {
         parameters: {
             query?: never;
@@ -459,6 +479,30 @@ export interface paths {
         head?: never;
         /** @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory. */
         patch: operations["patch_management_v1_admin_providers_id"];
+        trace?: never;
+    };
+    "/management/v1/admin/providers/{providerId}/data-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read bounded immutable provider-policy history; not a privacy guarantee
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["get_management_v1_admin_providers_providerId_data_policies"];
+        put?: never;
+        /**
+         * Publish a dated conditional provider data-policy observation with audit
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["post_management_v1_admin_providers_providerId_data_policies"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/management/v1/admin/refunds": {
@@ -1022,6 +1066,23 @@ export interface paths {
         };
         /** List effective managed chat model prices and capabilities for an authorized project */
         get: operations["ListCustomerCatalogModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/organizations/{organizationId}/projects/{projectId}/catalog/providers/{providerCode}/data-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read dated conditional upstream policy; unknown is not ZDR or a residency guarantee */
+        get: operations["GetCustomerProviderDataPolicy"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1812,6 +1873,36 @@ export interface components {
             /** Format: uuid */
             providerModelId: string;
         }[];
+        AdminProviderDataPolicyResponse: {
+            policy: components["schemas"]["ProviderDataPolicyResponse"];
+            /** Format: uuid */
+            publishedByAccountId: string;
+        };
+        AdminProviderDataPolicyResponseList: {
+            /** @description Dated, conditional provider-reported information only. Unknown is explicit; no ZDR or residency guarantee and no routing enforcement. */
+            policy: {
+                conditions: null | string;
+                /** Format: uuid */
+                providerId: string;
+                /** Format: date-time */
+                publishedAt: null | string;
+                regions: string[];
+                /** @enum {string} */
+                residency: "Unknown" | "ProviderReported";
+                /** @enum {string} */
+                retention: "Unknown" | "MayRetain" | "NoRetentionReported";
+                scope: null | string;
+                /** Format: date-time */
+                sourceObservedAt: null | string;
+                sourceUrl: null | string;
+                /** @enum {string} */
+                training: "Unknown" | "MayTrain" | "NoTrainingReported";
+                /** Format: uuid */
+                versionId: null | string;
+            };
+            /** Format: uuid */
+            publishedByAccountId: string;
+        }[];
         AdminProviderObservationResponse: {
             amountTiyin: string;
             externalTransactionId: string;
@@ -2555,6 +2646,27 @@ export interface components {
             /** @enum {null|string} */
             routing?: "priority" | "price" | "latency" | "throughput" | "auto" | null;
         };
+        /** @description Dated, conditional provider-reported information only. Unknown is explicit; no ZDR or residency guarantee and no routing enforcement. */
+        ProviderDataPolicyResponse: {
+            conditions: null | string;
+            /** Format: uuid */
+            providerId: string;
+            /** Format: date-time */
+            publishedAt: null | string;
+            regions: string[];
+            /** @enum {string} */
+            residency: "Unknown" | "ProviderReported";
+            /** @enum {string} */
+            retention: "Unknown" | "MayRetain" | "NoRetentionReported";
+            scope: null | string;
+            /** Format: date-time */
+            sourceObservedAt: null | string;
+            sourceUrl: null | string;
+            /** @enum {string} */
+            training: "Unknown" | "MayTrain" | "NoTrainingReported";
+            /** Format: uuid */
+            versionId: null | string;
+        };
         ProviderObservationResult: {
             caseReasons: string[];
             duplicate: boolean;
@@ -2578,6 +2690,22 @@ export interface components {
             reason: string;
             source: string;
             uzsTiyinPerUsd: string;
+        };
+        /** @description Dated, conditional provider-reported information only. Unknown is explicit; no ZDR or residency guarantee and no routing enforcement. */
+        PublishProviderDataPolicyRequest: {
+            conditions: string;
+            reason: string;
+            regions: string[];
+            /** @enum {string} */
+            residency: "Unknown" | "ProviderReported";
+            /** @enum {string} */
+            retention: "Unknown" | "MayRetain" | "NoRetentionReported";
+            scope: string;
+            /** Format: date-time */
+            sourceObservedAt: string;
+            sourceUrl: string;
+            /** @enum {string} */
+            training: "Unknown" | "MayTrain" | "NoTrainingReported";
         };
         QuoteRequest: {
             amountTiyin: string;
@@ -4824,6 +4952,75 @@ export interface operations {
             };
         };
     };
+    get_management_v1_admin_provider_data_policies_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProviderDataPolicyResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
     get_management_v1_admin_providers: {
         parameters: {
             query?: never;
@@ -4990,6 +5187,145 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    get_management_v1_admin_providers_providerId_data_policies: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                providerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProviderDataPolicyResponseList"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    post_management_v1_admin_providers_providerId_data_policies: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                providerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishProviderDataPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProviderDataPolicyResponse"];
+                };
             };
             /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
             400: {
@@ -7416,6 +7752,66 @@ export interface operations {
                     "application/json": components["schemas"]["ManagementErrorResponse"];
                     "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+        };
+    };
+    GetCustomerProviderDataPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+                projectId: string;
+                providerCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderDataPolicyResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -506,6 +506,14 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
               END IF;
             END $$;
             """);
+        // Disposable fixture only: production Down refuses to discard dated provider policy evidence.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
+            DO $$ BEGIN
+              IF to_regclass('catalog.provider_data_policy') IS NOT NULL THEN
+                TRUNCATE TABLE catalog.provider_data_policy;
+              END IF;
+            END $$;
+            """);
         var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
         await migrator.MigrateAsync("0");
     }

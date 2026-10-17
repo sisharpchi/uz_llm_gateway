@@ -125,6 +125,12 @@ Operational metadata can be retained separately from payload data.
 ### NFR-052
 User shall be able to understand whether an upstream provider may retain or train on data when that metadata is available.
 
+`CATALOG-003` publishes dated, conditional provider-reported retention,
+training and residency observations through the authorized Management API.
+Missing metadata is explicitly `Unknown`. `NoRetentionReported` is not a ZDR
+certification, and reported regions are not gateway routing enforcement.
+See [policy provenance and contract](35_PROVIDER_DATA_POLICIES.md).
+
 ### NFR-053
 Future ZDR mode shall prohibit incompatible caching/payload logging.
 

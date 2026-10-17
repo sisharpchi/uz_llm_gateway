@@ -13,6 +13,7 @@ public static class AdminEndpoints
 {
     public static IServiceCollection AddUzllmAdministration(this IServiceCollection services) => services
         .AddScoped<IAdminReadStore, PostgreSqlAdminReadStore>()
+        .AddScoped<IProviderDataPolicyAdminService, ProviderDataPolicyAdminService>()
         .AddScoped<IAdminService, AdminService>();
 
     public static IEndpointRouteBuilder MapUzllmAdminEndpoints(this IEndpointRouteBuilder endpoints)
@@ -44,6 +45,22 @@ public static class AdminEndpoints
         admin.MapGet("/accounts", (string query, IAdminService service, CancellationToken ct) => service.SearchAccountsAsync(query, ct));
         admin.MapGet("/organizations", (string query, IAdminService service, CancellationToken ct) => service.SearchOrganizationsAsync(query, ct));
         admin.MapGet("/providers", (IAdminService service, CancellationToken ct) => service.ListProvidersAsync(ct));
+        admin.MapGet("/providers/{providerId:guid}/data-policies", (Guid providerId, int? limit,
+            IProviderDataPolicyAdminService service, CancellationToken ct) => service.ListAsync(providerId, limit ?? 50, ct))
+            .WithSummary("Read bounded immutable provider-policy history; not a privacy guarantee");
+        admin.MapGet("/provider-data-policies/{id:guid}", async (Guid id,
+            IProviderDataPolicyAdminService service, CancellationToken ct) =>
+            await service.FindAsync(id, ct) is { } policy ? Results.Ok(policy) : Results.NotFound())
+            .WithSummary("Read an immutable provider-policy publication");
+        admin.MapPost("/providers/{providerId:guid}/data-policies", async (Guid providerId,
+            PublishProviderDataPolicyRequest request, HttpContext http,
+            IProviderDataPolicyAdminService service, CancellationToken ct) =>
+        {
+            var policy = await service.PublishAsync(Guid.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!),
+                providerId, request, ct);
+            return Results.Created($"/management/v1/admin/provider-data-policies/{policy.Policy.VersionId}", policy);
+        }).RequireManagementCsrf()
+            .WithSummary("Publish a dated conditional provider data-policy observation with audit");
         admin.MapGet("/mappings/{id:guid}/prices", (Guid id, IAdminService service, CancellationToken ct) => service.ListPricesAsync(id, ct));
         admin.MapGet("/fee-policies/{code}", (string code, IAdminService service, CancellationToken ct) =>
             service.ListFeePoliciesAsync(code, ct));

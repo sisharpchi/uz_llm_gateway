@@ -18,6 +18,35 @@ public sealed class OpenApiWireContractTests : IDisposable
     private static string Root => FindRoot();
 
     [Fact]
+    public async Task Provider_policy_wire_documents_unknown_provenance_and_operator_security()
+    {
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(Root, "docs/api/management-v1.openapi.json")));
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        var policy = schemas.GetProperty("ProviderDataPolicyResponse").GetProperty("properties");
+        Assert.Equal(new[] { "Unknown", "MayRetain", "NoRetentionReported" },
+            policy.GetProperty("retention").GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
+        Assert.Equal(new[] { "Unknown", "MayTrain", "NoTrainingReported" },
+            policy.GetProperty("training").GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
+        Assert.False(policy.TryGetProperty("zdr", out _));
+        Assert.False(policy.TryGetProperty("publishedByAccountId", out _));
+        foreach (var name in new[] { "versionId", "sourceUrl", "sourceObservedAt", "publishedAt", "scope", "conditions" })
+            Assert.Contains(policy.GetProperty(name).GetProperty("type").EnumerateArray(), value => value.GetString() == "null");
+        Assert.Equal(16, policy.GetProperty("regions").GetProperty("maxItems").GetInt32());
+        var paths = document.RootElement.GetProperty("paths");
+        var publication = paths.GetProperty("/management/v1/admin/providers/{providerId}/data-policies").GetProperty("post");
+        Assert.Contains("recent MFA", publication.GetProperty("description").GetString());
+        Assert.Contains(publication.GetProperty("parameters").EnumerateArray(), parameter =>
+            parameter.GetProperty("name").GetString() == IdentityCookieNames.CsrfHeader
+                && parameter.GetProperty("required").GetBoolean());
+        foreach (var status in new[] { "201", "400", "401", "403", "404", "409" })
+            Assert.True(publication.GetProperty("responses").TryGetProperty(status, out _));
+        var customer = paths.GetProperty("/management/v1/organizations/{organizationId}/projects/{projectId}/catalog/providers/{providerCode}/data-policy")
+            .GetProperty("get");
+        Assert.Contains(customer.GetProperty("security").EnumerateArray(), security => security.TryGetProperty("Session", out _));
+    }
+
+    [Fact]
     public async Task Published_examples_use_real_parser_writer_and_management_serialization()
     {
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(
@@ -110,6 +139,16 @@ public sealed class OpenApiWireContractTests : IDisposable
         }
 
         const string org = "/management/v1/organizations/{organizationId}";
+        var unknownPolicy = UZLLM.Management.Api.Catalog.ProviderDataPolicyResponse.From(id, null);
+        var reportedPolicy = UZLLM.Management.Api.Catalog.ProviderDataPolicyResponse.From(id, new(
+            id, id, "MayRetain", "NoTrainingReported", "ProviderReported", ["US"], "Synthetic public API scope",
+            "Conditional provider report, not a ZDR guarantee.", "https://example.com/provider-policy", now.AddDays(-1), now, id));
+        foreach (var policy in new[] { unknownPolicy, reportedPolicy })
+            Add(org + "/projects/{projectId}/catalog/providers/{providerCode}/data-policy", "get", 200, policy);
+        var adminPolicy = new UZLLM.Management.Api.Administration.AdminProviderDataPolicyResponse(reportedPolicy, id);
+        Add("/management/v1/admin/providers/{providerId}/data-policies", "post", 201, adminPolicy);
+        Add("/management/v1/admin/providers/{providerId}/data-policies", "get", 200, new[] { adminPolicy });
+        Add("/management/v1/admin/provider-data-policies/{id}", "get", 200, adminPolicy);
         Add(org + "/alerts/events", "get", 200, new[] {
             new UZLLM.Modules.Notifications.Infrastructure.AlertEventView(id, id, "LowBalance", null, 100,
                 "Delivered", now, now.AddSeconds(1)) });

@@ -26,6 +26,10 @@ not silently ignored. [Input capability matrix](docs/32_RESPONSES_API.md) and
 input-only metering and the same tenant, key, budget and explicit execution-mode
 controls. [Supported inputs, pricing and recovery](docs/34_EMBEDDINGS_API.md).
 
+Management also exposes [dated provider data-policy observations](docs/35_PROVIDER_DATA_POLICIES.md)
+with audited operator publication and authorized customer reads. Unknown is
+explicit; conditional reports are not ZDR certification or residency routing.
+
 Usage analytics now uses durable hourly read models with a five-second Worker
 poll, live partial-hour reads, explicit backlog/freshness and gross/refund/net
 charge fields. See [rollup semantics and operations](docs/21_USAGE_ROLLUPS.md).

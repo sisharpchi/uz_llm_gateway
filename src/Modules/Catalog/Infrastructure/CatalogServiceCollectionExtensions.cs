@@ -10,6 +10,8 @@ public static class CatalogServiceCollectionExtensions
     {
         services.AddScoped<ICatalogStore, PostgreSqlCatalogStore>();
         services.AddScoped<ICatalogService, CatalogService>();
+        services.AddScoped<IProviderDataPolicyStore, PostgreSqlProviderDataPolicyStore>();
+        services.AddScoped<IProviderDataPolicyService, ProviderDataPolicyService>();
         return services;
     }
 }

@@ -125,6 +125,18 @@ keys with rotated history.
 - name
 - status
 
+### `catalog.provider_data_policy`
+
+`CATALOG-003` adds separate append-only `catalog.provider_data_policy` versions:
+`id`, `provider_id` (FK to provider), retention/training/residency classifications,
+`regions` (bounded text array), `scope`, `conditions`, `source_url`,
+`source_observed_at`, `published_at`, and `published_by_account_id` (FK to user).
+Unique `(provider_id, source_observed_at)` supports the newest-observation read;
+publication locks the provider row and requires observation time to advance.
+The publication and audit share one transaction. UPDATE/DELETE are rejected;
+downgrade refuses populated evidence. No provider-policy facts are backfilled.
+See [migration and disclosure semantics](35_PROVIDER_DATA_POLICIES.md).
+
 ### `catalog.model`
 
 `GATEWAY-007`: embedding-only models use `capabilities_json:["Embeddings"]`

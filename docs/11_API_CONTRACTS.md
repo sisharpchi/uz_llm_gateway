@@ -372,6 +372,43 @@ Only active, effectively priced chat mappings supported by the Gateway appear.
 
 ---
 
+### Provider policy provenance (`CATALOG-003`)
+
+```http
+GET /management/v1/organizations/{organizationId}/projects/{projectId}/catalog/providers/{providerCode}/data-policy
+GET /management/v1/admin/providers/{providerId}/data-policies?limit=50
+GET /management/v1/admin/provider-data-policies/{id}
+POST /management/v1/admin/providers/{providerId}/data-policies
+```
+
+The customer read uses the same active tenant/project authorization as the
+catalog, but does not require fee publication. An absent publication for an
+active provider returns `200` with `retention`, `training` and `residency` all
+`Unknown`, empty `regions`, and null version/provenance/scope/conditions.
+Anonymous/unauthorized reads return `401`/`403`; absent or inactive
+project/organization/provider returns `404`. Responses are `no-store`.
+
+Publication requires recent-MFA operator access, CSRF and an 8–500 character
+`reason`. Body fields: `retention` (`Unknown`, `MayRetain`, `NoRetentionReported`),
+`training` (`Unknown`, `MayTrain`, `NoTrainingReported`), `residency` (`Unknown`,
+`ProviderReported`), `regions` (0–16 labels, 1–80 characters), `scope` (8–500),
+`conditions` (8–2000), HTTPS `sourceUrl` (up to 2048, no credentials/query),
+and past/current UTC `sourceObservedAt` after the Unix epoch. Unknown residency requires no regions;
+reported residency requires at least one. Control characters are rejected.
+Observation instants are normalized to PostgreSQL microsecond precision.
+
+`201` returns `{policy, publishedByAccountId}` and an immutable-version Location;
+the customer receives only `policy`, never the operator identity/reason.
+Invalid inputs return `400`, unknown provider/version `404`; non-advancing
+observations, including identical replay, return `409` without another audit.
+History is newest-observation-first, limit 1–100. Corrections append a later
+observation, including explicit `Unknown`, rather than editing old versions.
+Sources are operator-supplied and never fetched/independently authenticated by
+the API. Claims remain conditional observations, not ZDR certification or
+residency enforcement. [Full scope and validation](35_PROVIDER_DATA_POLICIES.md).
+
+---
+
 ## 5. Error shape
 
 Example:

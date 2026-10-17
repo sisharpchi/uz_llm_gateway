@@ -898,6 +898,36 @@ namespace UZLLM.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.CatalogProviderDataPolicyEntity", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
+                    b.Property<Guid>("ProviderId").HasColumnType("uuid").HasColumnName("provider_id");
+                    b.Property<string>("Retention").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("retention");
+                    b.Property<string>("Training").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("training");
+                    b.Property<string>("Residency").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("residency");
+                    b.Property<string[]>("Regions").IsRequired().HasColumnType("text[]").HasColumnName("regions");
+                    b.Property<string>("Scope").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("scope");
+                    b.Property<string>("Conditions").IsRequired().HasMaxLength(2000).HasColumnType("character varying(2000)").HasColumnName("conditions");
+                    b.Property<string>("SourceUrl").IsRequired().HasMaxLength(2048).HasColumnType("character varying(2048)").HasColumnName("source_url");
+                    b.Property<DateTimeOffset>("SourceObservedAt").HasColumnType("timestamp with time zone").HasColumnName("source_observed_at");
+                    b.Property<DateTimeOffset>("PublishedAt").HasColumnType("timestamp with time zone").HasColumnName("published_at");
+                    b.Property<Guid>("PublishedByAccountId").HasColumnType("uuid").HasColumnName("published_by_account_id");
+                    b.HasKey("Id");
+                    b.HasIndex("ProviderId", "SourceObservedAt").IsUnique();
+                    b.HasIndex("PublishedByAccountId");
+                    b.ToTable("provider_data_policy", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("CK_provider_data_policy_retention", "retention IN ('Unknown', 'MayRetain', 'NoRetentionReported')");
+                            t.HasCheckConstraint("CK_provider_data_policy_training", "training IN ('Unknown', 'MayTrain', 'NoTrainingReported')");
+                            t.HasCheckConstraint("CK_provider_data_policy_residency", "cardinality(regions) <= 16 AND ((residency = 'Unknown' AND cardinality(regions) = 0) OR (residency = 'ProviderReported' AND cardinality(regions) > 0))");
+                            t.HasCheckConstraint("CK_provider_data_policy_dates", "source_observed_at > '1970-01-01'::timestamptz AND source_observed_at <= published_at");
+                        });
+                    b.HasOne("UZLLM.Persistence.CatalogProviderEntity", null).WithMany()
+                        .HasForeignKey("ProviderId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null).WithMany()
+                        .HasForeignKey("PublishedByAccountId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.CatalogProviderEntity", b =>
                 {
                     b.Property<Guid>("Id")

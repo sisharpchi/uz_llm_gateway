@@ -27,12 +27,26 @@ public interface ICustomerCatalogService
 {
     Task<CustomerCatalogResponse?> ListAsync(Guid accountId, Guid organizationId,
         Guid projectId, CancellationToken cancellationToken);
+    Task<ProviderDataPolicyResponse?> GetProviderDataPolicyAsync(Guid accountId, Guid organizationId,
+        Guid projectId, string providerCode, CancellationToken cancellationToken);
 }
 
 public sealed class CustomerCatalogService(IProjectService projects, IOrganizationService organizations,
     ICatalogService catalog,
-    IPricingHistoryService pricing, TimeProvider clock) : ICustomerCatalogService
+    IPricingHistoryService pricing, TimeProvider clock, IProviderDataPolicyService policies) : ICustomerCatalogService
 {
+    public async Task<ProviderDataPolicyResponse?> GetProviderDataPolicyAsync(Guid accountId, Guid organizationId,
+        Guid projectId, string providerCode, CancellationToken cancellationToken)
+    {
+        var project = await projects.FindAsync(accountId, organizationId, projectId, cancellationToken);
+        if (project is not { Status: ProjectStatus.Active }) return null;
+        if (!(await organizations.ListForAccountAsync(accountId, cancellationToken))
+            .Any(value => value.Id == organizationId && value.Status == OrganizationStatus.Active)) return null;
+        var provider = await policies.FindProviderAsync(providerCode, cancellationToken);
+        return provider is null ? null : ProviderDataPolicyResponse.From(provider.Id,
+            await policies.FindCurrentAsync(provider.Id, cancellationToken));
+    }
+
     public async Task<CustomerCatalogResponse?> ListAsync(Guid accountId, Guid organizationId,
         Guid projectId, CancellationToken cancellationToken)
     {
