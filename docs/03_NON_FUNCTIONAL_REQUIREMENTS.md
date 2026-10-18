@@ -8,6 +8,12 @@ Production gateway target availability: **99.9% monthly** for the UZLLM control/
 Gateway availability, provider availability, and end-to-end model success shall
 be measured and reported separately.
 
+99.9% is an internal target, not an offered contractual SLA. The
+[ENTERPRISE-002 draft §6](45_INVOICE_SLA_REPORTING_SPEC.md#6-operational-sli-and-contractual-sla-design)
+defines separate event populations, proven provider exclusions, Unknown/NoData,
+coverage gaps and versioned reporting. Existing request/OTLP counters do not
+yet supply this complete evidence or a contractual compensation calculation.
+
 ### NFR-002
 Management/dashboard failure must not unnecessarily stop already-configured gateway traffic.
 

@@ -1,5 +1,11 @@
 # Database and Data Model
 
+The [ENTERPRISE-002 draft §7](45_INVOICE_SLA_REPORTING_SPEC.md#7-ownership-persistence-and-transaction-boundaries)
+proposes immutable statement/source/revision, operational SLI coverage/report
+and separately approved fiscal/claim evidence. Snapshot row membership is
+explicit, not MAX(UUID)/timestamp as a commit watermark. No such tables or
+migrations are created here; financial ledger/reservations remain authoritative.
+
 The [approved DX-004 §6](44_MANAGEMENT_AUTOMATION_API_SPEC.md#6-ownership-persistence-and-transaction-fences)
 proposes Identity-owned HMAC-only automation credentials, tenant-bound grants,
 append-only safe command receipts and account/member/org invalidation epochs.

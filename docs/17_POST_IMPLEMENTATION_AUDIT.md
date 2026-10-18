@@ -1,5 +1,18 @@
 # Post-Implementation Audit
 
+## Invoice/SLA specification follow-up — 2026-10-19
+
+[ENTERPRISE-002's source matrix](45_INVOICE_SLA_REPORTING_SPEC.md#2-verified-baseline-and-missing-evidence)
+finds implemented ledger/payment/refund/adjustment evidence and mutable
+request-start usage analytics, not fiscal invoices, immutable monthly statements
+or contractual SLA accounting. Generic OTLP outcomes and post-admission Usage
+do not cover edge/pre-admission gaps or complete provider attribution. The
+draft separates non-fiscal posting-period snapshots, immutable revisions and
+operational coverage from legal/commercial approvals and two-person credits.
+Twenty designed cases and nine unscheduled tasks await product review; no
+feature, financial mutation or production-gate pass is claimed. Completed
+history and the separate SECURITY-009 retention/audit finding stay unchanged.
+
 ## Management automation specification follow-up — 2026-10-18
 
 [DX-004's baseline matrix](44_MANAGEMENT_AUTOMATION_API_SPEC.md#2-verified-baseline-and-integration-gaps)

@@ -412,6 +412,13 @@ Returning `503` is safer than unmetered spend.
 
 ## 13. SLO dashboard
 
+The [ENTERPRISE-002 draft §6](45_INVOICE_SLA_REPORTING_SPEC.md#6-operational-sli-and-contractual-sla-design)
+adds a proposed evidence/coverage/classification contract, not an implemented
+SLA calculator. Existing generic metrics and sampled traces cannot establish a
+complete denominator, prove provider attribution or make missing data success.
+Keep HTTP-200/mid-stream failure, pre-admission/edge outage and NoData explicit;
+operational reports do not authorize contractual credits or fiscal claims.
+
 Track separately:
 
 ### Gateway availability

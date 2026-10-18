@@ -1,5 +1,12 @@
 # Billing, Wallet and Payments
 
+The [ENTERPRISE-002 draft](45_INVOICE_SLA_REPORTING_SPEC.md) distinguishes
+non-fiscal prepaid statements, external fiscal evidence and contractual SLA
+claims. Posting-period ledger snapshots differ from request-period analytics;
+late changes require explicit report revisions, not revalued charges/FX.
+No reporting action posts money or supplies tax/SLA terms. Product review and
+separate feature/fiscal/commercial approvals remain required.
+
 The [approved SECURITY-007 §6/7](43_GUARDRAIL_PII_POLICY_SPEC.md) designs future input
 screening before reservation: a policy Block creates no hold/provider call/fee.
 After dispatch, actual usage for original/transformed text remains billable;
@@ -325,11 +332,17 @@ Separate:
 - promotional credits;
 - refunds.
 
-This allows actual gross margin calculation per:
+This supports provisional economic reporting per:
 - organization;
 - model;
 - provider;
 - period.
+
+It is not independently reconciled provider invoice cost, tax treatment or
+recognized accounting revenue. Top-up principal, wallet consumption and debt
+recovery must not be counted as multiple sales. See the
+[source-of-truth and correction matrix](45_INVOICE_SLA_REPORTING_SPEC.md#4-financial-source-of-truth-and-correction-matrix)
+for the proposed immutable statement boundary; no invoice feature exists yet.
 
 ---
 

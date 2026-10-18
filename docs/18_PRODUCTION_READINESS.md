@@ -22,6 +22,15 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
+Optional invoice/SLA reporting in the [ENTERPRISE-002 draft](45_INVOICE_SLA_REPORTING_SPEC.md)
+does not pass any launch gate or offer a contractual SLA. Non-fiscal statements
+need reconciled immutable source/revision/restore and tenant evidence; fiscal
+documents need external finance/legal/issuer approval and protocol qualification;
+SLAs need signed scope/measurement/remedy terms and complete independent
+coverage/attribution. Existing 99.9% target, usage CSV and wallet credits are
+not substitutes. Synthetic fixtures and product approval remain separate from
+these business approvals; the initial paid-MVP fiscal policy gate still applies.
+
 Optional Management automation in the [approved DX-004 specification](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
 is not required for the first paid MVP and is not implemented. Future activation
 requires separate feature-execution approval, cross-audience/tenant/role tests,

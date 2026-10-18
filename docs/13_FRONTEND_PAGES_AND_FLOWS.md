@@ -303,6 +303,13 @@ Date:
 
 ## 11. Billing / Wallet
 
+Future statement/revision/download and operator SLI/claim views are defined in
+the [ENTERPRISE-002 draft §8](45_INVOICE_SLA_REPORTING_SPEC.md#8-proposed-apis-security-retention-and-ux).
+Current wallet/history is not an invoice screen. Backend source/version data
+and authorization precede UI; show non-fiscal/non-contractual labels, pending
+and NoData, keep legal/raw cross-tenant evidence operator-only. Follow/improve
+the repository mockup, three locales and accessible states; no new UI here.
+
 Header:
 - current credit;
 - UZS equivalent if shown;

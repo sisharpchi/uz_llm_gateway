@@ -1,5 +1,12 @@
 # API Contracts
 
+The [ENTERPRISE-002 draft §8](45_INVOICE_SLA_REPORTING_SPEC.md#8-proposed-apis-security-retention-and-ux)
+specifies future session-authorized statement/version/CSV and operator SLI/job
+APIs, not current wire operations. Exact monetary strings, immutable version
+exports, tenant roles and separate fiscal/claim approval boundaries are design
+only; no invoice issuance, SLA payout or automation-bearer endpoint is added.
+Generated OpenAPI remains authoritative until separately approved implementation.
+
 Planning only: the [approved SECURITY-007 §5/7/8](43_GUARDRAIL_PII_POLICY_SPEC.md)
 defines future Owner guardrail policy/decision APIs, consent/version/replay and
 input-screening errors. No such route or inference skip extension exists today;

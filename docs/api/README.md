@@ -2,6 +2,12 @@
 
 Task validation evidence: [DX-002 validation](VALIDATION.md).
 
+The [ENTERPRISE-002 statement/SLA draft](../45_INVOICE_SLA_REPORTING_SPEC.md)
+defines future session-backed reporting, immutable snapshots and external
+fiscal/contract approval paths; no invoice, statement or SLA endpoint/security
+scheme is added to current generated artifacts. Implement and test a promoted
+task before regenerating those operations.
+
 The [approved DX-004 automation specification](../44_MANAGEMENT_AUTOMATION_API_SPEC.md)
 records P2 scope/lifecycle/versioning, not an implemented Bearer scheme or
 generated operation. Feature-execution approval/promotion is still required.
