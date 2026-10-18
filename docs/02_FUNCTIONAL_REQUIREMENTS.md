@@ -255,6 +255,11 @@ FRONTEND-008 provides a request-only configuration/conditional sequence preview,
 not a live endpoint decision or guaranteed price/health outcome. Project defaults
 and explicit strategy overrides never bypass hard authorization/financial policy.
 
+`ROUTING-007` drafts [bounded advanced routing and response-cache semantics](40_ADVANCED_ROUTING_CACHE_SPEC.md)
+for review. Existing price/performance/auto/fallback behavior is not missing
+work to repeat. Project weights, metadata affinity and gateway response-cache
+fees/retention remain proposed, not implemented or enabled by FR-060–068.
+
 ---
 
 ## 8. Wallet and billing

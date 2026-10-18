@@ -88,9 +88,11 @@ Choose cheapest healthy endpoint.
 It first applies provider/model, capability, credential, quota, and circuit
 eligibility, then scores Managed candidates using the selected catalog price
 version, estimated input tokens, requested output ceiling, and the active
-customer fee policy. Ties retain deterministic provider priority and mapping
-ID order. One request considers at most two same-model attempts under one
-worst-case wallet hold; if the price version changes before an attempt,
+customer fee policy. `PriceRouteRanker` breaks ties by OpenAI first, then
+ordinal provider code, then mapping ID; this differs from ordinary provider
+priority for equal-price DeepSeek/Google candidates. One request considers at
+most two same-model attempts under one worst-case wallet hold; if the price
+version changes before an attempt,
 execution fails closed rather than silently repricing. Explicit BYOK remains
 primary for Hybrid, with price ranking applying only to eligible Managed
 fallback candidates. Explicit cross-model fallback is `ROUTING-005`.
@@ -119,8 +121,10 @@ Weights are configuration, not hard-coded domain law.
 `ROUTING-004` accepts `uzllm.routing=latency`, `throughput`, or `auto` for
 already-authorized, priced, credentialed, quota-available, healthy mappings.
 Gateway writes bounded, mapping- and stream-mode-scoped attempt measurements to a five-minute
-Redis window (default 256 samples). Latency uses median time to first visible
-token; throughput uses median verified output tokens per second. `auto` blends
+Redis window (default 256 samples). Streaming latency uses median time to first
+visible token; non-streaming uses full completion latency despite the internal
+`firstTokenMs` name. Throughput uses median verified output tokens per observed
+second, not guaranteed provider hardware throughput. `auto` blends
 normalized customer price, recent error rate, latency and throughput using
 configurable weights. All candidates need at least ten complete recent
 samples; sparse/stale/unavailable performance data restores deterministic
@@ -145,6 +149,10 @@ Future routing context may accept:
 - previous provider hint.
 
 Use stickiness while endpoint is healthy and policy allows.
+
+No affinity key/store is implemented. [ROUTING-007's draft](40_ADVANCED_ROUTING_CACHE_SPEC.md)
+separates the proposed metadata-only hint from provider conversation state,
+content retention and the already implemented performance-score weights.
 
 ---
 
@@ -313,7 +321,15 @@ Never use a credential merely because it exists.
 Forward provider cache semantics and usage metadata.
 
 ### Gateway response cache [P1]
+
+This is historical design intent, not an implemented feature or active P1
+delivery claim. The P2 `ROUTING-007` [draft specification](40_ADVANCED_ROUTING_CACHE_SPEC.md)
+proposes narrower opt-in scope, financial admission, free-hit accounting,
+retention and failure cases. Its policy/decomposition require approval before
+feature execution; the existing cache-input prices do not implement response reuse.
+
 Key must include normalized:
+
 - model;
 - messages/input;
 - temperature;
@@ -380,8 +396,10 @@ BYOK alike. On expiry, Redis admits one cross-node half-open probe before
 dispatch; neutral/client-disconnect outcomes release the probe without claiming
 recovery, and stale probe results cannot close a newer probe. Redis failure at
 either eligibility or dispatch fails closed and releases an undispatched hold.
-Detailed latency/throughput scoring remains later P1 work; explicit bounded
-cross-model fallback is delivered by `ROUTING-005`.
+This paragraph records the P0 boundary. Detailed latency/throughput/auto scoring
+was subsequently delivered by `ROUTING-004` (§4); explicit bounded cross-model
+fallback is delivered by `ROUTING-005`. `ROUTING-007` specifies additional policy/
+affinity/cache work, not another implementation of those completed strategies.
 
 `BYOK-002` selects one explicitly requested, project-granted BYOK credential
 before an optional managed same-model candidate. Managed fallback requires

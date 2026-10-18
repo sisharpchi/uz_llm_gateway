@@ -197,6 +197,8 @@ This creates clear boundaries without paying the operational cost of many micros
     not implemented authentication.
 39. `39_PRIVACY_ELIGIBILITY_SPEC.md` — approved P2 ZDR/regional-processing
     eligibility specification; not implemented enforcement.
+40. `40_ADVANCED_ROUTING_CACHE_SPEC.md` — draft routing/cache policy,
+    fee/failure cases and benchmark plan; pending approval, not new runtime behavior.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

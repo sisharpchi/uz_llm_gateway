@@ -473,6 +473,12 @@ x-uzllm-cache
 
 Detailed routing/cost metadata may be opt-in.
 
+`x-uzllm-cache` above is illustrative, not currently emitted response-cache
+support. The [ROUTING-007 draft](40_ADVANCED_ROUTING_CACHE_SPEC.md) proposes
+affinity/cache hints, versioned project policy and decision metadata. They are
+**not implemented wire contracts**; current unknown extension fields remain
+rejected. No generated API/client artifact changes follow from this specification.
+
 ---
 
 ## 7. Management APIs

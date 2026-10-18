@@ -372,6 +372,13 @@ preview is a configuration explanation, never an admission/availability guarante
 Restrictive routing can reduce availability; unknown outcomes/partial output are
 never replayed. See [implemented boundaries](29_BYOK_ROUTING_UX.md).
 
+The [ROUTING-007 draft](40_ADVANCED_ROUTING_CACHE_SPEC.md) proposes later Owner
+weight/affinity/cache controls and Activity explanations. These APIs/data and
+screens are not implemented; project policy and financial/read-model work must
+precede UI. Preserve mockup direction with improved accessibility and explicitly
+explain cache retention, zero-fee hit versus required admission headroom, and
+the difference between a configuration preview and an actual selected route.
+
 ---
 
 ## 14. Limits

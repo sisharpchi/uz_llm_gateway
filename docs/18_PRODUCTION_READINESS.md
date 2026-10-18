@@ -95,6 +95,15 @@ owners. Public documentation and green CI cannot certify a real credential;
 whole-platform residency and erasure of historical backups are not promised.
 Absent evidence, strict routes stay disabled; the existing launch gates remain.
 
+Additional project weights, affinity and gateway response caching in the
+[ROUTING-007 draft](40_ADVANCED_ROUTING_CACHE_SPEC.md) are optional future work,
+not implemented/qualified features. Existing price/performance routing remains
+implemented. Any new cache activation needs approved fee/retention semantics,
+tenant/epoch/dispatch/recovery tests, isolated encrypted body-store qualification
+and the specified load/content-sink/rollback evidence. Cache hits cannot stand
+in for provider throughput, live usage evidence or the 200-stream gate. No
+current launch gate is passed by this draft or its proposed benchmark plan.
+
 `LAUNCH-002` adds a disposable real-service acceptance stack to CI (see
 `deploy/LAUNCH-002-VALIDATION.md`). It proves the repository vertical flow with
 synthetic merchant/provider credentials, but does not replace the real staging
