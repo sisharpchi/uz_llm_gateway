@@ -134,6 +134,11 @@ See [policy provenance and contract](35_PROVIDER_DATA_POLICIES.md).
 ### NFR-053
 Future ZDR mode shall prohibit incompatible caching/payload logging.
 
+`PRIVACY-003` drafts the [eligibility, content boundaries and denial contract](39_PRIVACY_ELIGIBILITY_SPEC.md)
+for NFR-050–053. Approval is pending; no runtime ZDR or regional enforcement is
+implemented. No-training, upstream ZDR arrangements, provider processing region
+and whole-platform residency must not be represented as equivalent guarantees.
+
 ---
 
 ## 7. Reliability

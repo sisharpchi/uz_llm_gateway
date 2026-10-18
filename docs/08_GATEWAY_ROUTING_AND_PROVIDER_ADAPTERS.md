@@ -47,6 +47,12 @@ Filter candidates by:
 
 Only then score candidates.
 
+Privacy/data-policy eligibility above is a design requirement, **not currently
+implemented strict filtering**. CATALOG-003 supplies dated public disclosure,
+not per-credential entitlement. The pending [PRIVACY-003 specification](39_PRIVACY_ELIGIBILITY_SPEC.md)
+defines proposed qualification, hard-constraint precedence and per-attempt
+denial/fallback behavior; it does not enable ZDR/regional routing.
+
 `PROJECTS-002` intersects project model/provider allowlists with API-key policies
 before scoring/discovery and rechecks hard project restrictions before financial
 admission. Explicit request routing overrides the project default strategy only;

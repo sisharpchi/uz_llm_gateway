@@ -195,6 +195,8 @@ This creates clear boundaries without paying the operational cost of many micros
 37. `37_WALLET_ADJUSTMENTS.md`
 38. `38_ENTERPRISE_IDENTITY_SPEC.md` — approved P2 SAML/SCIM specification;
     not implemented authentication.
+39. `39_PRIVACY_ELIGIBILITY_SPEC.md` — draft P2 ZDR/regional-processing
+    eligibility specification; pending approval, not implemented enforcement.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

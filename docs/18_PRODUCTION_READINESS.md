@@ -84,6 +84,16 @@ onboarding is an external prerequisite for activation, not for writing its
 specification or synthetic fixtures. None of these enterprise checks replaces
 OPS-006/007 or existing merchant/provider/legal launch evidence.
 
+Optional ZDR/regional processing is also not required for initial paid MVP and
+is not implemented. [PRIVACY-003](39_PRIVACY_ELIGIBILITY_SPEC.md) is a draft
+specification pending approval, not a passed privacy, Provider or Legal gate.
+Any future activation additionally needs scoped enforcement/content-sink and
+revocation/restore fixtures, verified account/model/operation/endpoint evidence,
+current provider exceptions, region qualification and named review/incident
+owners. Public documentation and green CI cannot certify a real credential;
+whole-platform residency and erasure of historical backups are not promised.
+Absent evidence, strict routes stay disabled; the existing launch gates remain.
+
 `LAUNCH-002` adds a disposable real-service acceptance stack to CI (see
 `deploy/LAUNCH-002-VALIDATION.md`). It proves the repository vertical flow with
 synthetic merchant/provider credentials, but does not replace the real staging

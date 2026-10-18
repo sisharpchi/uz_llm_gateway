@@ -14,6 +14,10 @@ No real provider policy is seeded or inferred from its brand, adapter, endpoint,
 account, credentials or gateway payload opt-out. PRIVACY-003 remains a separate
 policy/specification task.
 
+The subsequent [PRIVACY-003 draft](39_PRIVACY_ELIGIBILITY_SPEC.md) separates
+private credential-scoped qualification from this public metadata. It awaits
+approval and does not change CATALOG-003's contract or enable strict routing.
+
 ## Meaning of the metadata
 
 - Retention: `Unknown`, `MayRetain`, `NoRetentionReported`.
