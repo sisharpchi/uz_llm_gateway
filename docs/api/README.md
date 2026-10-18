@@ -2,6 +2,12 @@
 
 Task validation evidence: [DX-002 validation](VALIDATION.md).
 
+The [DX-004 automation draft](../44_MANAGEMENT_AUTOMATION_API_SPEC.md) is proposed
+P2 scope/lifecycle/versioning, not an implemented Bearer scheme or generated
+operation. Review/feature approval is pending. Do not use Gateway keys or
+headless credentials against existing session-backed Management endpoints;
+update these artifacts only with tested future route implementation.
+
 `gateway-v1.openapi.json` and `management-v1.openapi.json` describe the currently
 implemented `/v1` and `/management/v1` surfaces (OpenAPI 3.1.1, contract 1.0.0).
 Native payment/Telegram callbacks and health endpoints are not Management

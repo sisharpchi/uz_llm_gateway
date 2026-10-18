@@ -8,6 +8,12 @@ The system shall allow a user to create an account using email/password or anoth
 ### FR-002 — Authentication [P0]
 The system shall issue authenticated web sessions/tokens for management APIs.
 
+Current Management authentication is browser session/CSRF under ADR-025, not
+Gateway-key bearer access. The P2 [DX-004 draft](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
+proposes a separate expiring Owner-sponsored, project/scope-bound read-only
+credential; no machine billing/key/policy writes or operator rights. Review
+and implementation approval are pending; existing authentication is unchanged.
+
 ### FR-003 — Organization [P0]
 Every billable account shall belong to an organization, including a one-person organization.
 
@@ -536,7 +542,7 @@ requires separately approved/promoted tasks and privacy/financial safeguards.
 - custom provider endpoints
 - routing rules UI
 - A/B routing
-- management API
+- headless management automation (not the already implemented browser Management API)
 - webhooks for usage events
 - invoicing
 - contractual SLA

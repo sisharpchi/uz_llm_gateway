@@ -1,5 +1,20 @@
 # Post-Implementation Audit
 
+## Management automation specification follow-up — 2026-10-18
+
+[DX-004's baseline matrix](44_MANAGEMENT_AUTOMATION_API_SPEC.md#2-verified-baseline-and-integration-gaps)
+confirms the existing browser Management API/OpenAPI is implemented, while
+headless credentials/scopes/lifecycle are not. Passing a sponsor account ID
+alone would bypass narrower automation scope; Usage services require an
+authorized facade and password recovery/Team mutations need synchronous
+invalidation hooks. These are new-feature prerequisites, not defects proving
+current cookie authorization absent or a reason to rewrite completed history.
+The draft bounds the first profile to read-only, separately authenticated,
+project-scoped access and preserves show-once secret recovery, versioning and
+restore revocation. Twenty designed cases and eight unscheduled tasks await
+product review; no new runtime, test fixture, migration or launch gate passed.
+The unrelated retention commit-before-audit finding below remains unresolved.
+
 ## Guardrail/PII specification follow-up — 2026-10-18
 
 [SECURITY-007's source matrix](43_GUARDRAIL_PII_POLICY_SPEC.md#2-verified-baseline-and-concrete-gap)

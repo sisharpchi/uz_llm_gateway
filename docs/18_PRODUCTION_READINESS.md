@@ -22,6 +22,15 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
+Optional Management automation in the [DX-004 draft](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
+is not required for the first paid MVP and is not implemented. Future activation
+requires explicit scope/product approval, cross-audience/tenant/role tests,
+atomic lifecycle/replay/invalidation evidence, secret-safe examples/UI,
+two-node limiting/revocation and quarantine restore/key-ring drills. Draft
+read-only permissions do not authorize financial/operator mutations. No gate
+passes from this design or an unchanged baseline; retain OPS-006/007 and all
+existing provider/merchant/business prerequisites independently.
+
 If payload retention controls are offered at paid launch, close the commit-
 before-audit risk recorded in [SECURITY-007 §2](43_GUARDRAIL_PII_POLICY_SPEC.md#2-verified-baseline-and-concrete-gap)
 with transactional audit-failure/cancellation rollback evidence (proposed

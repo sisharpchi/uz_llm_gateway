@@ -239,6 +239,12 @@ Database migrations must be version-controlled.
 ### NFR-084
 API contracts require explicit versioning/deprecation policy.
 
+The [DX-004 draft](44_MANAGEMENT_AUTOMATION_API_SPEC.md#8-versioning-compatibility-and-customer-ux)
+preserves existing v1 authentication/units/errors and the new-path/migration/
+180-day overlap policy. It proposes explicit automation scopes/audience,
+safe lifecycle replay and dated deprecation headers; review is pending and no
+new auth scheme or retirement header is implemented by the specification.
+
 ---
 
 ## 10. Disaster recovery

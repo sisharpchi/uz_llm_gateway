@@ -1,5 +1,15 @@
 # Security, Observability and Reliability
 
+## Management automation planning boundary
+
+The [DX-004 draft](44_MANAGEMENT_AUTOMATION_API_SPEC.md) proposes dedicated
+read-only Management credentials, finite project/scope grants, local Owner
+sponsorship, nonrecoverable fingerprints, synchronous invalidation epochs,
+no plaintext replay and quarantine restore revocation. Browser session/CSRF,
+Gateway keys and operator-MFA boundaries remain independent; none gains bearer
+access. New scope/rate/secret/audit/restore scenarios are designed, not
+implemented or passed security qualification. Product review remains pending.
+
 ## Guardrail/PII planning boundary
 
 [SECURITY-007](43_GUARDRAIL_PII_POLICY_SPEC.md) is an approved specification for local input-only

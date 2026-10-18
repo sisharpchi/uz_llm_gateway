@@ -207,6 +207,9 @@ This creates clear boundaries without paying the operational cost of many micros
 43. `43_GUARDRAIL_PII_POLICY_SPEC.md` — approved local input screening/redaction,
     Owner consent, retention/audit boundaries and false-positive/bypass cases;
     specification only, no implemented guardrail.
+44. `44_MANAGEMENT_AUTOMATION_API_SPEC.md` — draft read-only Owner-sponsored
+    automation scopes, credential/replay/restore lifecycle and versioning;
+    product review pending, no implemented automation credential or route.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 
