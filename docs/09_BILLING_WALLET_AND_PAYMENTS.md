@@ -162,6 +162,12 @@ price is a cost estimate, not the customer's provider invoice; upstream
 discounts, tax, and provider-side usage differences require external account
 reconciliation before a cap can be marketed as a hard provider-bill limit.
 
+For future custom suppliers, [PROVIDER-010's draft](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md#6-provider-contract-and-accounting-plan)
+retains BYOK fee/external holds and frozen operator pricing. Supplier-reported
+usage is not independently invoice-verified; arbitrary post-dispatch failures
+cannot establish zero cost or permit automatic fallback. This is design only,
+not a new fee, Managed custom resale capability or changed settlement policy.
+
 ---
 
 ## 7. UZS top-up

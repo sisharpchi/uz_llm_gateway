@@ -223,6 +223,12 @@ It must not:
 - decide organization permissions;
 - directly send alerts.
 
+`PROVIDER-010` drafts [custom endpoint identity, pinned transport and conservative accounting](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md)
+separately from the four official adapters. A deployment BaseUrl override or
+mapping EndpointReference is not tenant endpoint authorization. The proposed
+BYOK-only compatible profile cannot inherit official 429 fallback certainty,
+platform credentials or public model identity. No custom feature is enabled.
+
 ---
 
 ## 8. Normalized provider error

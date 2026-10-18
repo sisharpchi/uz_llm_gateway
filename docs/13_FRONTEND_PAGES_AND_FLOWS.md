@@ -337,8 +337,11 @@ credentials through masked metadata, explicit project grants, model restrictions
 exact lifetime external caps, test, rename/rotate, disable and crypto-shred delete.
 Secret input is always masked, cleared on submit/close, and never returned or
 placed in Query/Mutation cache, storage or URLs. See [UX contract and evidence](29_BYOK_ROUTING_UX.md).
-Do not show a custom base URL yet:
-approved custom endpoints belong to P2 `PROVIDER-010`. Model restrictions,
+Do not show a custom base URL yet: P2 `PROVIDER-010` is a
+[draft operator-approved private endpoint design](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md),
+not an implemented or approved self-service URL feature. Backend endpoint,
+credential, pricing and tenant-safe read contracts must precede its UI.
+Model restrictions,
 spend displays were backend-gated until `BYOK-002`; its masked restriction and
 external spend fields are now shown by these controls.
 Last-used remains unavailable and must stay hidden. The existing root

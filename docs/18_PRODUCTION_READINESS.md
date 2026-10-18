@@ -109,3 +109,12 @@ current launch gate is passed by this specification or its unexecuted benchmark 
 `deploy/LAUNCH-002-VALIDATION.md`). It proves the repository vertical flow with
 synthetic merchant/provider credentials, but does not replace the real staging
 and external evidence required by the Functional, Payment and Provider gates.
+
+Custom suppliers are optional P2 work, not required for initial paid MVP.
+[PROVIDER-010](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md) is a draft threat/contract
+design, not implemented endpoint security or provider qualification. Activation
+would require pinned-transport/tenant/financial/rotation/fault fixtures, actual
+egress/TLS and domain-control evidence, supplier commercial/data terms, model/
+usage/price qualification and incident ownership. A fixed official verifier,
+global BaseUrl override or synthetic public-address fixture is not this evidence.
+Never waive existing launch gates or imply custom invoices are verified by CI.

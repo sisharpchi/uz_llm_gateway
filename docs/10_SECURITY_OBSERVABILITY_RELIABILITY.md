@@ -92,6 +92,14 @@ disabled; upstream bodies are discarded. Credential mutations and safe test
 outcomes are audited in the same database transaction. Managed/Hybrid
 execution is not enabled by this storage/control-plane task.
 
+The [PROVIDER-010 draft threat model](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md#4-ssrf-credential-and-cost-threat-model)
+specifies future custom endpoint onboarding, public-address pinning/TLS,
+redirect/proxy denial and immutable tenant/provider/credential binding. These
+controls are not supplied by the existing deployment BaseUrl validation or
+fixed official verifier. No tenant custom URL input is implemented. Qualify
+actual official deployment URLs/egress separately before launch; the draft
+does not claim existing inference handlers have connect-time SSRF enforcement.
+
 `BYOK-003` extends fixed verification to Google/Gemini and DeepSeek. Keys travel
 only in the native auth header, never a query string. Redirects/cookies remain
 disabled; a five-second total deadline bounds headers and any body read. Google

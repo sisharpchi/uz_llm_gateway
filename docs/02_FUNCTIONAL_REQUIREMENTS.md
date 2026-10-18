@@ -217,6 +217,13 @@ The current cap bounds catalog-estimated lifetime external spend through atomic
 holds; it is not a guarantee about the supplier's actual invoice. Existing
 project grants, platform-fee budgets and explicit Hybrid consent remain mandatory.
 
+P2 `PROVIDER-010` drafts a [custom endpoint trust/auth/accounting profile](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md)
+for review. First proposed scope is operator-approved, tenant-private public
+HTTPS/Bearer text BYOK, separately qualified JSON/SSE, with no Managed/Hybrid
+fallback or official-provider identity reuse. Current FR-050–056 implementations
+remain fixed-provider integrations; this design does not add a URL field or
+enable custom serving. External spend remains an estimate, not invoice proof.
+
 ---
 
 ## 7. Routing
