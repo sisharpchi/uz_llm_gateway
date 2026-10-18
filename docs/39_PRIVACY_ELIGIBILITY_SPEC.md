@@ -2,12 +2,13 @@
 
 ## 1. Status, authority and scope
 
-**PRIVACY-003 · P2 · Draft for approval · 2026-10-18.** This document specifies
-eligibility and truthful claims, not an implemented privacy-routing feature.
-The user's Continue authorizes this specification task. Product/security
-approval of the proposed profile and task decomposition is still pending;
-`PRIVACY-003` remains In Progress. Feature scheduling, private provider-account
-qualification and production activation require separate decisions.
+**PRIVACY-003 · P2 · Approved specification · 2026-10-18.** Draft delivered in
+`c5a8d4e`, approved by the user's subsequent Continue directly answering its
+specification-review request. This completes the specification task, not a
+privacy-routing implementation. The bounded profile, evidence/denial contract
+and eight-task decomposition below are approved project design. Feature
+scheduling/promotion, private provider-account qualification and production
+activation require separate decisions; no follow-on task is started.
 
 Keep NFR-050–053, [ADR-011](15_ARCHITECTURE_DECISIONS.md#adr-011--separate-payload-retention-from-request-metadata),
 FR-060–068, [financial invariants](06_DOMAIN_AND_BUSINESS_LOGIC.md#12-corrected-ownership-and-state-model)
@@ -91,10 +92,10 @@ account enrollment, current exception notices, permissible resale, processing
 terms and region coverage need the provider/commercial/security owner. A fixture
 proves our enforcement with synthetic evidence, not upstream compliance.
 
-## 5. Proposed first profile and precedence — approval requested
+## 5. Approved first profile and precedence
 
-Propose **two independent hard constraints**: upstream ZDR arrangement and
-provider processing region. Either makes a request “strict” for gateway content
+The approved profile has **two independent hard constraints**: upstream ZDR
+arrangement and provider processing region. Either makes a request “strict” for gateway content
 handling. A region-only request may still encounter disclosed upstream
 retention/training; it must not receive a ZDR badge. A ZDR request additionally
 requires separately qualified no-training coverage for this profile. Generic
@@ -167,7 +168,7 @@ fields or turn a supported ordinary request into an unsupported strict one.
 Provider-default transient caching requires explicit review/coverage in the
 qualification; a cached-token price is not evidence of safe retention.
 
-Trade-offs for approval: conservative denials can leave **zero eligible
+Accepted trade-offs: conservative denials can leave **zero eligible
 providers**; strict mode may reduce model availability, performance and
 failover. No price advantage, zero-retention-without-exceptions guarantee or
 regional SLA is promised. Material provider exceptions must be shown before
@@ -195,8 +196,8 @@ identity and history; replacing the upstream key/account requires a new
 qualification. Never infer an account's entitlement from key prefix or a
 successful BYOK authentication test.
 
-Propose a maximum **30-day review validity**, shortened by contract/account
-expiry or provider notice. This is a proposed safety refresh, not a provider
+Approved maximum **30-day review validity**, shortened by contract/account
+expiry or provider notice. This is a project safety refresh policy, not a provider
 guarantee. Expired, future-effective, contradictory, revoked, missing or
 scope-mismatched proof is ineligible. Newly discovered contradictory policy
 invalidates qualification immediately; never wait out the 30 days. Automatic
@@ -389,13 +390,14 @@ asserting actual commercial entitlement. Positive fixtures qualify only their
 fake account/product/scope. These scenarios are a **test plan**, not 14 passing
 tests; the existing baseline below does not implement them.
 
-## 10. Proposed follow-on tasks — unscheduled, not executable approval
+## 10. Approved task decomposition — unscheduled, not executable approval
 
-Do not add these to the active register or start them from this draft. After
-specification approval, explicitly approve/promote small tasks with current
-dependencies. Order below is recommended; none bypasses P0 launch gates.
+Specification approval accepts this decomposition, not its execution. Do not
+add these to the active register or start them without explicit execution
+approval/promotion and a current dependency check. Order below is recommended;
+none bypasses P0 launch gates.
 
-| Proposed ID / P2 | Objective / likely files | Dependencies and references | Acceptance / required tests / completion |
+| Approved design ID / P2 (unscheduled) | Objective / likely files | Dependencies and references | Acceptance / required tests / completion |
 |---|---|---|---|
 | PRIVACY-004 | Add versioned private qualification/endpoint evidence contracts and PG persistence in Providers/Persistence/Migrator. | Approved PRIVACY-003; CATALOG-003, SECURITY-006; §6, NFR-041/045/052, ADR-011. | Composite ownership/FKs, immutable versions, generation/scope/expiry/revocation, runtime rewrite denied and populated rollback protection; PG migration/concurrency tests PRV-002/003. Complete only after explicit migration/test evidence. |
 | PRIVACY-005 | Operator publication/revoke and Owner BYOK evidence submission; Management/Providers/Audit. | PRIVACY-004, SECURITY-004; §6, NFR-044/045. | Recent-MFA/CSRF/reason, no self-certification, tenant isolation, atomic audit rollback and private-reference hygiene; PRV-007 HTTP/PG. No public evidence leak. |
@@ -420,7 +422,7 @@ configuration, provider policy seeds or frontend files are changed. Public
 primary sources and local implementation were cross-checked, with Unknown
 preserved instead of fabricating provider qualifications.
 
-Fresh local validation on 2026-10-18 (Windows, Docker disposable PostgreSQL 17 /
+Draft-stage local validation on 2026-10-18 (Windows, Docker disposable PostgreSQL 17 /
 Redis 8; unchanged runtime sources at `8ad70cb`):
 
 | Check | Result |
@@ -437,9 +439,24 @@ qualification or new strict-runtime acceptance was run or claimed. PRV-001–014
 remain designed-only scenarios; account evidence is Unknown, and existing
 production gates remain unpassed.
 
-Approval requested: accept this
-bounded profile (independent ZDR/processing-region restrictions, text-first,
-no-training required for ZDR, payload-opt-in conflicts denied, private scoped
-evidence with proposed 30-day maximum validity) and the eight-task decomposition,
-or specify changes. Approval completes this specification, **not feature
-scheduling/activation**. Do not begin another task without separate approval.
+### Approval-only closeout — 2026-10-18
+
+The user's Continue directly answers the review request for `c5a8d4e`. It
+approves the bounded profile: independent ZDR/processing-region restrictions,
+text-first scope, no-training qualification for ZDR, denial of payload-opt-in
+conflicts, private scoped evidence with a 30-day maximum validity, and the
+eight-task decomposition. This satisfies the remaining specification-review
+criterion. No financial, retention, upstream legal/safety or region guarantee
+is broadened. Approval is **not feature scheduling/activation**.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped**,
+including PostgreSQL 234. Git comparison to `8ad70cb` verifies runtime, test,
+configuration and dependency inputs are unchanged. No new restore/build/test
+run or PRV strict-runtime pass is claimed for this approval-only closeout.
+Fresh closeout checks PASS: 89 local link targets and five linked heading
+anchors; balanced fences/valid illustrative JSON; 14 unique future scenarios
+and eight dependency-ordered task definitions unchanged from the reviewed
+draft. All other backlog/history rows and production gates remain unchanged;
+exactly nine documentation paths change. `git diff --check` and staged
+whitespace/scope checks pass. The eight follow-on feature tasks remain
+unscheduled. Do not begin another task without separate approval.

@@ -407,8 +407,9 @@ Sources are operator-supplied and never fetched/independently authenticated by
 the API. Claims remain conditional observations, not ZDR certification or
 residency enforcement. [Full scope and validation](35_PROVIDER_DATA_POLICIES.md).
 
-`PRIVACY-003` separately drafts [strict privacy/processing-region fields and policy/eligibility routes](39_PRIVACY_ELIGIBILITY_SPEC.md).
-They are pending approval and **not implemented wire contracts**. Do not send
+`PRIVACY-003` separately specifies approved-design [strict privacy/processing-region fields and policy/eligibility routes](39_PRIVACY_ELIGIBILITY_SPEC.md).
+They remain **not implemented wire contracts**; feature execution is not
+scheduled by specification approval. Do not send
 `uzllm.privacy` to the current Gateway or infer strict routing from the existing
 data-policy disclosure, payload opt-out or Responses `store=false` behavior.
 

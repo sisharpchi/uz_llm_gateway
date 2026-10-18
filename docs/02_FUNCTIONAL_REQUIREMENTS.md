@@ -501,8 +501,10 @@ Existing FR-001–005 and ADR-025 remain authoritative for current behavior.
 - invoicing
 - contractual SLA
 
-`PRIVACY-003` proposes a bounded ZDR/provider-processing-region eligibility
-profile in [the draft specification](39_PRIVACY_ELIGIBILITY_SPEC.md). It is
-pending approval, not an implemented capability or a whole-platform residency
-promise. Existing provider-policy disclosure and project payload controls
-remain distinct; no strict privacy routing is enabled by these P2 bullets.
+`PRIVACY-003` specifies the approved bounded ZDR/provider-processing-region
+eligibility profile in [the specification](39_PRIVACY_ELIGIBILITY_SPEC.md).
+The user's 2026-10-18 Continue approves the profile and eight-task decomposition
+delivered in `c5a8d4e`, not feature scheduling, an implemented capability or a
+whole-platform residency promise. Existing provider-policy disclosure and
+project payload controls remain distinct; no strict privacy routing is enabled
+by these P2 bullets.
