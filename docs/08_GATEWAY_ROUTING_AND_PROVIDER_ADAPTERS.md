@@ -1,6 +1,6 @@
 # Gateway Routing and Provider Adapters
 
-The [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) proposes
+The [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) defines future
 operation-feature qualification for Responses functions/schema and embedding
 controls. It changes no parser or adapter today. Future eligibility must
 intersect published profile, adapter support, compatible pricing and all existing

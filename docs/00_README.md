@@ -201,8 +201,8 @@ This creates clear boundaries without paying the operational cost of many micros
     fee/failure cases and benchmark plan; specification only, not new runtime behavior.
 41. `41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md` — approved custom endpoint trust,
     credential/accounting boundary and fixtures; specification only, not implemented.
-42. `42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md` — draft operation qualification,
-    Responses functions/schema and embedding controls; product review pending,
+42. `42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md` — approved operation qualification,
+    Responses functions/schema and embedding controls specification;
     no new endpoint or runtime capability.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).

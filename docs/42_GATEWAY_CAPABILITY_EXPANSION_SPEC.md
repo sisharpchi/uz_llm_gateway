@@ -2,7 +2,7 @@
 
 ## 1. Status, authority and decision
 
-**GATEWAY-008 · Draft for product review · 2026-10-18 · P2 specification only.**
+**GATEWAY-008 · Approved specification · 2026-10-18 · P2 specification only.**
 Dependencies GATEWAY-005/006/007 are completed. This document does not add a
 route, change validation, publish a capability, alter pricing or approve feature
 execution. Until separately implemented and qualified, the current contracts in
@@ -16,7 +16,7 @@ ADR-009/020/022/024 and Domain/Billing retain financial authority. Existing
 privacy, budgets, authorization and execution-mode restrictions remain hard
 restrictions, never defaults that a new feature may override.
 
-Proposed first expansion: stateless Responses **client-executed function calls**,
+Approved first expansion design: stateless Responses **client-executed function calls**,
 separately qualified function SSE, bounded non-streaming JSON-schema output, and
 text embeddings with qualified dimensions/base64 encoding. First execution
 qualification is OpenAI only; Anthropic/Gemini/DeepSeek chat support does not
@@ -391,7 +391,7 @@ tests, PostgreSQL migration/tenant/locking/recovery tests, Redis faults, real
 edge/browser acceptance, then separate-host qualification. New cases above are
 designs only; existing test success does not execute these future behaviors.
 
-## 11. Proposed decomposition — review required, unscheduled
+## 11. Approved decomposition — unscheduled, execution approval required
 
 Every row is P2 and requires separate implementation approval/registration.
 Complete only when its listed criteria and tests pass, docs/generated contracts
@@ -447,6 +447,29 @@ Draft validation on 2026-10-18, Windows/.NET 10 and disposable Docker PostgreSQL
 TRX evidence stays in ignored local artifacts, not Git. Existing tests exercise
 existing behavior, not GWC-001–020; no new feature fixture, frontend build,
 live provider call, migration or production activation is claimed by this task.
-Product review must approve the bounded profile and decomposition before
-GATEWAY-008 is Completed; implementation approval remains separate. Stop after
-the draft commit, do not start SECURITY-007 or any proposed feature task.
+At the draft handoff, product review of the bounded profile and decomposition
+was pending; approval-only closeout follows. Feature execution remains separate.
+
+### Approval-only closeout — 2026-10-18
+
+The user's Continue directly answers the review request for `352df4c`. It
+approves operation-feature qualification/discovery, stateless client-executed
+function JSON with separate SSE qualification, bounded non-streaming schema
+output, qualified embedding dimensions/base64, the wire/cost/failure matrix,
+20 designed scenarios and ten-task decomposition. Image/audio/video and hosted/
+stateful execution remain deferred behind the documented entry gates. This
+completes specification review, not feature scheduling, price changes,
+implementation approval, live provider qualification or production activation.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped/
+aborted**, including PostgreSQL 234. Git comparison with tested `f92b463`
+confirms runtime, test, configuration and dependency inputs are unchanged.
+No new restore/build/test run or GWC feature acceptance is claimed for this
+approval-only closeout. Fresh static checks verify 131 local Markdown targets
+and nine linked anchors, balanced fences/four valid JSON examples, 20 unchanged
+designed scenario definitions and ten unchanged dependency-ordered task rows.
+Financial arithmetic and base64 byte order are rechecked. Other backlog/history
+rows and launch gates remain unchanged; exactly eleven documentation paths
+change. Whitespace and staged scope checks pass. Follow-on tasks remain
+unscheduled; OPS-006's separate-host requirement remains unmet. Stop before
+SECURITY-007 or any feature task without separate user approval.

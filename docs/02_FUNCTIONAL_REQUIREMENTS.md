@@ -124,7 +124,7 @@ Examples:
 - audio.
 
 Flags describe capabilities, not universal support across operations/adapters.
-The [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) proposes
+The [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) defines future
 versioned operation-feature qualification/discovery; it is not implemented.
 
 ### FR-033 — Price history [P0]
@@ -164,8 +164,8 @@ subset with incremental text/refusal, terminal evidence, no replay after output,
 and cancellation-independent financial cleanup. [Input capability matrix](32_RESPONSES_API.md).
 
 Client function JSON/SSE and bounded non-streaming schema output are proposed
-in the [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md), pending
-product review and separate implementation tasks. Current tools/schema rejection
+in the [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md), requiring
+separate execution approval and implementation tasks. Current tools/schema rejection
 and stateless execution remain unchanged; no hosted tool execution is implied.
 
 ### FR-044 — Embeddings [P1]
@@ -181,7 +181,7 @@ Only priority/price routing is supported; chat performance samples are not reuse
 See [exact contract and validation](34_EMBEDDINGS_API.md).
 
 Qualified dimensions/base64 are proposed, not enabled, in the
-[GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md). They preserve
+[approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md). They preserve
 input-token billing, one fee per batch and the prohibition on cross-model fallback.
 
 ### FR-045 — Other modalities [P2]

@@ -1,7 +1,7 @@
 # Database and Data Model
 
 Proposed operation-feature profiles and bounded request metadata are described
-in [GATEWAY-008 §4/8](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md). This draft adds
+in [approved GATEWAY-008 §4/8](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md). This specification adds
 no schema today. Any approved implementation must preserve immutable model/
 mapping/version references and tenant-filtered reads, using the existing
 migrator; no new tool/conversation or financial-state store is proposed.

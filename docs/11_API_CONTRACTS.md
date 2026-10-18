@@ -261,7 +261,7 @@ returns 503 `finalization_pending`. [Capability, pricing and recovery details](3
 
 ## 3. Gateway extensions
 
-Planning note: the [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md)
+Planning note: the [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md)
 specifies future operation discovery, Responses client-function JSON/SSE,
 non-streaming schema output and qualified embedding controls. These are **not
 current wire contracts**: the rejection/shape rules in §2a/2b and generated

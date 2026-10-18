@@ -22,7 +22,7 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
-Optional gateway expansion in the [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md)
+Optional gateway expansion in the [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md)
 is not a new paid-launch prerequisite and does not pass any gate. If later
 offered, each exact model/mapping/operation feature profile needs protocol,
 usage/cost, cancellation/failure, tenant/security and load evidence plus live
