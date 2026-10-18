@@ -74,14 +74,14 @@ Local Aspire orchestration (`DEVEX-001`) is a developer convenience, not
 evidence for the two-node reliability, live payment, or provider gates.
 
 Enterprise SAML/SCIM is not required for the initial paid MVP and is not
-implemented. [ENTERPRISE-001](38_ENTERPRISE_IDENTITY_SPEC.md) is a review draft,
-not a passed Security/Provider gate. If that optional feature is later approved,
+implemented. [ENTERPRISE-001](38_ENTERPRISE_IDENTITY_SPEC.md) is an approved
+specification, not a passed Security/Provider gate. If feature execution is later approved,
 its enterprise activation additionally requires tenant-scoped authorization,
 deprovision/key-race and financial-finalization fixtures, reference Entra
 provisioning/login/cert-token rotation evidence, independent security review,
 local recovery ownership and a quarantine restore/offboarding drill. Live IdP
 onboarding is an external prerequisite for activation, not for writing its
-specification or synthetic fixtures. None of these proposed checks replaces
+specification or synthetic fixtures. None of these enterprise checks replaces
 OPS-006/007 or existing merchant/provider/legal launch evidence.
 
 `LAUNCH-002` adds a disposable real-service acceptance stack to CI (see

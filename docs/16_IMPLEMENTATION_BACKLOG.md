@@ -281,7 +281,7 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 
 | ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
 |---|---|---|---|
-| ENTERPRISE-001 · In Progress | Specify SSO/SCIM identities, tenant roles and deprovisioning; `docs/`. | SECURITY-004; FR-004–005, ADR-025; proposed FR-140–147 require specification approval. | Approved threat/contract spec and decomposed implementation tasks; no untested auth endpoint. The user's Continue confirms the three policy choices from the readiness handoff. [Specification draft and proposed tasks](38_ENTERPRISE_IDENTITY_SPEC.md) are prepared for review; final specification approval remains outstanding. No feature code, migration, interoperability or launch-gate claim. |
+| ENTERPRISE-001 · Completed | Specify SSO/SCIM identities, tenant roles and deprovisioning; `docs/`. | SECURITY-004; FR-004–005/140–147, ADR-025. | User's 2026-10-18 Continue approves the [threat/identity/wire/lifecycle specification and ten-task decomposition](38_ENTERPRISE_IDENTITY_SPEC.md) delivered in 4c1e660. Approval/status closeout records static validation and revalidated prior 1028-PASS baseline evidence; no new runtime test run, SAML/SCIM feature, migration, live interoperability or launch-gate claim. Feature tasks remain unscheduled until separate execution approval/promotion. |
 | PRIVACY-003 · Planned | Specify ZDR/residency eligibility and truthful provider claims; `docs/`. | CATALOG-003; NFR-050–052. | Policy evidence matrix and denial cases reviewed; no ZDR promise without provider evidence. |
 | ROUTING-007 · Planned | Specify advanced routing/cache policy and financial impact; `docs/`. | USAGE-004; FR-060–068. | Decision matrix, staleness/fallback/fee cases and benchmark plan approved. |
 | PROVIDER-010 · Planned | Specify custom provider endpoint trust, auth and billing boundary; `docs/`. | SECURITY-006; FR-050–056. | SSRF/credential/cost threat model and contract fixtures designed. |
@@ -424,3 +424,19 @@ Keep ENTERPRISE-001 In Progress until the user reviews/approves that complete
 specification; only then may its acceptance be marked Completed and follow-on
 tasks be promoted by explicit approval. Validation and limitations are recorded
 in document 38. No SAML/SCIM runtime implementation has been delivered.
+
+### ENTERPRISE-001 specification approval — 2026-10-18
+
+The user's Continue directly answers the final review request for `4c1e660`,
+approving the complete specification and ten-task decomposition, including
+Owner-authorized explicit linking, tenant-only sessions, ReadOnly/no-grant
+initial membership without managed Owners, conservative reactivation and
+terminal creator-key revocation. This satisfies the specification acceptance
+criterion; ENTERPRISE-001 is Completed by this documentation-only closeout.
+The earlier readiness block and review-pending handoff remain historical.
+
+FR-140–147, ADR-025 and the future API-design notices now reflect the approved
+design, not implemented capabilities. The follow-on tasks in document 38
+remain Proposed/unscheduled: separate execution approval and register promotion
+are required before SSO-001 or any other feature begins. No next P2 task is
+started. OPS-006 and all external launch prerequisites remain unchanged.

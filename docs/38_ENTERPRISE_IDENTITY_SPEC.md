@@ -2,11 +2,13 @@
 
 ## 1. Status, authority and scope
 
-**ENTERPRISE-001 · P2 · Draft for review · 2026-10-17.** This is a design
-deliverable, not implemented authentication. The user's Continue confirms the
-three policy choices in the [readiness handoff](16_IMPLEMENTATION_BACKLOG.md#enterprise-001-readiness-review--2026-10-17).
-It does not pre-approve all design details below. Specification approval is
-still required before this task is Completed or follow-on work is promoted.
+**ENTERPRISE-001 · P2 · Approved specification · 2026-10-18.** Drafted
+2026-10-17, delivered in `4c1e660` and approved by the user's subsequent
+Continue directly answering the specification-review request. This completes
+the specification task, not authentication implementation. The earlier policy
+decisions remain recorded in the [readiness handoff](16_IMPLEMENTATION_BACKLOG.md#enterprise-001-readiness-review--2026-10-17).
+The full threat/contract design and ten-task decomposition below are approved;
+feature scheduling, task promotion and production activation are not.
 
 Confirmed scope:
 
@@ -31,7 +33,7 @@ switch. Synthetic acceptance environments may opt in; production exposure
 requires completed qualification and explicit activation approval. Creating a
 Draft/Enabled connection does not override that deployment gate.
 
-Deliberate trade-offs for review: optional SSO is not enterprise password
+Accepted trade-offs: optional SSO is not enterprise password
 enforcement; explicit account linking adds Owner/user onboarding steps; Users-only
 provisioning does not automatically synchronize project access. Conservative
 reactivation needs Owner intervention and creator-key revocation can interrupt
@@ -42,8 +44,9 @@ would need separate product/security decisions and implementation tasks.
 Keep [ADR-025](15_ARCHITECTURE_DECISIONS.md#adr-025--secure-browser-sessions-and-operator-boundary),
 FR-001–005/020–028/130–135, NFR-040–046/051/064/066 and the
 [domain/financial invariants](06_DOMAIN_AND_BUSINESS_LOGIC.md#12-corrected-ownership-and-state-model).
-The proposed requirements/ADR extension here become binding only on review
-approval. Current [API artifacts](api/README.md) remain the implemented wire
+The approved requirements/ADR extension bind future enterprise implementation,
+not a claim that current runtime behavior has changed.
+Current [API artifacts](api/README.md) remain the implemented wire
 authority; none of the routes below exist yet.
 
 ## 2. Repository evidence and architectural fit
@@ -65,11 +68,11 @@ The conceptual `external_auth_ref` in Database Design is not implemented.
 Use the existing modular monolith/three hosts/shared PostgreSQL coordinator;
 no identity microservice, message broker or distributed financial transaction.
 
-## 3. Proposed requirements and ADR-025 extension
+## 3. Approved requirements and ADR-025 extension
 
-These IDs are reserved **proposals**, not additional implemented FRs:
+These P2 requirements are **approved design, not implemented capabilities**:
 
-| Proposed P2 requirement | Observable contract |
+| Approved P2 requirement | Observable contract |
 |---|---|
 | FR-140 · Tenant federation | At most one enabled Entra connection per organization; explicit optional enablement, local-owner recovery and versioned trust configuration. |
 | FR-141 · External identity binding | Immutable `(connection, issuer, Entra object ID)`; provision first, then deliberate local-account/SAML dual proof. Email/name are not identity keys. |
@@ -80,14 +83,15 @@ These IDs are reserved **proposals**, not additional implemented FRs:
 | FR-146 · Lifecycle recovery | Directory reactivation never resurrects keys/grants/old privilege; local revocation cannot be undone by a delayed SCIM update. |
 | FR-147 · Enterprise evidence | Offline adversarial/DB/browser fixtures plus separately recorded Entra interoperability, rotation and incident evidence before enterprise activation. |
 
-Proposed ADR-025 extension: retain opaque server-backed sessions, distinct CSRF
+Approved ADR-025 extension: retain opaque server-backed sessions, distinct CSRF
 and local operator MFA. Add an immutable session authentication origin and
 optional tenant/connection/binding generation. All application authorization
 must consume that scope. Do not replace local sessions with browser SAML/JWT
-storage or trust claims for current permissions. No accepted ADR is changed
-by publication of this draft.
+storage or trust claims for current permissions. The [ADR-025 addendum](15_ARCHITECTURE_DECISIONS.md#adr-025--secure-browser-sessions-and-operator-boundary)
+records this future implementation constraint; existing local authentication
+and operator behavior are unchanged.
 
-## 4. Boundaries and proposed persistence
+## 4. Boundaries and planned persistence
 
 | Owner | Responsibilities / public contracts | Must not own |
 |---|---|---|
@@ -111,7 +115,7 @@ rules. Gateway similarly composes narrow admission/dispatch authorization
 ports. Architecture tests must prove acyclic references and no foreign
 Infrastructure access; do not widen frozen exceptions or introduce a new service.
 
-Proposed tables, implemented only by later explicit Migrator tasks:
+Planned tables, implemented only by later explicit Migrator tasks:
 
 - `iam.federation_connection`: organization FK, fixed issuer/tenant/SSO URL,
   SP entity/ACS identities, `Draft/Enabled/Disabled`, version, verified-test
@@ -242,7 +246,7 @@ automatic recovery login, emailed impersonation link or external-MFA operator gr
 
 ## 6. SAML browser and cryptographic profile
 
-Proposed SP-initiated Redirect AuthnRequest / POST Response profile:
+Approved SP-initiated Redirect AuthnRequest / POST Response profile:
 
 - Server-generated random XML-safe request ID, five-minute flow TTL, opaque
   RelayState at most 80 bytes bound to one flow/browser/connection/version.
@@ -297,7 +301,7 @@ reason and validity, test the new version before retirement, and support
 emergency removal/disable. Never auto-trust remote metadata or block an auth
 transaction on metadata/CRL fetching; certificate compromise disables the connection.
 
-## 7. Proposed HTTP contracts — not implemented OpenAPI
+## 7. Approved HTTP design — not implemented OpenAPI
 
 All routes are on Management behind TLS, not Gateway. Browser/control routes
 keep current JSON errors, `no-store`, CSRF on authenticated mutations and
@@ -311,7 +315,7 @@ client advertising these routes until their implementation task.
 
 Prefix `M = /management/v1/organizations/{organizationId}/identity`:
 
-| Proposed route | Contract / authority |
+| Planned route | Contract / authority |
 |---|---|
 | `GET M/connection` | Owner-only safe config/version/status, cert fingerprints, last test; no token/private key. |
 | `PUT M/connection` | Local Owner + CSRF + fresh password; expected version (create `If-None-Match: *`), issuer/tenant/SSO URL and bounded certs; 201/200; forces Draft, invalidates pending flows. |
@@ -444,7 +448,7 @@ is granted only locally and is not restored by reactivation.
 For an unlinked resource, Owner resume clears only the local block; it cannot
 create a membership/account or bypass the later explicit Link ceremony.
 
-### Exact transactional barriers (proposed, not existing behavior)
+### Exact transactional barriers (approved design, not existing behavior)
 
 Use the existing organization row as the lifecycle fence: **shared row lock**
 for enterprise admission/dispatch and authorized key/membership-changing use
@@ -517,7 +521,7 @@ define an IdP-supported version/ordering contract separately.
 | IdP/DB/Redis outage or bad clock | Fail new SSO/SCIM operations closed; existing local recovery access works subject to normal dependencies; financial finalization remains independent. No cached grant fallback. |
 | Stale reactivation or connection replacement | Local recovery block/generation, no restored credentials; new issuer requires explicit reprovision/relink. |
 
-Proposed operator-configured hard bounds: SAML form 256 KiB total / 128 KiB
+Approved initial operator-configured hard bounds: SAML form 256 KiB total / 128 KiB
 decoded XML / depth 32; metadata 128 KiB; SCIM body 32 KiB, max 20 PatchOp
 operations; profile fields bounded above. Reject duplicate critical fields and
 oversize input before parsing. Limit start/ACS/finish to 30 attempts per source
@@ -578,11 +582,12 @@ assertions/secrets. Test behavior, not only XML/JSON string snapshots. Offline
 RSA signatures and disposable PG/Redis/two-process fixtures do not require
 live merchant/IdP credentials; ENT-14 does require a reference tenant later.
 
-## 11. Proposed follow-on task register
+## 11. Approved decomposition — feature execution not authorized
 
-All tasks below are **P2 / Proposed / not approved to execute**. Promotion
-requires approval of this specification plus explicit feature scheduling while
-P0 gates remain open. The listed order is dependency-safe; SSO-003 could run
+All tasks below remain **P2 / Proposed / not scheduled to execute**. Their
+scope, dependencies and acceptance design are approved, not feature execution.
+Promotion into the executable register requires separate explicit feature
+scheduling while P0 gates remain open. The listed order is dependency-safe; SSO-003 could run
 after SSO-001 independently of SCIM-001, but default execution stays sequential.
 Each task ends with tests, exact evidence/docs, generated API/client parity
 when routes change, task-only commit and user approval before the next task.
@@ -601,8 +606,8 @@ when routes change, task-only commit and user approval before the next task.
 | ENTERPRISE-003 · Qualify first Entra profile and operations | FRONTEND-011 (transitively all SSO/SCIM tasks above); FR-147, NFR-043–046/064/066 | docs/enterprise validation; deployment tests/runbooks; reference IdP configuration | ENT-01–14 evidence for exact deployed revision, cert/token rotation/offboarding/restore and security review. Offline qualification may pass separately, but task remains Blocked if live Entra/owner evidence missing. Complete only with documented residual risks and explicit enterprise activation approval; never passes unrelated paid-launch gates. |
 
 Completion of ENTERPRISE-001 means an **approved specification and approved
-decomposition**, not completion of any row above. First proposed implementation
-would be SSO-001 only after approval/promotion; no later P2 feature is selected
+decomposition**, not completion of any row above. First enterprise implementation
+would be SSO-001 only after execution approval/promotion; no later P2 feature is selected
 by this document.
 
 ## 12. External prerequisites and review decisions
@@ -621,15 +626,17 @@ accounts, or paid-traffic authorization. Required before enterprise activation:
   [paid-launch gates](18_PRODUCTION_READINESS.md). No SAML/SCIM certification,
   mandatory-login enforcement or enterprise SLA claim from this specification.
 
-Review explicitly: (a) local Owner-controlled link authorization + dual proof,
+Review approved 2026-10-18: (a) local Owner-controlled link authorization + dual proof,
 (b) tenant-only SSO sessions and local-only operator boundary, (c) managed
 ReadOnly/no grants and no managed Owner in this first profile, (d) conservative
-reactivation/terminal keys, (e) bounded wire/crypto profile and ten proposed
-implementation tasks. These details remain **proposed until user review**.
+reactivation/terminal keys, (e) bounded wire/crypto profile and the ten-task
+implementation decomposition. Approval is for the specification only; none
+of the feature tasks is started or marked implemented.
 
 ## 13. Specification validation and limitations
 
-Validation on Windows/PowerShell, .NET 10 and Docker Desktop, 2026-10-18,
+Draft validation snapshot (before specification approval) on Windows/PowerShell,
+.NET 10 and Docker Desktop, 2026-10-18,
 against implementation revision `5bd4b1a` with only these six documentation
 paths changed:
 
@@ -650,11 +657,29 @@ as a final baseline or substitute the prior REFUND-002 run for current evidence.
 No SAML/SCIM behavior has been implemented or tested by this documentation
 task; ENT-01–14 are designs, not passing feature tests. No frontend/browser,
 live IdP, protocol interoperability or production qualification is claimed.
-The task remains In Progress pending specification approval; no proposed
-implementation task or next P2 specification is started.
+Specification approval now satisfies the remaining ENTERPRISE-001 acceptance
+criterion. No enterprise implementation task or next P2 specification is started.
+
+### Approval-only closeout — 2026-10-18
+
+The user's Continue directly answers the review request for `4c1e660`.
+Functional Requirements, API-design status, ADR-025 and the backlog are aligned
+to that approval without changing scope, runtime code, migrations, generated
+contracts or production gates. The ready specification and decomposition are
+accepted; follow-on feature execution still needs separate approval/promotion.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped**,
+including PostgreSQL 234. Git comparison to `5bd4b1a` verifies runtime, test,
+configuration and dependency inputs are unchanged. No new restore/build/test
+run or SAML/SCIM fixture pass is claimed for this approval-only closeout.
+Fresh closeout checks PASS: 83 local links/anchors, ten unique dependency-ordered
+tasks, eight approved FRs and fourteen future acceptance scenarios. Every other
+backlog/history row is unchanged; exactly seven documentation paths change.
+`git diff --check` and the staged whitespace/scope checks pass. Feature tasks
+remain unscheduled and no implementation/configuration input changes.
 
 Sources reviewed 2026-10-17: linked OASIS SAML browser profile, IETF SCIM core/
 protocol RFCs, OWASP SAML guidance, Microsoft Entra SAML protocol and outbound
 SCIM guide. Local policy choices, bounds, session isolation, key barrier and
-task decomposition are this proposal, not vendor guarantees. Live compatibility
+task decomposition are approved project policy, not vendor guarantees. Live compatibility
 and library-specific cryptographic support remain unverified until their tasks.

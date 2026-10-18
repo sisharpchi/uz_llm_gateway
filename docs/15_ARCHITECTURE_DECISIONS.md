@@ -314,3 +314,14 @@ share a PostgreSQL transaction for atomic financial effects.
 
 Use secure server-backed management sessions and separately authorized,
 audited MFA-protected operator access.
+
+**Enterprise design addendum — approved 2026-10-18, not implemented:**
+[ENTERPRISE-001](38_ENTERPRISE_IDENTITY_SPEC.md) retains opaque sessions/CSRF
+and the independent local operator-MFA boundary. Future federated sessions
+must carry immutable authentication origin and tenant/connection/binding
+scope; authorization must enforce that scope in application services as well
+as HTTP, never accepting external role/MFA claims as operator proof. Explicit
+local-account linking and tenant-only deprovision/key withdrawal preserve other
+tenants and financial finalization. Follow the approved contract and decomposed
+tasks; this addendum neither changes current local-session behavior nor
+authorizes feature execution, schema changes or production activation.
