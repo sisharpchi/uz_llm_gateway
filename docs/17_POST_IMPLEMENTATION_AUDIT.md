@@ -1,5 +1,17 @@
 # Post-Implementation Audit
 
+## Guardrail/PII specification follow-up — 2026-10-18
+
+[SECURITY-007's source matrix](43_GUARDRAIL_PII_POLICY_SPEC.md#2-verified-baseline-and-concrete-gap)
+distinguishes encrypted retention/metadata minimization from missing semantic
+input inspection. Source ordering shows retention policy commits before the
+endpoint appends audit; audit failure could leave a committed mutation. Existing
+tests cover role/CSRF/encryption/expiry, not this rollback invariant. Proposed
+conditional P0 SECURITY-009 records the corrective work without erasing history
+or claiming an implemented fix. Guardrail policy/inspection/Redact, expiring
+diagnostics and guarded capture prohibition remain draft future work, not
+completed PRIVACY-002 behavior or a production-gate pass.
+
 ## Gateway capability specification follow-up — 2026-10-18
 
 `GATEWAY-008` rechecks the actual parsers, writers, native adapters, Catalog

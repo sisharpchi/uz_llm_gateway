@@ -1,5 +1,11 @@
 # API Contracts
 
+Planning only: the [SECURITY-007 draft §5/7/8](43_GUARDRAIL_PII_POLICY_SPEC.md)
+defines future Owner guardrail policy/decision APIs, consent/version/replay and
+input-screening errors. No such route or inference skip extension exists today;
+generated artifacts remain unchanged. No per-request override, raw-content
+preview, response-body replay or output-safety guarantee is proposed.
+
 ## 1. API groups
 
 ### Public inference API

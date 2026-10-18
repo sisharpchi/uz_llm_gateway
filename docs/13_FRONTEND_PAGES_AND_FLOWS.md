@@ -1,5 +1,12 @@
 # Frontend Pages and User Flows
 
+Future Owner guardrail configuration/diagnostics are specified in the
+[SECURITY-007 draft §8](43_GUARDRAIL_PII_POLICY_SPEC.md#8-ownership-persistence-and-ux),
+not implemented by the existing privacy page. Backend APIs precede UI; disclose
+input-only heuristics, false positives/negatives, retention conflicts and separate
+Redact consent. Do not upload/store raw prompts for a preview. Preserve the
+mockup style with improved localized accessible UX and real API evidence.
+
 Future operation-aware catalog/quickstarts and capability metadata in Activity
 are designed in the [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md).
 Backend discovery/persistence/reads must precede UI controls; the current

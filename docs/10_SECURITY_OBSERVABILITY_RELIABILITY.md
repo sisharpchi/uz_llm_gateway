@@ -1,5 +1,19 @@
 # Security, Observability and Reliability
 
+## Guardrail/PII planning boundary
+
+[SECURITY-007](43_GUARDRAIL_PII_POLICY_SPEC.md) is a draft for local input-only
+heuristics, explicit Owner consent, no request bypass, bounded diagnostics and
+separate Redact implementation. Encryption/log redaction are not semantic PII
+inspection, output safety or upstream ZDR. No scanner is implemented here.
+
+Source review also finds `PostgreSqlPayloadRetentionService.SetPolicyAsync`
+commits before `PayloadRetentionEndpoints` writes audit. Proposed SECURITY-009
+must make that boundary atomic before new consent depends on it and before
+offering those controls at paid launch. Existing role/encryption/expiry tests
+do not prove audit-failure rollback. This records an unfixed ordering risk,
+not a new fault-test result or rewritten completed-task history.
+
 ## 1. Threat model highlights
 
 High-value assets:

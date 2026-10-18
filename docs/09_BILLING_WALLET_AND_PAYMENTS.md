@@ -1,5 +1,11 @@
 # Billing, Wallet and Payments
 
+The [SECURITY-007 draft §6/7](43_GUARDRAIL_PII_POLICY_SPEC.md) proposes input
+screening before reservation: a policy Block creates no hold/provider call/fee.
+After dispatch, actual usage for original/transformed text remains billable;
+refusal, disconnect and Unknown evidence never imply zero cost or automatic
+refund. No guardrail tariff or financial-state redesign is authorized here.
+
 The [approved GATEWAY-008 §8](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md#8-financial-persistence-and-security-invariants)
 preserves token-only prices, TX-02/04/05 and known/Unknown accounting. Proposed
 client-function continuations are separate model requests/fees; embedding

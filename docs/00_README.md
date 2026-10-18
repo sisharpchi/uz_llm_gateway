@@ -204,6 +204,9 @@ This creates clear boundaries without paying the operational cost of many micros
 42. `42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md` — approved operation qualification,
     Responses functions/schema and embedding controls specification;
     no new endpoint or runtime capability.
+43. `43_GUARDRAIL_PII_POLICY_SPEC.md` — draft local input screening/redaction,
+    Owner consent, retention/audit boundaries and false-positive/bypass cases;
+    product review pending, no implemented guardrail.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

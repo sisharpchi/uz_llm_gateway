@@ -1,5 +1,12 @@
 # Gateway Routing and Provider Adapters
 
+Future project guardrails in the [SECURITY-007 draft](43_GUARDRAIL_PII_POLICY_SPEC.md)
+screen supported input before financial admission, across Managed/BYOK/Hybrid
+and existing inference operations. Unknown coverage, detector failure and stale
+policy cannot silently bypass the gate. Adapters receive only approved original/
+transformed normalized input and still own usage extraction, not guardrail
+policy or billing. No current routing/stream behavior changes in this draft.
+
 The [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) defines future
 operation-feature qualification for Responses functions/schema and embedding
 controls. It changes no parser or adapter today. Future eligibility must

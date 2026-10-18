@@ -1,5 +1,11 @@
 # Database and Data Model
 
+The [SECURITY-007 draft §8](43_GUARDRAIL_PII_POLICY_SPEC.md#8-ownership-persistence-and-ux)
+proposes tenant-bound guardrail policy/version/receipt and expiring metadata-only
+decision records, plus durable request capture prohibition. No migration is
+created here. Consent/configuration/audit must share a transaction; diagnostic
+matches must not become an indefinite payload archive under financial LegalHold.
+
 Proposed operation-feature profiles and bounded request metadata are described
 in [approved GATEWAY-008 §4/8](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md). This specification adds
 no schema today. Any approved implementation must preserve immutable model/

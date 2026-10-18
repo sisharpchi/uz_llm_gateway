@@ -22,6 +22,15 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
+If payload retention controls are offered at paid launch, close the commit-
+before-audit risk recorded in [SECURITY-007 §2](43_GUARDRAIL_PII_POLICY_SPEC.md#2-verified-baseline-and-concrete-gap)
+with transactional audit-failure/cancellation rollback evidence (proposed
+SECURITY-009); current fixtures do not supply it. The specification does not
+promote or complete that correction. Optional guardrails additionally need
+consent/corpus/expected-miss, no-content telemetry, retention-race, financial,
+load/failure/restore and rollout evidence. Input heuristics do not prove output
+safety, lawful processing or upstream ZDR; no gate passes from this draft.
+
 Optional gateway expansion in the [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md)
 is not a new paid-launch prerequisite and does not pass any gate. If later
 offered, each exact model/mapping/operation feature profile needs protocol,
