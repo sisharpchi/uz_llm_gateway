@@ -741,6 +741,12 @@ attempt detail, and operator provider/payment/ledger/incident endpoints.
 
 ### Management identity endpoints [P0]
 
+Future SAML/SCIM routes are **proposed only** in
+[ENTERPRISE-001's contract draft](38_ENTERPRISE_IDENTITY_SPEC.md#7-proposed-http-contracts--not-implemented-openapi).
+They are not part of current OpenAPI/client artifacts or the implemented routes
+below. The draft separates tenant-scoped federation, Owner configuration and
+dedicated SCIM Bearer credentials from existing local browser/operator auth.
+
 ```text
 POST /management/v1/auth/register
 POST /management/v1/auth/verify-email

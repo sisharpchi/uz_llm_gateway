@@ -192,6 +192,9 @@ This creates clear boundaries without paying the operational cost of many micros
 34. `34_EMBEDDINGS_API.md`
 35. `35_PROVIDER_DATA_POLICIES.md`
 36. `36_SDK_EXAMPLES.md`
+37. `37_WALLET_ADJUSTMENTS.md`
+38. `38_ENTERPRISE_IDENTITY_SPEC.md` — P2 SAML/SCIM proposal, awaiting review;
+    not implemented authentication.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

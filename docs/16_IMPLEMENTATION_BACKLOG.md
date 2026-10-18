@@ -281,7 +281,7 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 
 | ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
 |---|---|---|---|
-| ENTERPRISE-001 · Blocked | Specify SSO/SCIM identities, tenant roles and deprovisioning; `docs/`. | SECURITY-004; FR-004–005, ADR-025; new product requirement needed. | Approved threat/contract spec and decomposed implementation tasks; no untested auth endpoint. 2026-10-17 readiness review: user approved P2 specification work, but protocol/reference IdP, provisioning/enforcement and deprovisioned-member API-key policy are not defined. Await the decisions below; no feature code or completed-spec claim. |
+| ENTERPRISE-001 · In Progress | Specify SSO/SCIM identities, tenant roles and deprovisioning; `docs/`. | SECURITY-004; FR-004–005, ADR-025; proposed FR-140–147 require specification approval. | Approved threat/contract spec and decomposed implementation tasks; no untested auth endpoint. The user's Continue confirms the three policy choices from the readiness handoff. [Specification draft and proposed tasks](38_ENTERPRISE_IDENTITY_SPEC.md) are prepared for review; final specification approval remains outstanding. No feature code, migration, interoperability or launch-gate claim. |
 | PRIVACY-003 · Planned | Specify ZDR/residency eligibility and truthful provider claims; `docs/`. | CATALOG-003; NFR-050–052. | Policy evidence matrix and denial cases reviewed; no ZDR promise without provider evidence. |
 | ROUTING-007 · Planned | Specify advanced routing/cache policy and financial impact; `docs/`. | USAGE-004; FR-060–068. | Decision matrix, staleness/fallback/fee cases and benchmark plan approved. |
 | PROVIDER-010 · Planned | Specify custom provider endpoint trust, auth and billing boundary; `docs/`. | SECURITY-006; FR-050–056. | SSRF/credential/cost threat model and contract fixtures designed. |
@@ -406,3 +406,21 @@ before marking ENTERPRISE-001 Completed. No other backlog task is started.
 This is a documentation-only, explicitly incomplete readiness review. Static
 relative-link, task-scope and whitespace checks are its validation; no .NET,
 frontend, protocol or live IdP tests were run or claimed for this review.
+
+### ENTERPRISE-001 specification handoff — 2026-10-17
+
+The user's subsequent Continue directly answers the three-choice policy
+handoff: SAML 2.0/SCIM 2.0 Users with Microsoft Entra ID first; opt-in optional
+SSO with explicitly linked, SCIM-provisioned membership and no JIT/email merge;
+tenant-only deprovisioning including keys created by that member in that
+organization. This unblocks specification work, not feature implementation.
+The readiness review above is preserved as history.
+
+[Document 38](38_ENTERPRISE_IDENTITY_SPEC.md) proposes the remaining precise
+security, lifecycle, wire, persistence and fixture decisions, plus ten small
+dependency-ordered follow-on tasks. Those tasks are **Proposed, not executable**;
+they do not supersede P0 staging dependencies or start another P2 task.
+Keep ENTERPRISE-001 In Progress until the user reviews/approves that complete
+specification; only then may its acceptance be marked Completed and follow-on
+tasks be promoted by explicit approval. Validation and limitations are recorded
+in document 38. No SAML/SCIM runtime implementation has been delivered.

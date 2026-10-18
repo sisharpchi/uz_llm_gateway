@@ -477,6 +477,14 @@ before enabling paid gateway use.
 
 ## 14. Future enterprise functions
 
+`ENTERPRISE-001` proposes FR-140–147 for opt-in SAML/SCIM enterprise identity
+in [the review draft](38_ENTERPRISE_IDENTITY_SPEC.md#3-proposed-requirements-and-adr-025-extension).
+The user confirmed SAML 2.0/SCIM Users with Entra first, optional SSO/no JIT or
+email merge, and tenant-only deprovisioning including member-created tenant
+Gateway keys. The complete scope/contract and proposed FRs still require review
+approval; no SAML/SCIM endpoint or enterprise capability is implemented.
+Existing FR-001–005 and ADR-025 remain authoritative for current behavior.
+
 ### P2
 - SSO/SAML
 - SCIM
