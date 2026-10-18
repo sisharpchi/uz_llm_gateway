@@ -2,7 +2,7 @@
 
 ## 1. Status, authority and bounded decision
 
-**SECURITY-007 · Draft for product review · 2026-10-18 · Specification only.**
+**SECURITY-007 · Approved specification · 2026-10-18 · Specification only.**
 PRIVACY-002 is completed; its legal/backup schedule and OPS-006 staging gates
 remain external prerequisites. This document implements no scanner, policy,
 redaction, route, migration or UI. Current API rejection rules and generated
@@ -15,7 +15,7 @@ provider, retention, accounting and session boundaries. PII inspection consent,
 payload retention consent, upstream data-policy disclosure and BYOK/Hybrid
 consent are **different permissions**, never interchangeable checkboxes.
 
-Proposed first profile: Owner-enabled, project-wide, deterministic **local input
+Approved first profile design: Owner-enabled, project-wide, deterministic **local input
 syntax inspection**, default Disabled. Observe records bounded metadata without
 blocking a match; Block denies a match before financial admission. Separately
 implemented Redact replaces matches in ordinary text before dispatch with
@@ -430,7 +430,7 @@ tenant/migration/locking/retention/reconciliation; Redis/cancellation faults;
 real-edge browser acceptance; then distinct-host production qualification.
 Existing passing suites do not execute GRD-001–020.
 
-## 11. Proposed follow-on tasks — unscheduled, approval required
+## 11. Approved follow-on design — unscheduled, execution approval required
 
 All nine IDs below are proposed, not new executable register rows. SECURITY-009
 is conditional corrective P0; all other rows are P2. Approval of this document
@@ -483,8 +483,31 @@ Draft validation on 2026-10-18, Windows/.NET 10 and Docker disposable PostgreSQL
 TRX stays in ignored local artifacts, not Git. No new GRD feature fixture,
 browser flow, live PII/classifier, migration or production qualification is
 claimed. New GRD scenarios are designed, not run.
-Product review must accept the bounded profile, false-positive/negative trade-
-offs, consent, retention/audit corrections and nine-task decomposition before
-SECURITY-007 is Completed. Feature execution and conditional P0 promotion remain
-separate approvals. Stop after this draft commit; do not start DX-004 or a
-proposed implementation task.
+At the draft handoff, product review of the profile/trade-offs, consent,
+retention/audit corrections and decomposition was pending. Approval-only
+closeout follows; feature execution and conditional P0 promotion stay separate.
+
+### Approval-only closeout — 2026-10-18
+
+The user's Continue directly answers the review request for `a2ab220`. It
+approves the bounded local input-only Observe/Block profile, separately built
+Redact with additional consent, deterministic detector limits/known misses,
+Owner/version/replay boundary, retention exclusion, financial/audit rules,
+20 designed scenarios and nine-task decomposition. This satisfies specification
+review, not implementation, live detection accuracy, legal approval, policy
+activation or paid launch. SECURITY-009 remains a conditional P0 corrective
+design for the unfixed retention commit-before-audit risk; neither it nor the
+eight P2 follow-ons is promoted into the executable register by this approval.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped/
+aborted**, including PostgreSQL 234. Comparison to tested `f2d86d4` confirms
+unchanged runtime, test, configuration and dependency inputs. No new restore/
+build/test run or GRD feature acceptance is claimed for this approval-only
+closeout. Fresh static checks verify 148 local Markdown targets/14 linked
+anchors, balanced fences/one valid JSON example, 20 unchanged designed cases
+and nine unchanged dependency-ordered follow-on rows. Financial fixture
+arithmetic is rechecked. Only thirteen documentation paths change; other
+backlog/history rows and launch gates remain unchanged. Whitespace and staged
+scope checks pass. OPS-006 still requires unavailable distinct staging hosts;
+the retention/audit defect is not fixed. Stop before DX-004 or any follow-on
+implementation without separate user approval.

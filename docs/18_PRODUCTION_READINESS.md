@@ -29,7 +29,7 @@ SECURITY-009); current fixtures do not supply it. The specification does not
 promote or complete that correction. Optional guardrails additionally need
 consent/corpus/expected-miss, no-content telemetry, retention-race, financial,
 load/failure/restore and rollout evidence. Input heuristics do not prove output
-safety, lawful processing or upstream ZDR; no gate passes from this draft.
+safety, lawful processing or upstream ZDR; no gate passes from this specification.
 
 Optional gateway expansion in the [approved GATEWAY-008 specification](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md)
 is not a new paid-launch prerequisite and does not pass any gate. If later

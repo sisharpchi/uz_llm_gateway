@@ -1,6 +1,6 @@
 # Billing, Wallet and Payments
 
-The [SECURITY-007 draft §6/7](43_GUARDRAIL_PII_POLICY_SPEC.md) proposes input
+The [approved SECURITY-007 §6/7](43_GUARDRAIL_PII_POLICY_SPEC.md) designs future input
 screening before reservation: a policy Block creates no hold/provider call/fee.
 After dispatch, actual usage for original/transformed text remains billable;
 refusal, disconnect and Unknown evidence never imply zero cost or automatic

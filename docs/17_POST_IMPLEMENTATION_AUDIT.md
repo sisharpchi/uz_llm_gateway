@@ -9,8 +9,9 @@ endpoint appends audit; audit failure could leave a committed mutation. Existing
 tests cover role/CSRF/encryption/expiry, not this rollback invariant. Proposed
 conditional P0 SECURITY-009 records the corrective work without erasing history
 or claiming an implemented fix. Guardrail policy/inspection/Redact, expiring
-diagnostics and guarded capture prohibition remain draft future work, not
-completed PRIVACY-002 behavior or a production-gate pass.
+diagnostics and guarded capture prohibition have approved designs, not execution
+approval, completed PRIVACY-002 behavior or a production-gate pass. Approval of
+the specification does not fix or promote SECURITY-009.
 
 ## Gateway capability specification follow-up — 2026-10-18
 

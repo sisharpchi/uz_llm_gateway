@@ -2,7 +2,7 @@
 
 ## Guardrail/PII planning boundary
 
-[SECURITY-007](43_GUARDRAIL_PII_POLICY_SPEC.md) is a draft for local input-only
+[SECURITY-007](43_GUARDRAIL_PII_POLICY_SPEC.md) is an approved specification for local input-only
 heuristics, explicit Owner consent, no request bypass, bounded diagnostics and
 separate Redact implementation. Encryption/log redaction are not semantic PII
 inspection, output safety or upstream ZDR. No scanner is implemented here.

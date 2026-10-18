@@ -122,7 +122,7 @@ Prompt/response payload retention should be **off by default** or explicitly con
 ### NFR-051
 Operational metadata can be retained separately from payload data.
 
-The [SECURITY-007 draft](43_GUARDRAIL_PII_POLICY_SPEC.md) separates local
+The [approved SECURITY-007 specification](43_GUARDRAIL_PII_POLICY_SPEC.md) separates local
 inspection consent, payload retention consent and expiring diagnostic decisions.
 It proposes no-content audit/telemetry, guarded request capture prohibition and
 bounded fail-closed input inspection; none is an implemented scanner or promise

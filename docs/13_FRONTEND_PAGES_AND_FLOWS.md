@@ -1,7 +1,7 @@
 # Frontend Pages and User Flows
 
 Future Owner guardrail configuration/diagnostics are specified in the
-[SECURITY-007 draft §8](43_GUARDRAIL_PII_POLICY_SPEC.md#8-ownership-persistence-and-ux),
+[approved SECURITY-007 §8](43_GUARDRAIL_PII_POLICY_SPEC.md#8-ownership-persistence-and-ux),
 not implemented by the existing privacy page. Backend APIs precede UI; disclose
 input-only heuristics, false positives/negatives, retention conflicts and separate
 Redact consent. Do not upload/store raw prompts for a preview. Preserve the

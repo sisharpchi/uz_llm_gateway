@@ -520,7 +520,7 @@ Existing FR-001–005 and ADR-025 remain authoritative for current behavior.
 
 ### P2
 
-Guardrails/PII scope is proposed in the [SECURITY-007 draft](43_GUARDRAIL_PII_POLICY_SPEC.md):
+Guardrails/PII design is defined in the [approved SECURITY-007 specification](43_GUARDRAIL_PII_POLICY_SPEC.md):
 Owner-consented, disabled-default local input syntax screening, bounded Observe/
 Block and separately implemented input Redact. It is not universal PII/injection
 detection, output filtering, ZDR or legal certification. Unsupported guarded
