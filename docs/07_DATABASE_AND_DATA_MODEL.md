@@ -1,6 +1,6 @@
 # Database and Data Model
 
-The [DX-004 draft §6](44_MANAGEMENT_AUTOMATION_API_SPEC.md#6-ownership-persistence-and-transaction-fences)
+The [approved DX-004 §6](44_MANAGEMENT_AUTOMATION_API_SPEC.md#6-ownership-persistence-and-transaction-fences)
 proposes Identity-owned HMAC-only automation credentials, tenant-bound grants,
 append-only safe command receipts and account/member/org invalidation epochs.
 These tables/columns do not exist yet. Synchronous epoch fences and atomic

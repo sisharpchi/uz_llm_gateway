@@ -9,10 +9,13 @@ alone would bypass narrower automation scope; Usage services require an
 authorized facade and password recovery/Team mutations need synchronous
 invalidation hooks. These are new-feature prerequisites, not defects proving
 current cookie authorization absent or a reason to rewrite completed history.
-The draft bounds the first profile to read-only, separately authenticated,
+The approved specification bounds the first profile to read-only, separately authenticated,
 project-scoped access and preserves show-once secret recovery, versioning and
-restore revocation. Twenty designed cases and eight unscheduled tasks await
-product review; no new runtime, test fixture, migration or launch gate passed.
+restore revocation. The user's 2026-10-18 Continue approves draft `0116885`,
+twenty designed cases and eight-task decomposition, not implementation or
+promotion into the executable register. Approval-only closeout revalidates
+the prior 1028-PASS baseline and fresh static checks; no new runtime test run,
+feature fixture, migration or launch-gate pass is claimed.
 The unrelated retention commit-before-audit finding below remains unresolved.
 
 ## Guardrail/PII specification follow-up — 2026-10-18

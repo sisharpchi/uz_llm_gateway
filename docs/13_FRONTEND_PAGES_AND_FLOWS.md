@@ -1,10 +1,10 @@
 # Frontend Pages and User Flows
 
-Future Owner automation settings in the [DX-004 draft §8](44_MANAGEMENT_AUTOMATION_API_SPEC.md#8-versioning-compatibility-and-customer-ux)
+Future Owner automation settings in the [approved DX-004 §8](44_MANAGEMENT_AUTOMATION_API_SPEC.md#8-versioning-compatibility-and-customer-ux)
 are separate from Gateway/provider key management. Backend lifecycle/scoped
 reads precede show-once/expiry/rotation/revoke UI; no browser bearer storage or
 playground. Preserve/improve the repository mockup style, three locales and
-accessible tenant-switch/loss-recovery states. Product review is pending;
+accessible tenant-switch/loss-recovery states. The specification is approved;
 no automation page or API is implemented by this specification.
 
 Future Owner guardrail configuration/diagnostics are specified in the

@@ -2,9 +2,10 @@
 
 Task validation evidence: [DX-002 validation](VALIDATION.md).
 
-The [DX-004 automation draft](../44_MANAGEMENT_AUTOMATION_API_SPEC.md) is proposed
-P2 scope/lifecycle/versioning, not an implemented Bearer scheme or generated
-operation. Review/feature approval is pending. Do not use Gateway keys or
+The [approved DX-004 automation specification](../44_MANAGEMENT_AUTOMATION_API_SPEC.md)
+records P2 scope/lifecycle/versioning, not an implemented Bearer scheme or
+generated operation. Feature-execution approval/promotion is still required.
+Do not use Gateway keys or
 headless credentials against existing session-backed Management endpoints;
 update these artifacts only with tested future route implementation.
 

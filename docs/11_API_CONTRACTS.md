@@ -749,11 +749,11 @@ and at least 180 days of overlap/deprecation notice before the old path is
 sunset. Emergency security retirement requires an explicit incident decision
 and customer notice. `DX-002` enforces generated document/example/client drift in
 CI; see [versioned artifacts and regeneration](api/README.md).
-The [DX-004 draft](44_MANAGEMENT_AUTOMATION_API_SPEC.md#5-proposed-routes-dtos-errors-and-idempotency)
+The [approved DX-004 specification](44_MANAGEMENT_AUTOMATION_API_SPEC.md#5-proposed-routes-dtos-errors-and-idempotency)
 specifies a separate read-only machine route family and Owner browser credential
 lifecycle, safe receipt identity and show-once secret recovery. The proposed
 Bearer scheme must not be added to existing session routes. Scope/replay,
-epoch/restore and deprecation design needs product review; it is not today's
+epoch/restore and deprecation design is approved; it is not today's
 wire contract. Existing generated artifacts stay authoritative and unchanged.
 
 ---

@@ -9,10 +9,11 @@ The system shall allow a user to create an account using email/password or anoth
 The system shall issue authenticated web sessions/tokens for management APIs.
 
 Current Management authentication is browser session/CSRF under ADR-025, not
-Gateway-key bearer access. The P2 [DX-004 draft](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
-proposes a separate expiring Owner-sponsored, project/scope-bound read-only
-credential; no machine billing/key/policy writes or operator rights. Review
-and implementation approval are pending; existing authentication is unchanged.
+Gateway-key bearer access. The P2 [approved DX-004 specification](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
+defines a separate expiring Owner-sponsored, project/scope-bound read-only
+credential design; no machine billing/key/policy writes or operator rights.
+The user's 2026-10-18 Continue approves draft `0116885`, not feature execution
+or task promotion. Existing authentication is unchanged.
 
 ### FR-003 — Organization [P0]
 Every billable account shall belong to an organization, including a one-person organization.

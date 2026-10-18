@@ -2,11 +2,12 @@
 
 ## 1. Status, authority and bounded decision
 
-**DX-004 · Draft for product review · 2026-10-18 · Specification only.**
+**DX-004 · Approved specification · 2026-10-18 · Specification only.**
 DX-002 supplies implemented versioned OpenAPI/example/client drift checks, not
 headless credentials. This document adds no token, endpoint, schema, UI or SDK
-behavior. Its proposed profile and follow-on tasks need review; approval of the
-specification alone will not schedule implementation or activate automation.
+behavior. The user's Continue approves the profile and follow-on design in
+draft `0116885`; specification approval does not schedule implementation,
+promote feature tasks or activate automation.
 
 Authority: FR-002/004/011/020–027/090–096 and the P2 management API item define
 identity, tenancy, keys and useful reads. NFR-042–046/050–051/084 constrain
@@ -15,7 +16,7 @@ secrets, authorization, bounded work, privacy and lifecycle. ADR-004/011/017/
 The P2 item means **headless customer automation**, not that today's working
 Management API is missing. Keep its existing cookie/CSRF contract unchanged.
 
-Proposed first profile: an expiring **Owner-sponsored, read-only automation
+Approved first-profile design: an expiring **Owner-sponsored, read-only automation
 credential**, bound to one organization, its issuing local account, a finite
 project allowlist and explicit scopes. It supports CI inventory and bounded
 usage reporting, not infrastructure provisioning. No organization-independent
@@ -417,10 +418,10 @@ variables and TLS origin validation. No automation UI is implemented today.
 | AUT-019 | Show-once, loss/rotate/revoke UX, role denial, tenant switching and three locales work against real API; screenshot has no secret. Browser/real-edge tests. |
 | AUT-020 | Feature-off default, staged rollout/rollback, bounded read load/lock waits and alerts pass; absent distinct-host evidence is Blocked, not a production pass. Load/fault/runbook review. |
 
-## 10. Proposed follow-on tasks — unscheduled, execution approval required
+## 10. Approved follow-on design — unscheduled, execution approval required
 
-All eight rows are **P2 design proposals**, not executable backlog additions.
-Approval must explicitly promote bounded tasks after this specification review.
+All eight rows are **approved P2 design**, not executable backlog additions.
+Separate execution approval must explicitly promote bounded implementation tasks.
 Table order is the recommended sequence. Each completion requires listed
 criteria/tests, synchronized contracts/docs, Release baseline and focused commit.
 
@@ -470,10 +471,33 @@ OpenAPI operation, browser flow, migration, live credential or production
 qualification is claimed. Designed AUT-001–020 are acceptance plans, not tests
 executed by the unchanged baseline.
 
-Product review must confirm the read-only first profile, Owner/local sponsorship,
-finite project/scope grants, seven/30-day expiry, immediate rotation/no secret
-replay, epoch revocation/restore rule, bounded reads and eight-task decomposition.
-Until then DX-004 stays In Progress, not Completed. Feature tasks remain
-unpromoted, SECURITY-009's separate retention/audit risk remains unfixed, and
-OPS-006 still needs unavailable distinct staging hosts. Stop before another
-task or feature execution; no paid-launch gate passes from this specification.
+At the draft handoff, review of the read-only first profile, Owner/local
+sponsorship, finite project/scope grants, seven/30-day expiry, immediate
+rotation/no secret replay, epoch revocation/restore rule, bounded reads and
+eight-task decomposition was pending. Approval-only closeout follows; feature
+execution and task promotion remain separate.
+
+### Approval-only closeout — 2026-10-18
+
+The user's Continue directly answers the review request for `0116885`. It
+approves the read-only first profile and four independent scopes, local Owner
+sponsorship, finite project grants, credential/expiry/rotation/revocation and
+safe replay contracts, synchronous epoch/restore fences, versioning/deprecation,
+20 designed cases and eight-task decomposition. This satisfies DX-004's
+specification review, not implemented automation, feature-task scheduling,
+credential issuance, legal approval or production activation. All eight
+follow-ons remain unscheduled and require separate execution approval/promotion.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped/
+aborted**, including PostgreSQL 234. Comparison to tested `13fe40c` confirms
+unchanged runtime, test, configuration and dependency inputs. No new restore/
+build/test run or AUT feature acceptance is claimed for this approval-only
+closeout. Fresh static checks verify 149 local Markdown targets/16 linked
+anchors, balanced fences/tables, four independent scopes/five proposed reads,
+20 unchanged designed cases and eight unchanged dependency-ordered follow-on
+rows. Token-length arithmetic is rechecked. Only thirteen documentation paths
+change; other backlog/history rows and launch gates remain unchanged.
+Whitespace and staged scope checks pass. OPS-006 still needs unavailable
+distinct staging hosts; SECURITY-009's separate retention/audit risk remains
+unfixed and unpromoted. Stop before ENTERPRISE-002 or any feature execution
+without separate user approval.

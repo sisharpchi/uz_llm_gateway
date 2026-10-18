@@ -326,11 +326,12 @@ tenants and financial finalization. Follow the approved contract and decomposed
 tasks; this addendum neither changes current local-session behavior nor
 authorizes feature execution, schema changes or production activation.
 
-**Automation proposal — draft for review, not an accepted ADR extension:**
+**Automation design addendum — approved 2026-10-18, not implemented:**
 [DX-004](44_MANAGEMENT_AUTOMATION_API_SPEC.md) keeps existing local browser
 session/CSRF and operator-MFA contracts. Its separate expiring Owner-sponsored
 machine credentials are read-only, explicitly project/scope-bound and never
 generic Owner impersonation. Application-level scope and synchronous epoch
 fences are required before any feature implementation. No OAuth server,
 Gateway-key reuse, live bearer endpoint or broad permission grant is implied;
-approval and bounded task promotion remain separate.
+the user's Continue approves draft `0116885` and its decomposition, not
+bounded task promotion, feature execution or production activation.

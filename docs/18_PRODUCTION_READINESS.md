@@ -22,11 +22,11 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
-Optional Management automation in the [DX-004 draft](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
+Optional Management automation in the [approved DX-004 specification](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
 is not required for the first paid MVP and is not implemented. Future activation
-requires explicit scope/product approval, cross-audience/tenant/role tests,
+requires separate feature-execution approval, cross-audience/tenant/role tests,
 atomic lifecycle/replay/invalidation evidence, secret-safe examples/UI,
-two-node limiting/revocation and quarantine restore/key-ring drills. Draft
+two-node limiting/revocation and quarantine restore/key-ring drills. Approved
 read-only permissions do not authorize financial/operator mutations. No gate
 passes from this design or an unchanged baseline; retain OPS-006/007 and all
 existing provider/merchant/business prerequisites independently.
