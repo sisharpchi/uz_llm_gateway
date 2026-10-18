@@ -2,12 +2,12 @@
 
 ## 1. Status, authority and scope
 
-**ROUTING-007 · P2 · Draft for approval · 2026-10-18.** The user's Continue
-selects this specification after PRIVACY-003. This is not feature execution or
-approval of new charging/retention behavior. Decision matrices, fee semantics,
-failure cases, benchmark plan and follow-on decomposition await review;
-the task remains In Progress. Nothing here enables paid traffic or changes
-OPS-006/007/LAUNCH-003.
+**ROUTING-007 · P2 · Approved specification · 2026-10-18.** The user's Continue
+directly approves draft `dfd3b36`: bounded decision matrices, fee/retention
+semantics, failure cases, benchmark plan and ten-task decomposition. The
+specification task is Completed; this does not authorize feature execution,
+charging/retention activation or promotion of follow-on tasks. Nothing here
+enables paid traffic or changes OPS-006/007/LAUNCH-003.
 
 FR-060–068 own routing capabilities; FR-013 names future project cache policy.
 [Gateway §12](08_GATEWAY_ROUTING_AND_PROVIDER_ADAPTERS.md#12-cache) supplies the
@@ -20,7 +20,7 @@ traceable, without changing other tasks or their priorities. Keep the existing
 [strict privacy constraints](39_PRIVACY_ELIGIBILITY_SPEC.md). The latter are
 not implemented yet; this spec neither implements nor weakens them.
 
-Proposed first scope: structured routing reasons, versioned project `auto`
+Approved design scope: structured routing reasons, versioned project `auto`
 weights, operation-isolated performance samples, advisory metadata-only
 affinity, and a separately gated, bounded Managed text response cache.
 Keep the modular monolith, shared PostgreSQL financial context and three hosts.
@@ -227,7 +227,7 @@ project and overall memory initially 256 MiB; TTL/capacity eviction is a miss.
 Verify region, encrypted-key distribution, persistence settings and memory
 limits before activation; these are proposed defaults, not measured capacity.
 
-## 6. Financial, replay and failure semantics — approval requested
+## 6. Financial, replay and failure semantics
 
 | Case | Proposed customer/provider accounting | Required behavior |
 |---|---|---|
@@ -404,7 +404,7 @@ decision/financial evidence destructively. Public/paid activation additionally
 requires existing OPS-006/007/LAUNCH-003 and external business gates. No result
 from this specification, local Docker pair or green CI substitutes for them.
 
-## 10. Proposed decomposition — unscheduled, approval required
+## 10. Approved decomposition — unscheduled, execution approval required
 
 IDs below are designs, not active register entries. Preserve all historical
 ROUTING-003–006 work. Specification approval does not promote feature execution.
@@ -434,7 +434,7 @@ Documentation-only task: no runtime/API artifacts, frontend, migration,
 configuration, secret or live infrastructure changes. The baseline validates
 existing routing/financial/usage behavior, not the proposed features.
 
-Fresh local validation on 2026-10-18, Windows/Docker disposable PostgreSQL 17
+Draft-stage local validation on 2026-10-18, Windows/Docker disposable PostgreSQL 17
 and Redis 8, unchanged runtime sources at `ae52e2e`:
 
 | Check | Result |
@@ -450,9 +450,24 @@ and CCH-001–010 are designed-only acceptance scenarios, not passing new featur
 tests. No frontend/browser feature, advanced-cache benchmark, live provider/
 region qualification, hit-fee activation or production gate pass is claimed.
 
-Approval requested: accept the bounded profile, versioned weights/operation
-isolation and metadata affinity, plus the conservative **free hit after normal
-worst-case financial admission**, explicit short-lived encrypted cache retention
-on an optional isolated resource, ten-task decomposition and benchmark plan;
-or specify changes. Approval completes the specification, not implementation,
-new pricing activation or launch readiness. Stop before another task.
+### Approval-only closeout — 2026-10-18
+
+The user's Continue directly answers the review request for `dfd3b36`. It
+approves the bounded profile, versioned weights/operation isolation, metadata
+affinity, conservative **free hit after normal worst-case financial admission**,
+explicit short-lived encrypted retention on an optional isolated cache resource,
+ten-task decomposition and benchmark plan. This satisfies specification review,
+not feature scheduling, fee/retention activation or launch readiness.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped/
+aborted**, including PostgreSQL 234. Git comparison to `ae52e2e` verifies runtime,
+test, configuration and dependency inputs are unchanged. No new restore/build/
+test run or RTE/CCH feature acceptance is claimed for this approval-only closeout.
+Fresh checks PASS: 102 local Markdown link targets and six linked heading anchors;
+balanced fences/valid illustrative JSON and weights summing to 10000; all 16
+scenario definitions and ten dependency-ordered task rows unchanged from the
+reviewed draft. All other backlog/history rows and production gates remain
+unchanged; exactly nine documentation paths change. Whitespace and staged
+scope checks pass. The ten follow-on feature tasks remain unscheduled; privacy
+implementation and distinct-host qualification dependencies are still unmet.
+Do not begin another task without separate approval.

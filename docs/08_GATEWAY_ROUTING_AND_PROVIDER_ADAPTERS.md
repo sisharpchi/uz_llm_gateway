@@ -150,8 +150,8 @@ Future routing context may accept:
 
 Use stickiness while endpoint is healthy and policy allows.
 
-No affinity key/store is implemented. [ROUTING-007's draft](40_ADVANCED_ROUTING_CACHE_SPEC.md)
-separates the proposed metadata-only hint from provider conversation state,
+No affinity key/store is implemented. [ROUTING-007's approved specification](40_ADVANCED_ROUTING_CACHE_SPEC.md)
+separates the future metadata-only hint from provider conversation state,
 content retention and the already implemented performance-score weights.
 
 ---
@@ -323,10 +323,10 @@ Forward provider cache semantics and usage metadata.
 ### Gateway response cache [P1]
 
 This is historical design intent, not an implemented feature or active P1
-delivery claim. The P2 `ROUTING-007` [draft specification](40_ADVANCED_ROUTING_CACHE_SPEC.md)
-proposes narrower opt-in scope, financial admission, free-hit accounting,
-retention and failure cases. Its policy/decomposition require approval before
-feature execution; the existing cache-input prices do not implement response reuse.
+delivery claim. The P2 `ROUTING-007` [approved specification](40_ADVANCED_ROUTING_CACHE_SPEC.md)
+defines narrower opt-in scope, financial admission, free-hit accounting,
+retention and failure cases. Feature tasks still require separate execution
+approval/promotion; existing cache-input prices do not implement response reuse.
 
 Key must include normalized:
 

@@ -96,13 +96,14 @@ whole-platform residency and erasure of historical backups are not promised.
 Absent evidence, strict routes stay disabled; the existing launch gates remain.
 
 Additional project weights, affinity and gateway response caching in the
-[ROUTING-007 draft](40_ADVANCED_ROUTING_CACHE_SPEC.md) are optional future work,
+[approved ROUTING-007 specification](40_ADVANCED_ROUTING_CACHE_SPEC.md) are optional future work,
 not implemented/qualified features. Existing price/performance routing remains
-implemented. Any new cache activation needs approved fee/retention semantics,
+implemented. Fee/retention design approval does not authorize feature execution.
+Any new cache activation still needs separately approved/promoted feature tasks,
 tenant/epoch/dispatch/recovery tests, isolated encrypted body-store qualification
 and the specified load/content-sink/rollback evidence. Cache hits cannot stand
 in for provider throughput, live usage evidence or the 200-stream gate. No
-current launch gate is passed by this draft or its proposed benchmark plan.
+current launch gate is passed by this specification or its unexecuted benchmark plan.
 
 `LAUNCH-002` adds a disposable real-service acceptance stack to CI (see
 `deploy/LAUNCH-002-VALIDATION.md`). It proves the repository vertical flow with

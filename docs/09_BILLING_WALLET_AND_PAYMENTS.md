@@ -392,12 +392,13 @@ callback fixtures. Public CLICK protocol examples from its official integration
 repository are sufficient for automated implementation acceptance. Active
 merchant sandbox/live protocol verification remains a paid-launch prerequisite.
 
-### Proposed response-cache charging — specification only
+### Approved response-cache charging design — specification only
 
-`ROUTING-007` separately drafts [gateway response-cache financial semantics](40_ADVANCED_ROUTING_CACHE_SPEC.md#6-financial-replay-and-failure-semantics--approval-requested).
-Its proposed zero-fee hit still requires ordinary worst-case admission and
-confirmed undispatched release. This is pending product approval, not a current
-cache feature, changed fee policy or permission to synthesize provider usage.
+`ROUTING-007` defines approved [gateway response-cache financial semantics](40_ADVANCED_ROUTING_CACHE_SPEC.md#6-financial-replay-and-failure-semantics).
+Its zero-fee hit still requires ordinary worst-case admission and confirmed
+undispatched release. Specification approval is not a current cache feature,
+activated fee policy or permission to synthesize provider usage. Feature tasks
+remain unscheduled until separate execution approval/promotion.
 Provider cached-input token pricing remains distinct and unchanged.
 
 ### P0 implementation and launch controls
