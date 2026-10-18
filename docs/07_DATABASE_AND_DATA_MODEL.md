@@ -188,7 +188,7 @@ no extra dimensions). [Migration and accounting boundary](34_EMBEDDINGS_API.md).
 Custom endpoint registry/version/qualification, private catalog ownership and
 immutable credential binding are **not implemented** by these generic columns.
 `EndpointReference` is not currently resolved by adapters. See the
-[PROVIDER-010 persistence proposal](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md#7-transactions-ownership-and-race-boundaries);
+[approved PROVIDER-010 persistence design](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md#7-transactions-ownership-and-race-boundaries);
 it needs separate approved feature tasks and explicit Migrator changes. Do not
 put tenant URLs into the existing mapping field and infer secure execution.
 

@@ -111,8 +111,9 @@ synthetic merchant/provider credentials, but does not replace the real staging
 and external evidence required by the Functional, Payment and Provider gates.
 
 Custom suppliers are optional P2 work, not required for initial paid MVP.
-[PROVIDER-010](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md) is a draft threat/contract
-design, not implemented endpoint security or provider qualification. Activation
+[PROVIDER-010](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md) is an approved threat/contract
+specification, not feature-execution approval, implemented endpoint security or
+provider qualification. Activation
 would require pinned-transport/tenant/financial/rotation/fault fixtures, actual
 egress/TLS and domain-control evidence, supplier commercial/data terms, model/
 usage/price qualification and incident ownership. A fixed official verifier,

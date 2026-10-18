@@ -654,7 +654,7 @@ available inference quota or invoice accuracy. Google structured 400
 redirects, network errors and timeouts return Unavailable. No automatic retry
 or inference health reset occurs. [Fixed endpoints, bounds and evidence](28_BYOK_PROVIDER_PARITY.md).
 Custom endpoint management/probe/inference shapes in the
-[PROVIDER-010 draft](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md#5-proposed-management-and-inference-contracts)
+[approved PROVIDER-010 specification](41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md#5-proposed-management-and-inference-contracts)
 are future wire designs, not current API/client artifacts. There is no tenant
 baseUrl/auth-header field; do not send the illustrative new contracts today.
 Deleting soft-tombstones and crypto-shreds the stored ciphertext; disabled/deleted credentials and

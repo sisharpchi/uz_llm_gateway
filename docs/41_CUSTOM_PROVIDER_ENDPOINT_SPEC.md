@@ -2,11 +2,13 @@
 
 ## 1. Status and bounded proposal
 
-**PROVIDER-010 · P2 · Draft for approval · 2026-10-18.** User Continue selects
-this independent specification after ROUTING-007; SECURITY-006 is complete.
-OPS-006 remains externally blocked. This document designs the threat model,
-wire/financial boundaries and synthetic fixtures; it implements no endpoint,
-adapter, migration, UI or live verification. Feature tasks below are unscheduled.
+**PROVIDER-010 · P2 · Approved specification · 2026-10-18.** User Continue
+directly approves draft `ea54fcf`: the bounded trust/auth/accounting profile,
+20 designed scenarios and eleven-task decomposition. The specification task
+is Completed; this is not feature-execution or activation approval. SECURITY-006
+is complete; OPS-006 remains externally blocked. No endpoint, adapter,
+migration, UI, live verification or launch gate is delivered by this closeout.
+Feature tasks below remain unscheduled.
 
 Authority: FR-050–056 for adapters/keys; NFR-041–046/050–053/060–066 for secrets,
 authorization, privacy and failure; ADR-008/009/010/011/013/025 for key security,
@@ -16,7 +18,7 @@ the [approved privacy design](39_PRIVACY_ELIGIBILITY_SPEC.md) and
 [routing/cache design](40_ADVANCED_ROUTING_CACHE_SPEC.md). Their approval does
 not mean their future enforcement is implemented.
 
-Proposed first profile: **operator-approved, organization-private, public-HTTPS,
+Approved design profile: **operator-approved, organization-private, public-HTTPS,
 Bearer-authenticated OpenAI-compatible text chat, explicitly selected BYOK
 only**. Start with non-streaming; SSE is a separately gated follow-on task.
 Custom protocol compatibility is not OpenAI identity or commercial approval.
@@ -448,7 +450,7 @@ FK/migration/tenant/idempotency/race tests; Redis admission/health/probe leases;
 real TLS-edge API/browser acceptance; distinct-host fault/load qualification.
 No new custom fixture has been implemented or run by this specification task.
 
-## 10. Proposed decomposition — unscheduled, approval required
+## 10. Approved decomposition — unscheduled, execution approval required
 
 These eleven IDs are designs, not active register rows or implementation approval.
 Preserve all prior provider work; no task may activate before its dependencies.
@@ -487,7 +489,7 @@ when implemented and at activation.
 
 Documentation-only change. No implementation/generated wire, frontend,
 migration, runtime configuration, secret or deployed service is changed.
-Fresh validation on 2026-10-18, Windows/Docker disposable PostgreSQL 17 and
+Draft-stage validation on 2026-10-18, Windows/Docker disposable PostgreSQL 17 and
 Redis 8, unchanged runtime sources at `60fcd85`:
 
 | Check | Result |
@@ -501,13 +503,28 @@ Redis 8, unchanged runtime sources at `60fcd85`:
 TRX files stay in the ignored local artifacts directory, not Git. Existing
 tests validate existing behavior, **not** CPE-001–020. No new custom fixture,
 browser feature, live supplier/egress qualification, fee activation or
-production gate pass is claimed. Staged whitespace/scope checks pass;
-approval remains pending for this task-only draft commit.
+production gate pass is claimed. Draft-stage staged whitespace/scope checks
+passed; approval-only closeout evidence follows.
 
-Review requested: approve or revise the operator-approved, tenant-private,
-public HTTPS/Bearer BYOK-only profile, separate SSE qualification, frozen
-operator pricing with supplier-reported usage and **no automatic post-dispatch
-retry/fallback**, immutable endpoint/credential binding, eleven-task decomposition
-and external activation gates. This draft stays In Progress pending review;
-approval would complete the specification, not schedule features. Stop before
-another task.
+### Approval-only closeout — 2026-10-18
+
+The user's Continue directly answers the review request for `ea54fcf`. It
+approves the operator-approved, tenant-private public HTTPS/Bearer BYOK-only
+profile, separate SSE qualification, frozen operator pricing with supplier-
+reported usage, **no automatic post-dispatch retry/fallback**, immutable
+endpoint/credential binding, eleven-task decomposition and external activation
+gates. This satisfies specification review, not feature scheduling, migration,
+fee activation, live supplier verification or production readiness.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped/
+aborted**, including PostgreSQL 234. Git comparison to `60fcd85` confirms runtime,
+test, configuration and dependency inputs are unchanged. No new restore/build/
+test run or CPE feature acceptance is claimed for this approval-only closeout.
+Fresh checks PASS: 122 local Markdown link targets and eight linked heading
+anchors, balanced fences/two valid JSON fixtures, 20 unchanged designed
+scenario definitions and eleven unchanged dependency-ordered task rows. Fee/
+hold fixture arithmetic is checked. All other backlog/history rows and launch
+gate statuses remain unchanged; exactly eleven documentation paths change.
+Whitespace and staged scope checks pass. Follow-on feature tasks remain
+unscheduled; OPS-006's distinct-host dependency is still unmet. Stop before
+another task without separate approval.

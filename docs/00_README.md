@@ -199,8 +199,8 @@ This creates clear boundaries without paying the operational cost of many micros
     eligibility specification; not implemented enforcement.
 40. `40_ADVANCED_ROUTING_CACHE_SPEC.md` — approved routing/cache policy,
     fee/failure cases and benchmark plan; specification only, not new runtime behavior.
-41. `41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md` — draft custom endpoint trust,
-    credential/accounting boundary and fixtures; pending approval, not implemented.
+41. `41_CUSTOM_PROVIDER_ENDPOINT_SPEC.md` — approved custom endpoint trust,
+    credential/accounting boundary and fixtures; specification only, not implemented.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 
