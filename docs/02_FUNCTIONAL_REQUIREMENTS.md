@@ -123,6 +123,10 @@ Examples:
 - image generation;
 - audio.
 
+Flags describe capabilities, not universal support across operations/adapters.
+The [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) proposes
+versioned operation-feature qualification/discovery; it is not implemented.
+
 ### FR-033 — Price history [P0]
 Pricing changes must be versioned with effective timestamps.
 
@@ -159,6 +163,11 @@ are implied. `GATEWAY-006` adds [Responses SSE](33_RESPONSES_SSE.md) for the sam
 subset with incremental text/refusal, terminal evidence, no replay after output,
 and cancellation-independent financial cleanup. [Input capability matrix](32_RESPONSES_API.md).
 
+Client function JSON/SSE and bounded non-streaming schema output are proposed
+in the [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md), pending
+product review and separate implementation tasks. Current tools/schema rejection
+and stateless execution remain unchanged; no hosted tool execution is implied.
+
 ### FR-044 — Embeddings [P1]
 Add normalized embedding API.
 
@@ -171,8 +180,17 @@ streaming, end-user passthrough and cross-model fallback are explicitly rejected
 Only priority/price routing is supported; chat performance samples are not reused.
 See [exact contract and validation](34_EMBEDDINGS_API.md).
 
+Qualified dimensions/base64 are proposed, not enabled, in the
+[GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md). They preserve
+input-token billing, one fee per batch and the prohibition on cross-model fallback.
+
 ### FR-045 — Other modalities [P2]
 Image/audio/video endpoints may be added based on demand.
+
+[GATEWAY-008 §9](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md#9-deferred-modalities-entry-gates-not-hidden-backlog)
+records demand, protocol, metering, exposure and security entry gates. No such
+endpoint is scheduled merely by this conditional requirement; current token-only
+pricing does not support per-image/audio/video charges.
 
 ### FR-046 — Error envelope [P0]
 Gateway errors shall use a predictable OpenAI-compatible error structure.

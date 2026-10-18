@@ -1,5 +1,13 @@
 # Frontend Pages and User Flows
 
+Future operation-aware catalog/quickstarts and capability metadata in Activity
+are proposed in the [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md).
+Backend discovery/persistence/reads must precede UI controls; the current
+customer catalog is chat-oriented. Any approved UI work must follow the existing
+mockup style with improved UX, localization and accessibility, show only
+qualified operations, explain client-owned tool execution and warn against
+mixing embedding vector spaces. No new screen or control is implemented here.
+
 ## Account verification and recovery
 
 The customer dashboard has `/register`, `/verify-email`, `/recover`, and

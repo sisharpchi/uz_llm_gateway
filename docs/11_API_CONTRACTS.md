@@ -261,6 +261,14 @@ returns 503 `finalization_pending`. [Capability, pricing and recovery details](3
 
 ## 3. Gateway extensions
 
+Planning note: the [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md)
+specifies future operation discovery, Responses client-function JSON/SSE,
+non-streaming schema output and qualified embedding controls. These are **not
+current wire contracts**: the rejection/shape rules in §2a/2b and generated
+`docs/api/` artifacts remain unchanged. No hosted tool, stateful response or
+image/audio/video route is introduced. Regeneration belongs to each separately
+approved implementation task, not this specification.
+
 Prefer namespace-like extension to reduce collision risk:
 
 ```json

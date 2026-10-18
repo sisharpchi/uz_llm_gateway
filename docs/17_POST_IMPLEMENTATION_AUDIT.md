@@ -1,5 +1,18 @@
 # Post-Implementation Audit
 
+## Gateway capability specification follow-up — 2026-10-18
+
+`GATEWAY-008` rechecks the actual parsers, writers, native adapters, Catalog
+and cost calculators in [the draft evidence matrix](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md#2-verified-repository-baseline).
+Chat tool/format support is not Responses support; Responses remains text-only,
+embeddings float-only, and customer catalog discovery chat-oriented. Nonempty
+extra-pricing dimensions are rejected. These are bounded existing contracts,
+not evidence that a previously completed task secretly implemented every native
+provider capability. Proposed operation qualification, function/schema parity
+and embedding controls await review/implementation; image/audio/video require
+separate demand and metering evidence. No historical completion or launch gate
+is changed by this specification.
+
 ## Scope and evidence
 
 Audited 2026-09-27 at `cba535b` against `AGENTS.md`, `README.md`, the complete

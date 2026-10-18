@@ -1,5 +1,13 @@
 # Gateway Routing and Provider Adapters
 
+The [GATEWAY-008 draft](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) proposes
+operation-feature qualification for Responses functions/schema and embedding
+controls. It changes no parser or adapter today. Future eligibility must
+intersect published profile, adapter support, compatible pricing and all existing
+tenant restrictions; flat model flags are insufficient. Native fixed-provider
+work does not enable the separately specified custom endpoints/cache/privacy
+features, hosted tools or new modalities.
+
 ## 1. Goals
 
 Routing should optimize among:

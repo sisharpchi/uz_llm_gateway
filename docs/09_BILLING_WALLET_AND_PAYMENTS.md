@@ -1,5 +1,13 @@
 # Billing, Wallet and Payments
 
+The [GATEWAY-008 draft §8](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md#8-financial-persistence-and-security-invariants)
+preserves token-only prices, TX-02/04/05 and known/Unknown accounting. Proposed
+client-function continuations are separate model requests/fees; embedding
+dimensions/base64 do not create per-component charges. No image/audio/tool-unit
+metering is implemented by setting `ExtraPricingJson`; current execution rejects
+nonempty extra dimensions. New tariffs require a separate approved reservation,
+usage and settlement design before any modality implementation.
+
 ## 1. Billing goals
 
 - prevent overspend;
