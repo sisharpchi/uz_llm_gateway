@@ -1,6 +1,6 @@
 # Database and Data Model
 
-The [ENTERPRISE-002 draft §7](45_INVOICE_SLA_REPORTING_SPEC.md#7-ownership-persistence-and-transaction-boundaries)
+The [approved ENTERPRISE-002 §7](45_INVOICE_SLA_REPORTING_SPEC.md#7-ownership-persistence-and-transaction-boundaries)
 proposes immutable statement/source/revision, operational SLI coverage/report
 and separately approved fiscal/claim evidence. Snapshot row membership is
 explicit, not MAX(UUID)/timestamp as a commit watermark. No such tables or

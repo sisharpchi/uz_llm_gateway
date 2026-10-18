@@ -7,11 +7,14 @@ finds implemented ledger/payment/refund/adjustment evidence and mutable
 request-start usage analytics, not fiscal invoices, immutable monthly statements
 or contractual SLA accounting. Generic OTLP outcomes and post-admission Usage
 do not cover edge/pre-admission gaps or complete provider attribution. The
-draft separates non-fiscal posting-period snapshots, immutable revisions and
+approved specification separates non-fiscal posting-period snapshots, immutable revisions and
 operational coverage from legal/commercial approvals and two-person credits.
-Twenty designed cases and nine unscheduled tasks await product review; no
-feature, financial mutation or production-gate pass is claimed. Completed
-history and the separate SECURITY-009 retention/audit finding stay unchanged.
+The user's 2026-10-19 Continue approves draft `a21a231`, twenty designed cases
+and nine-task decomposition, not feature execution or task promotion.
+Approval-only closeout revalidates the prior 1028-PASS baseline and fresh static
+checks; no new runtime test run, feature, financial mutation or production-gate
+pass is claimed. Completed history and the separate SECURITY-009 retention/audit
+finding stay unchanged.
 
 ## Management automation specification follow-up — 2026-10-18
 

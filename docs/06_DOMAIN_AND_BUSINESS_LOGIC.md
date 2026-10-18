@@ -70,7 +70,7 @@ available-credit debt recovery and audit commit atomically. Active holds,
 historical usage charges, budget spend and FX snapshots are not rewritten.
 Settlement-linked refunds remain a separate workflow.
 
-The [ENTERPRISE-002 draft](45_INVOICE_SLA_REPORTING_SPEC.md#4-financial-source-of-truth-and-correction-matrix)
+The [approved ENTERPRISE-002 specification](45_INVOICE_SLA_REPORTING_SPEC.md#4-financial-source-of-truth-and-correction-matrix)
 keeps statement/invoice/SLA evidence separate from these mutations. Statement
 revision never posts money or changes ledger history. A future positive SLA
 remedy must preserve the existing independent maker/checker credit path and

@@ -548,12 +548,13 @@ requires separately approved/promoted tasks and privacy/financial safeguards.
 - invoicing
 - contractual SLA
 
-The [ENTERPRISE-002 draft](45_INVOICE_SLA_REPORTING_SPEC.md) bounds initial
+The [approved ENTERPRISE-002 specification](45_INVOICE_SLA_REPORTING_SPEC.md) bounds initial
 reporting to non-fiscal prepaid account statements and operational SLIs.
 FR-124–126 do not define tax, revenue recognition or a compensation tariff.
 Fiscal evidence and contractual claims require separately approved legal/
 commercial profiles; existing refund/independent-credit invariants remain.
-Product review is pending; no invoice issuer or SLA remedy is implemented.
+The user's 2026-10-19 Continue approves draft `a21a231` and its decomposition,
+not feature execution; no invoice issuer or SLA remedy is implemented.
 
 `PRIVACY-003` specifies the approved bounded ZDR/provider-processing-region
 eligibility profile in [the specification](39_PRIVACY_ELIGIBILITY_SPEC.md).

@@ -2,7 +2,7 @@
 
 Task validation evidence: [DX-002 validation](VALIDATION.md).
 
-The [ENTERPRISE-002 statement/SLA draft](../45_INVOICE_SLA_REPORTING_SPEC.md)
+The [approved ENTERPRISE-002 statement/SLA specification](../45_INVOICE_SLA_REPORTING_SPEC.md)
 defines future session-backed reporting, immutable snapshots and external
 fiscal/contract approval paths; no invoice, statement or SLA endpoint/security
 scheme is added to current generated artifacts. Implement and test a promoted

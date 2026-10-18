@@ -210,9 +210,9 @@ This creates clear boundaries without paying the operational cost of many micros
 44. `44_MANAGEMENT_AUTOMATION_API_SPEC.md` — approved read-only Owner-sponsored
     automation scopes, credential/replay/restore lifecycle and versioning;
     specification only, no implemented automation credential or route.
-45. `45_INVOICE_SLA_REPORTING_SPEC.md` — draft prepaid statement, fiscal/SLA
-    approval boundaries, source/revision and coverage rules; product review
-    pending, no implemented invoice, SLA remedy or reporting endpoint.
+45. `45_INVOICE_SLA_REPORTING_SPEC.md` — approved prepaid statement, fiscal/SLA
+    approval boundaries, source/revision and coverage rules; specification only,
+    no implemented invoice, SLA remedy or reporting endpoint.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

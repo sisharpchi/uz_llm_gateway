@@ -2,11 +2,12 @@
 
 ## 1. Status, authority and first profile
 
-**ENTERPRISE-002 · Draft for product review · 2026-10-19 · Specification only.**
+**ENTERPRISE-002 · Approved specification · 2026-10-19 · Specification only.**
 REFUND-002 is completed. This document implements no report, invoice issuer,
 contract, tax calculation, SLA entitlement, credit, endpoint, migration or UI.
-The proposed profile and decomposed tasks require review and separate execution
-approval/promotion. Neither a specification nor green CI permits paid launch.
+The user's Continue approves draft `a21a231` and its bounded profile/decomposition.
+Feature execution still requires separate approval/promotion. Neither an
+approved specification nor green CI permits paid launch.
 
 FR-124–126 require audited corrections, payment reconciliation and incident
 controls, **not** invoicing rules or a compensation tariff. Product Scope §2.4,
@@ -14,7 +15,7 @@ Functional Requirements §14 and Roadmap Phase 8 name invoices/contractual SLA
 as P2. NFR-001/010/013/030–035/042–045/050–051/070–073/084 and ADR-005/006/
 011/017/019–025 govern precision, evidence, retention and authorization.
 
-Proposed first profile: **monthly prepaid account statements and operational
+Approved first-profile design: **monthly prepaid account statements and operational
 SLI reports**, with immutable source membership, reproducible calculations,
 explicit completeness and append-only revisions. Statements are not tax
 invoices, payment receipts, revenue recognition, postpaid accounts receivable,
@@ -461,7 +462,7 @@ No new financial/fiscal personally identifying fields are collected in this task
 | ENT-019 | Localized customer/admin UI distinguishes snapshots, pending/revision, invoice/SLA limits and immutable credits against real API; mockup-aligned accessible screenshots contain no secrets/legal personal data. Browser tests. |
 | ENT-020 | Retention, quarantined restore, source digest/sequence audit, notification replay, distinct-node operational evidence and signed external approvals remain separate gates. Restore/runbook/security review. |
 
-## 10. Proposed follow-on tasks — unscheduled, execution approval required
+## 10. Approved follow-on design — unscheduled, execution approval required
 
 All nine IDs are P2 design proposals, not executable register additions. Each
 needs separate approval/promotion; table order is recommended. Completion needs
@@ -530,7 +531,36 @@ TRX stays in ignored local artifacts, not Git. No ENT feature fixture, new API
 operation, fiscal invoice, live SLA, credit posting or production qualification
 is claimed. ENT-001–020 are designed acceptance scenarios, not tests executed
 by the unchanged baseline.
-Product review must confirm the non-fiscal prepaid statement/operational SLI
-first profile, immutable posting/snapshot/revision and classification/coverage
-rules, external approval path, credit boundary and nine-task decomposition.
-Until then ENTERPRISE-002 stays In Progress; no follow-on task is promoted.
+At the draft handoff, product review of the non-fiscal prepaid statement/
+operational SLI first profile, immutable posting/snapshot/revision and
+classification/coverage rules, external approval path, credit boundary and
+nine-task decomposition was pending. Approval-only closeout follows; feature
+execution and task promotion remain separate.
+
+### Approval-only closeout — 2026-10-19
+
+The user's Continue directly answers the review request for `a21a231`. It
+approves the non-fiscal prepaid statement/operational SLI design, immutable
+posting-period snapshots and revisions, exact source reconciliation,
+classification/coverage/Unknown rules, external fiscal/SLA approval path,
+existing independent maker/checker credit boundary, twenty designed cases and
+nine-task decomposition. This satisfies ENTERPRISE-002's specification review,
+not implemented reporting, fiscal issuance, contractual entitlement, task
+promotion, finance/legal approval or production activation. All nine follow-ons
+remain unscheduled and require separate execution approval/promotion.
+
+The prior sixteen TRX reports were re-read: **1028 passed, zero failed/skipped/
+aborted**, including PostgreSQL 234. Comparison to tested `79a0089` confirms
+unchanged runtime, test, configuration and dependency inputs. No new restore/
+build/test run or ENT feature acceptance is claimed for this approval-only
+closeout. Fresh static checks verify 161 local Markdown targets/28 linked anchors,
+balanced fences/tables, twenty unchanged designed cases, nine unchanged
+dependency-ordered follow-on rows and seven completed existing prerequisites.
+Statement/debt/FX/tiyin and SLI population/target-boundary arithmetic is
+rechecked. Only fourteen documentation paths change; other backlog/history
+rows and launch gates remain unchanged. Whitespace and staged scope checks pass.
+OPS-006 still needs unavailable distinct staging hosts; OPS-007 and LAUNCH-003
+remain dependency-blocked. SECURITY-009's separate retention/audit risk remains
+unfixed and unpromoted. No ready executable register task remains after this
+closeout; stop before promoting or implementing any follow-on without separate
+user approval.

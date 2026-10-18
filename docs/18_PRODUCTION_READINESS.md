@@ -22,7 +22,7 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
-Optional invoice/SLA reporting in the [ENTERPRISE-002 draft](45_INVOICE_SLA_REPORTING_SPEC.md)
+Optional invoice/SLA reporting in the [approved ENTERPRISE-002 specification](45_INVOICE_SLA_REPORTING_SPEC.md)
 does not pass any launch gate or offer a contractual SLA. Non-fiscal statements
 need reconciled immutable source/revision/restore and tenant evidence; fiscal
 documents need external finance/legal/issuer approval and protocol qualification;

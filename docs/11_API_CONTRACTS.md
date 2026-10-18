@@ -1,6 +1,6 @@
 # API Contracts
 
-The [ENTERPRISE-002 draft §8](45_INVOICE_SLA_REPORTING_SPEC.md#8-proposed-apis-security-retention-and-ux)
+The [approved ENTERPRISE-002 §8](45_INVOICE_SLA_REPORTING_SPEC.md#8-proposed-apis-security-retention-and-ux)
 specifies future session-authorized statement/version/CSV and operator SLI/job
 APIs, not current wire operations. Exact monetary strings, immutable version
 exports, tenant roles and separate fiscal/claim approval boundaries are design
