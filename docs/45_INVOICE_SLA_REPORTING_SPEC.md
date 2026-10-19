@@ -464,7 +464,18 @@ No new financial/fiscal personally identifying fields are collected in this task
 
 ## 10. Approved follow-on design — unscheduled, execution approval required
 
-All nine IDs are P2 design proposals, not executable register additions. Each
+**2026-10-19 execution update:** the user's subsequent approval promotes only
+REPORTING-001 into document 16's executable register. Follow
+[its bounded implementation/evidence](47_STATEMENT_SOURCE_RECONCILIATION.md).
+All other rows below remain unpromoted design proposals; no publication,
+fiscal/SLA feature or launch-gate pass is inferred. The original table and
+dated specification validation below remain historical design evidence.
+SECURITY-009's earlier dated retention/audit finding was separately closed by
+[the correction in document 46](46_RETENTION_AUDIT_ATOMICITY.md); it is not a
+current reporting defect or authorization for guardrail implementation.
+
+Originally all nine IDs were P2 design proposals, not executable register additions.
+Only REPORTING-001 is now promoted as recorded above. Each remaining ID
 needs separate approval/promotion; table order is recommended. Completion needs
 listed fixtures, generated contracts/docs as relevant, Release baseline and a
 focused commit. No task may mark a missing fiscal/SLA external approval passed.

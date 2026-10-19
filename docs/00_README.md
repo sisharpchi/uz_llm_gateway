@@ -211,10 +211,12 @@ This creates clear boundaries without paying the operational cost of many micros
     automation scopes, credential/replay/restore lifecycle and versioning;
     specification only, no implemented automation credential or route.
 45. `45_INVOICE_SLA_REPORTING_SPEC.md` — approved prepaid statement, fiscal/SLA
-    approval boundaries, source/revision and coverage rules; specification only,
-    no implemented invoice, SLA remedy or reporting endpoint.
+    approval boundaries, source/revision and coverage rules; REPORTING-001 adds
+    only internal source reconciliation, no invoice, SLA remedy or reporting endpoint.
 46. `46_RETENTION_AUDIT_ATOMICITY.md` — SECURITY-009 retention policy/audit
     transaction correction, regression evidence and unchanged launch boundaries.
+47. `47_STATEMENT_SOURCE_RECONCILIATION.md` — REPORTING-001 internal read-only
+    statement source/period reconciliation; no publication, endpoint or invoice.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

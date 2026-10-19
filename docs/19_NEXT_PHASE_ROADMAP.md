@@ -79,6 +79,13 @@ approved, decomposed follow-on backlog, not production activation.
 
 ## Dependency spine
 
+**2026-10-19 approved independent increment:** REPORTING-001 is promoted from
+ENTERPRISE-002 while OPS-006 remains externally Blocked. Only the internal
+read-only statement source/period/reconciliation foundation is authorized;
+no report publication, endpoint, fiscal/SLA issuance or launch pass. See
+[scope and evidence](47_STATEMENT_SOURCE_RECONCILIATION.md). REPORTING-002
+remains a proposed follow-on requiring separate promotion/approval.
+
 ```text
 DOCS-002
   ├─ LAUNCH-001 / FRONTEND-002 / SECURITY-002–004 / OPS-003–005 / ROUTING-006

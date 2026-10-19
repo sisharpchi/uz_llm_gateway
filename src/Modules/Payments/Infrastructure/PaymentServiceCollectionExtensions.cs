@@ -17,6 +17,7 @@ public static class PaymentServiceCollectionExtensions
             section["Click:MerchantId"], section["Click:ServiceId"], section["Click:SecretKey"]));
         services.AddScoped<IPaymentStore, PostgreSqlPaymentStore>();
         services.AddScoped<ICustomerBillingReadStore, PostgreSqlCustomerBillingReadStore>();
+        services.AddScoped<UZLLM.Modules.Billing.Contracts.IStatementPaymentEvidenceReader, PostgreSqlStatementPaymentEvidenceReader>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IPaymentReconciliationStore, PostgreSqlPaymentReconciliationStore>();
         services.AddScoped<IPaymentReconciliationService, PaymentReconciliationService>();

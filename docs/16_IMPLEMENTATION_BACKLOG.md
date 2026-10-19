@@ -291,7 +291,17 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 | DX-004 · Completed | Specify management automation/API lifecycle; `docs/`. | DX-002; NFR-084. | User's 2026-10-18 Continue approves the [read-only scope/credential/lifecycle/replay and versioning specification, 20 designed scenarios and eight-task decomposition](44_MANAGEMENT_AUTOMATION_API_SPEC.md) delivered in 0116885. Approval-only closeout revalidates prior 1028-PASS baseline evidence and fresh static checks; no new runtime test run, automation credential/endpoint, migration or launch-gate pass. Feature tasks remain unscheduled until separate execution approval/promotion; OPS-006 remains externally blocked and SECURITY-009's separate retention/audit correction remains unfixed/unpromoted. |
 | ENTERPRISE-002 · Completed | Specify invoice/SLA reporting and fiscal dependencies; `docs/`. | REFUND-002; FR-124–126. | User's 2026-10-19 Continue approves the [non-fiscal statement/operational SLI profile, fiscal/SLA approval path, source/revision/credit rules, 20 designed cases and nine-task decomposition](45_INVOICE_SLA_REPORTING_SPEC.md) delivered in a21a231. Approval-only closeout revalidates prior 1028-PASS baseline evidence and fresh static/arithmetic checks; no new runtime test run, fiscal invoice, SLA remedy/credit, endpoint/migration or launch-gate pass. Feature tasks remain unscheduled until separate execution approval/promotion; external fiscal/commercial approvals remain separate, OPS-006 is blocked and SECURITY-009's separate retention/audit correction is unfixed/unpromoted. |
 
-No P2 row authorizes feature implementation. Approval must turn its contract
+### Approved P2 implementation increments
+
+The user's 2026-10-19 approval explicitly promotes REPORTING-001 from the
+approved ENTERPRISE-002 specification while OPS-006 remains externally Blocked.
+Only this increment is authorized; no other proposed reporting/SLI task is started.
+
+| ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
+|---|---|---|---|
+| REPORTING-001 · Completed | Pure monthly statement reconciliation/period/source contracts and safe caller-snapshot payment evidence port; Billing/Payments, unit/PG tests. | ENTERPRISE-002, REFUND-002, BILLING-003; [spec §3/4](45_INVOICE_SLA_REPORTING_SPEC.md), NFR-030–035, ADR-005/006/019/024. | ENT-001–004/007/008: 36 new unit cases and seven new PG cases pass exact financial/FX, posting month, delayed UUID commit/snapshot/historical bridge, tenant/pending/missing links, hold/debt/budget and read-only checks. Final serialized Release baseline: 1078 PASS, zero FAIL/SKIP; PG 248, architecture 15, sixteen Completed TRX reports. [Scope, exact commands and initial failure/recheck evidence](47_STATEMENT_SOURCE_RECONCILIATION.md). No publication, migration, endpoint, fiscal/SLA entitlement or launch-gate pass; OPS-006 stays Blocked and REPORTING-002 remains unpromoted. |
+
+No specification-only P2 row authorizes feature implementation. Approval must turn its contract
 into small tested implementation tasks. Live merchant, provider, FX/tax,
 region, HA/PITR and incident ownership are **external launch prerequisites**,
 not code tasks or automatic completion dependencies. See

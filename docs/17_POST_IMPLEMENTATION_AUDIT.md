@@ -1,5 +1,26 @@
 # Post-Implementation Audit
 
+## Statement source reconciliation follow-up — 2026-10-19
+
+The user's approval promotes only REPORTING-001 from ENTERPRISE-002 while
+OPS-006 remains externally Blocked. [Implementation and evidence](47_STATEMENT_SOURCE_RECONCILIATION.md)
+provide Billing-owned UTC posting-period reconciliation, explicit source
+membership/digest and a Payments-implemented same-snapshot evidence port.
+Actual charge, frozen FX, refunds, adjustments, reversal recovery/debt and
+holds remain separate; missing mandatory links and imbalances cannot become
+eligible statements. Unknown evidence and payment mismatches remain disclosed.
+The readers perform no financial writes, nested transaction, provider call or
+Gateway hot-path work. No reverse module dependency or broad exception was added.
+
+Thirty-six new unit cases and seven new PostgreSQL cases cover ENT-001–004/
+007/008 at this increment's contract/projection scope. Final unchanged Release
+baseline: 1078 PASS, zero FAIL/SKIP, sixteen Completed TRX reports; PostgreSQL
+248 and architecture 15. The initial test-helper compile/privacy-assertion
+failures and clean recheck remain in document 47. No statement publication,
+schema, endpoint, UI, fiscal/SLA feature or paid-launch pass is claimed.
+REPORTING-002 requires separate approval/promotion; completed history and
+external launch prerequisites are unchanged.
+
 ## Retention/audit corrective follow-up — 2026-10-19
 
 The user's Continue after ENTERPRISE-002 explicitly promotes SECURITY-009 into

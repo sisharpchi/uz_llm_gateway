@@ -19,4 +19,12 @@ public static class BillingServiceCollectionExtensions
         services.AddScoped<IFinancialRecoverySweep, FinancialRecoverySweep>();
         return services;
     }
+
+    // Opt-in only in a composition root that also registers the Payments evidence port.
+    // Gateway admission does not load reporting or depend on Payments.
+    public static IServiceCollection AddUzllmStatementSources(this IServiceCollection services)
+    {
+        services.AddScoped<IStatementSourceReader, PostgreSqlStatementSourceReader>();
+        return services;
+    }
 }
