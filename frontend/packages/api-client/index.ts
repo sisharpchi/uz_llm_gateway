@@ -97,14 +97,37 @@ async function call<P extends keyof paths, M extends Verb & keyof paths[P]>(
     body: input?.body === undefined ? undefined : JSON.stringify(input.body)
   });
   if (!response.ok) throw new ApiError(response.status);
-  if (response.headers.get('Content-Type')?.startsWith('text/csv'))
-    return await response.blob() as Success<Operation<P, M>>;
-  return response.status === 204 || response.status === 202
+  if (response.headers.get('Content-Type')?.startsWith('text/csv')) {
+    const blob = await response.blob();
+    if (template.includes('/statements/')) {
+      const length = response.headers.get('Content-Length');
+      const digest = response.headers.get('X-UZLLM-Report-Sha256');
+      if (!length || !/^\d+$/.test(length) || Number(length) !== blob.size || blob.size > 32 * 1024 * 1024
+        || !digest || !/^[a-f0-9]{64}$/.test(digest)) throw new Error('Statement download verification failed.');
+      const actual = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())),
+        value => value.toString(16).padStart(2, '0')).join('');
+      if (actual !== digest) throw new Error('Statement download verification failed.');
+    }
+    return blob as Success<Operation<P, M>>;
+  }
+  return response.status === 204 || response.status === 202 && !response.headers.get('Content-Type')?.includes('application/json')
     ? undefined as Success<Operation<P, M>> : await response.json() as Success<Operation<P, M>>;
 }
 
 const org = '/management/v1/organizations/{organizationId}' as const;
 export const management = {
+  statements: (organizationId: Id, query: NonNullable<paths['/management/v1/organizations/{organizationId}/statements']['get']['parameters']['query']> = {}, signal?: AbortSignal) =>
+    call(`${org}/statements`, 'get', { path: { organizationId }, query, signal }),
+  statement: (organizationId: Id, id: Id, signal?: AbortSignal) => call(`${org}/statements/{id}`, 'get', { path: { organizationId, id }, signal }),
+  statementLines: (organizationId: Id, id: Id, query: NonNullable<paths['/management/v1/organizations/{organizationId}/statements/{id}/lines']['get']['parameters']['query']> = {}, signal?: AbortSignal) =>
+    call(`${org}/statements/{id}/lines`, 'get', { path: { organizationId, id }, query, signal }),
+  exportStatement: (organizationId: Id, id: Id, signal?: AbortSignal) => call(`${org}/statements/{id}/export`, 'get', { path: { organizationId, id }, query: { format: 'csv' }, signal }),
+  createStatement: (organizationId: Id, body: Schema['CreateStatementRequest'], signal?: AbortSignal) =>
+    call('/management/v1/admin/organizations/{organizationId}/reports/statements', 'post', { path: { organizationId }, body, signal }),
+  reviseStatement: (organizationId: Id, id: Id, body: Schema['ReviseStatementRequest'], signal?: AbortSignal) =>
+    call('/management/v1/admin/organizations/{organizationId}/reports/statements/{id}/revisions', 'post', { path: { organizationId, id }, body, signal }),
+  statementJob: (organizationId: Id, id: Id, signal?: AbortSignal) =>
+    call('/management/v1/admin/organizations/{organizationId}/reports/jobs/{id}', 'get', { path: { organizationId, id }, signal }),
   alertRules: (organizationId: Id, signal?: AbortSignal) => call(`${org}/alerts/rules`, 'get', { path: { organizationId }, signal }),
   alertEvents: (organizationId: Id, signal?: AbortSignal) => call(`${org}/alerts/events`, 'get', { path: { organizationId }, signal }),
   alertDestinations: (organizationId: Id, signal?: AbortSignal) => call(`${org}/alerts/destinations`, 'get', { path: { organizationId }, signal }),

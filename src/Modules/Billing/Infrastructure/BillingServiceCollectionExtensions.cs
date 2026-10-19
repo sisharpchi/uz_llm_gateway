@@ -35,6 +35,7 @@ public static class BillingServiceCollectionExtensions
         services.AddSingleton(new StatementBuildLimits());
         services.AddScoped<IStatementArtifactBuilder, StatementArtifactBuilder>();
         services.AddScoped<IStatementPublicationStore, PostgreSqlStatementPublicationStore>();
+        services.AddScoped<IStatementReadStore, PostgreSqlStatementReadStore>();
         services.AddScoped<UZLLM.Persistence.ILeasedJobHandler, StatementBuildJobHandler>();
         services.AddScoped<UZLLM.Persistence.IOutboxHandler, StatementPublishedEventHandler>();
         return services;

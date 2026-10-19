@@ -1,5 +1,26 @@
 # Post-Implementation Audit
 
+## Statement API follow-up — 2026-10-19
+
+The subsequent Continue separately promotes REPORTING-003 after completed
+REPORTING-002/DX-002/USAGE-005. [Document 49](49_STATEMENT_API.md) records the
+seven customer/operator routes, application-level session/ReadBilling/operator/
+MFA checks, mutation CSRF, scoped cursors, immutable-version CSV verification,
+safe audit and terminal job visibility. Billing uses existing statement storage;
+no financial mutation, migration, UI, fiscal/SLA feature or new bearer scheme.
+
+Final expanded Release validation passes 1133 tests, zero FAIL/SKIP, sixteen
+Completed TRX reports; all 27 new .NET cases pass. PostgreSQL 267, Gateway
+contracts 384, architecture 15, Billing 88 and AppHost 2 pass. Existing 97
+Management paths/schemas remain unchanged; API generation/drift, 18 schema/
+client checks, types/frontend builds, 13 serial auth/export browser regressions
+and model drift pass. Initial fixture
+corrections, interrupted interim baseline and exact acceptance mapping remain
+in document 49. Its source-map-js 1.2.1 dev dependency advisory needs separate
+assessment/remediation; no dependency upgrade or false npm-audit pass is claimed.
+OPS-006/external launch approvals remain blocked independently. No follow-on
+reporting/SLI task is started.
+
 ## Statement publication follow-up — 2026-10-19
 
 The subsequent Continue separately promotes REPORTING-002 after REPORTING-001.

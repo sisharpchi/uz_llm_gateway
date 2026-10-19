@@ -22,6 +22,11 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
+[REPORTING-003](49_STATEMENT_API.md) adds authorized immutable statement reads,
+CSV verification and operator command/job visibility, not a fiscal document,
+SLA, production archive/retention approval or passed launch gate. Preserve the
+existing separate staging/restore/merchant/provider/business prerequisites.
+
 Optional invoice/SLA reporting in the [approved ENTERPRISE-002 specification](45_INVOICE_SLA_REPORTING_SPEC.md)
 does not pass any launch gate or offer a contractual SLA. Non-fiscal statements
 need reconciled immutable source/revision/restore and tenant evidence; fiscal

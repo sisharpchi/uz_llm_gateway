@@ -4,10 +4,92 @@ import { readFileSync } from 'node:fs';
 import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { artifactMatches, canonicalize } from './api-contracts.mjs';
+import ts from 'typescript';
+import { createHash } from 'node:crypto';
 
 const read = name => JSON.parse(readFileSync(new URL('../../../docs/api/' + name, import.meta.url), 'utf8'));
 const documents = { gateway: read('gateway-v1.openapi.json'), management: read('management-v1.openapi.json') };
 const methods = ['get', 'post', 'put', 'patch', 'delete'];
+
+test('statement client consumes 202 jobs preserves empty auth replies and verifies CSV before returning Blob', async () => {
+  const source = readFileSync(new URL('../../packages/api-client/index.ts', import.meta.url), 'utf8');
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const { management } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
+  const fetchBefore = globalThis.fetch;
+  const documentBefore = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: { cookie: '__Host-uzllm-csrf=synthetic-csrf' } });
+  try {
+    const body = { periodStart: '2026-02-01T00:00:00Z', idempotencyKey: '11111111-1111-4111-8111-111111111111', expectedGeneration: 0, reason: 'Monthly statement' };
+    globalThis.fetch = async (path, input) => {
+      assert.equal(path, '/management/v1/admin/organizations/tenant/reports/statements');
+      assert.equal(input.method, 'POST'); assert.equal(input.credentials, 'same-origin');
+      assert.equal(input.headers.get('X-CSRF-Token'), 'synthetic-csrf'); assert.deepEqual(JSON.parse(input.body), body);
+      return new Response(JSON.stringify({ id: 'operation', operationStatus: 'Pending', jobState: 'Queued' }), { status: 202, headers: { 'Content-Type': 'application/json' } });
+    };
+    assert.deepEqual(await management.createStatement('tenant', body), { id: 'operation', operationStatus: 'Pending', jobState: 'Queued' });
+    globalThis.fetch = async () => new Response(null, { status: 202 });
+    assert.equal(await management.recover('example@example.test'), undefined);
+    const csv = '"Not a tax invoice / No payment due from this statement"\r\nordinal,ledger_id,category,posted_at,amount_micro_usd\r\n';
+    const sha = createHash('sha256').update(csv).digest('hex');
+    for (const mode of ['valid', 'missing-sha', 'mismatch-sha', 'wrong-length']) {
+      globalThis.fetch = async path => {
+        assert.equal(path, '/management/v1/organizations/tenant/statements/immutable-version/export?format=csv');
+        const headers = { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Length': String(Buffer.byteLength(csv) + (mode === 'wrong-length' ? 1 : 0)) };
+        if (mode !== 'missing-sha') headers['X-UZLLM-Report-Sha256'] = mode === 'mismatch-sha' ? '0'.repeat(64) : sha;
+        return new Response(csv, { headers });
+      };
+      if (mode === 'valid') assert.equal(await (await management.exportStatement('tenant', 'immutable-version')).text(), csv);
+      else await assert.rejects(management.exportStatement('tenant', 'immutable-version'), /Statement download verification failed/);
+    }
+  } finally {
+    globalThis.fetch = fetchBefore;
+    if (documentBefore) Object.defineProperty(globalThis, 'document', documentBefore);
+    else delete globalThis.document;
+  }
+});
+
+test('statement contracts pin immutable versions session security exact money and CSV verification', () => {
+  const document = documents.management;
+  const customer = '/management/v1/organizations/{organizationId}/statements';
+  const admin = '/management/v1/admin/organizations/{organizationId}/reports';
+  for (const [path, method] of [[customer, 'get'], [customer + '/{id}', 'get'],
+    [customer + '/{id}/lines', 'get'], [customer + '/{id}/export', 'get'],
+    [admin + '/statements', 'post'], [admin + '/statements/{id}/revisions', 'post'], [admin + '/jobs/{id}', 'get']]) {
+    const operation = document.paths[path][method];
+    assert.deepEqual(operation.security, [{ Session: [] }]);
+    for (const code of ['401', '403', '503', '504']) assert.ok(operation.responses[code]);
+    if (method === 'post') {
+      assert.ok(operation.parameters.some(item => item.name === 'X-CSRF-Token' && item.required));
+      assert.ok(operation.responses['202'].content['application/json']);
+      assert.ok(operation.responses['202'].headers.Location);
+      for (const code of ['400', '404', '409', '413', '415']) assert.ok(operation.responses[code]);
+      assert.match(operation.description, /recent MFA/);
+    }
+  }
+  const fixtures = read('examples.json').filter(item => item.path.startsWith(customer) || item.path.startsWith(admin));
+  assert.equal(fixtures.length, 7);
+  const metadata = fixtures.find(item => item.path === customer + '/{id}').body;
+  assert.equal(metadata.kind, 'AccountStatement');
+  assert.equal(metadata.label, 'Not a tax invoice / No payment due from this statement');
+  assert.equal(metadata.totals.openingMicroUsd, '9007199254740993');
+  assert.equal(metadata.generation, metadata.revision);
+  for (const field of ['snapshotJson', 'sources', 'reason', 'requestedByAccountId', 'providerCost', 'paymentAnnotations'])
+    assert.equal(metadata[field], undefined);
+  const schema = document.paths[customer + '/{id}'].get.responses['200'].content['application/json'].schema;
+  const validate = validator(document, schema);
+  assert.ok(validate(metadata));
+  assert.equal(validate({ ...metadata, totals: { ...metadata.totals, openingMicroUsd: 9007199254740993 } }), false);
+  const csv = document.paths[customer + '/{id}/export'].get.responses['200'];
+  assert.ok(csv.content['text/csv']);
+  for (const header of ['Content-Length', 'X-UZLLM-Report-Sha256', 'Content-Disposition', 'X-Content-Type-Options']) assert.ok(csv.headers[header]);
+  const dead = fixtures.find(item => item.path === admin + '/jobs/{id}').body;
+  assert.equal(dead.operationStatus, 'Pending'); assert.equal(dead.jobState, 'DeadLettered'); assert.equal(dead.job.attemptCount, 5);
+  const create = validator(document, document.paths[admin + '/statements'].post.requestBody.content['application/json'].schema);
+  const command = { periodStart: '2026-02-01T00:00:00Z', idempotencyKey: '11111111-1111-4111-8111-111111111111', expectedGeneration: 0, reason: 'Monthly statement', schemaVersion: 1 };
+  assert.ok(create(command));
+  for (const invalid of [{ ...command, schemaVersion: 2 }, { ...command, expectedGeneration: 1 }, { ...command, amountMicroUsd: '1' }])
+    assert.equal(create(invalid), false);
+});
 function validator(document, schema) {
   const ajv = new Ajv({ strict: false, allErrors: true, allowUnionTypes: true });
   addFormats(ajv);
@@ -30,7 +112,7 @@ test('versioned documents cover implemented surfaces and resolve all schema refe
         assert.ok(Object.keys(operation.responses).some(status => /^2\d\d$/.test(status)));
         for (const [status, response] of Object.entries(operation.responses)) {
           if (name === 'management') assert.deepEqual(response.headers['Cache-Control'].schema.enum, ['no-store']);
-          if (status === '202' || status === '204') assert.equal(response.content, undefined);
+          if (status === '204' || status === '202' && !path.includes('/reports/statements')) assert.equal(response.content, undefined);
           for (const media of Object.values(response.content ?? {})) assert.ok(media.schema);
         }
       }

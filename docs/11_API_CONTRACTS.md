@@ -1138,6 +1138,18 @@ verify ownership. Telegram's `X-Telegram-Bot-Api-Secret-Token` is mandatory;
 invalid secret returns `403`, while replay/unknown updates are acknowledged
 without altering a destination. The webhook has a 16 KiB body cap.
 
+### Authorized account statements (`REPORTING-003`)
+
+[Document 49](49_STATEMENT_API.md) defines the implemented session-backed
+statement list/detail/lines/CSV and operator build/revision/job routes. Customer
+reads require ReadBilling; operator routes require current operator/recent MFA,
+and mutations require CSRF. Exports pin immutable version IDs and verify exact
+Content-Length/SHA-256. Account statement money remains integer micro-USD
+strings. 202 build/revision responses contain the stable operation JSON and
+Location; replay does not imply new work. No fiscal invoice, SLA, bearer or UI.
+Current generated artifacts and serializer fixtures describe these additive v1
+operations; the 180-day breaking-version policy remains unchanged.
+
 ### Signed customer outbound webhooks (`NOTIFY-003`)
 
 `POST /management/v1/organizations/{organizationId}/alerts/webhook/destination`

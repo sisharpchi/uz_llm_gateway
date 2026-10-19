@@ -5,13 +5,14 @@ Task validation evidence: [DX-002 validation](VALIDATION.md).
 [SECURITY-009](../46_RETENTION_AUDIT_ATOMICITY.md) preserves retention routes and
 success bodies while making policy/audit atomic. The existing PUT failure is
 explicitly documented as safe no-store HTTP 500 Problem Details; schema, generated
-client and serializer fixture are updated together. No reporting/guardrail route.
+client and serializer fixture are updated together. That correction adds no reporting/guardrail route.
 
 The [approved ENTERPRISE-002 statement/SLA specification](../45_INVOICE_SLA_REPORTING_SPEC.md)
-defines future session-backed reporting, immutable snapshots and external
-fiscal/contract approval paths; no invoice, statement or SLA endpoint/security
-scheme is added to current generated artifacts. Implement and test a promoted
-task before regenerating those operations.
+defines reporting, immutable snapshots and external fiscal/contract approval
+paths. Separately promoted [REPORTING-003](../49_STATEMENT_API.md) adds seven
+session-backed statement/read/export/operator operations, 202 JSON/Location,
+CSV verification headers and generated client types. No invoice/SLA endpoint,
+new authentication scheme, UI or paid-launch approval is implied.
 
 The [approved DX-004 automation specification](../44_MANAGEMENT_AUTOMATION_API_SPEC.md)
 records P2 scope/lifecycle/versioning, not an implemented Bearer scheme or

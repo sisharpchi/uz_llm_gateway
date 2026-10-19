@@ -221,6 +221,9 @@ This creates clear boundaries without paying the operational cost of many micros
     publication/revisions, Worker bounds, migration and recovery evidence;
     internal only, no reporting endpoint, fiscal invoice or SLA entitlement.
 
+49. `49_STATEMENT_API.md` — authorized statement metadata/lines/CSV and operator
+    build/revision/job API; no fiscal/SLA/UI or paid-launch implication.
+
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 
 ---

@@ -27,9 +27,14 @@ public sealed record DeadLetteredWork(Guid Id, string Kind, string WorkType,
 
 public interface IOperationalWorkMonitor
 {
+    Task<JobProgress?> FindJobAsync(string jobType, string deduplicationKey, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DeadLetteredWork>> ListDeadLettersAsync(int limit = 50,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Metadata only; no payload, lease owner, arbitrary error text or replay mutation.</summary>
+public sealed record JobProgress(Guid Id, int AttemptCount, int MaxAttempts, DateTimeOffset AvailableAt,
+    DateTimeOffset? LeaseExpiresAt, DateTimeOffset? CompletedAt, DateTimeOffset? DeadLetteredAt);
 
 public interface IOutboxStore
 {
@@ -771,6 +776,11 @@ internal sealed class PostgreSqlLeasedJobStore(FoundationDbContext dbContext, Ti
 
 internal sealed class PostgreSqlOperationalWorkMonitor(FoundationDbContext dbContext) : IOperationalWorkMonitor
 {
+    public Task<JobProgress?> FindJobAsync(string jobType, string deduplicationKey, CancellationToken cancellationToken = default) =>
+        dbContext.LeasedJobs.AsNoTracking().Where(job => job.JobType == jobType && job.DeduplicationKey == deduplicationKey)
+            .Select(job => new JobProgress(job.Id, job.AttemptCount, job.MaxAttempts, job.AvailableAt, job.LeaseExpiresAt,
+                job.CompletedAt, job.DeadLetteredAt)).SingleOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<DeadLetteredWork>> ListDeadLettersAsync(int limit = 50,
         CancellationToken cancellationToken = default)
     {

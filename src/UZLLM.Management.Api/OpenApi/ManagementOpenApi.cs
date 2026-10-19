@@ -16,6 +16,8 @@ using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Persistence;
+using UZLLM.Management.Api.Statements;
+using UZLLM.Modules.Billing.Contracts;
 
 namespace UZLLM.Management.Api.OpenApi;
 
@@ -45,6 +47,17 @@ public static class ManagementOpenApi
                             value.Minimum = "1";
                             value.Maximum = name == "requestsPerMinute" ? "1000000" : "10000";
                         }
+                }
+                if ((context.JsonTypeInfo.Type == typeof(CreateStatementRequest) || context.JsonTypeInfo.Type == typeof(ReviseStatementRequest))
+                    && schema.Properties is { } statementProperties)
+                {
+                    schema.AdditionalPropertiesAllowed = false;
+                    if (statementProperties["schemaVersion"] is OpenApiSchema version) { version.Minimum = "1"; version.Maximum = "1"; }
+                    if (statementProperties["reason"] is OpenApiSchema reason) { reason.MinLength = 8; reason.MaxLength = 500; }
+                    if (statementProperties["expectedGeneration"] is OpenApiSchema generation)
+                    { generation.Minimum = context.JsonTypeInfo.Type == typeof(CreateStatementRequest) ? "0" : "1";
+                      generation.Maximum = context.JsonTypeInfo.Type == typeof(CreateStatementRequest) ? "0" : "9223372036854775806"; }
+                    schema.Description = "8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation.";
                 }
                 if ((context.JsonTypeInfo.Type == typeof(PublishProviderDataPolicyRequest)
                     || context.JsonTypeInfo.Type == typeof(ProviderDataPolicyResponse)) && schema.Properties is { } policyProperties)
@@ -145,8 +158,8 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         operation.Responses = new();
         foreach (var status in response.Success)
         {
-            var result = new OpenApiResponse { Description = status is 202 or 204 ? "Accepted; empty body." : "Success." };
-            if (path.EndsWith("/usage/export", StringComparison.Ordinal))
+            var result = new OpenApiResponse { Description = status == 204 || status == 202 && response.Type is null ? "Accepted; empty body." : "Success." };
+            if (path.EndsWith("/usage/export", StringComparison.Ordinal) || path.Contains("/statements/", StringComparison.Ordinal) && path.EndsWith("/export", StringComparison.Ordinal))
             {
                 result.Content = new Dictionary<string, OpenApiMediaType>
                 { ["text/csv"] = new() { Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "binary" } } };
@@ -154,10 +167,19 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
                 foreach (var header in new[] { "Content-Disposition", "X-Content-Type-Options", "X-Usage-From",
                     "X-Usage-To", "X-Usage-Data-As-Of", "X-Usage-Source", "X-Usage-Pending-Buckets", "X-Usage-Row-Count" })
                     result.Headers[header] = new OpenApiHeader { Schema = new OpenApiSchema { Type = JsonSchemaType.String } };
+                if (path.Contains("/statements/", StringComparison.Ordinal))
+                {
+                    result.Headers.Clear();
+                    foreach (var header in new[] { "Content-Disposition", "Content-Length", "X-Content-Type-Options", "X-UZLLM-Report-Sha256" })
+                        result.Headers[header] = new OpenApiHeader { Schema = new OpenApiSchema { Type = JsonSchemaType.String } };
+                }
             }
             else if (response.Type is { } type)
                 result.Content = new Dictionary<string, OpenApiMediaType>
                 { ["application/json"] = new() { Schema = await SchemaForAsync(type, context, cancellationToken) } };
+            if (status == 202 && response.Type is not null)
+                result.Headers = new Dictionary<string, IOpenApiHeader>
+                    { ["Location"] = new OpenApiHeader { Schema = new OpenApiSchema { Type = JsonSchemaType.String } } };
             operation.Responses[status.ToString()] = result;
         }
         foreach (var status in response.Errors)
@@ -172,7 +194,8 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
                 _ => "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific."
             } };
             if (status is 400 or 409 or 503
-                || path.EndsWith("/usage/export", StringComparison.Ordinal) && status is 413 or 504)
+                || (path.Contains("/statements", StringComparison.Ordinal) || path.Contains("/reports/", StringComparison.Ordinal)
+                    || path.EndsWith("/usage/export", StringComparison.Ordinal)) && status is 413 or 504)
             {
                 result.Content = new Dictionary<string, OpenApiMediaType>
                 {
@@ -211,6 +234,18 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
             AddHeader(operation, "Idempotency-Key", true, "Replay is valid only for the same immutable quote.");
         if (path.Contains("/admin/", StringComparison.Ordinal))
             operation.Description = "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.";
+        if (method == "GET" && path.Contains("/statements", StringComparison.Ordinal))
+            foreach (var parameter in operation.Parameters?.OfType<OpenApiParameter>() ?? [])
+            {
+                if (parameter.Name == "limit") parameter.Schema = new OpenApiSchema
+                { Type = JsonSchemaType.Integer, Minimum = "1", Maximum = "100",
+                    Default = JsonValue.Create(path.EndsWith("/lines", StringComparison.Ordinal) ? 50 : 20) };
+                if (parameter.Name == "cursor") parameter.Schema = new OpenApiSchema
+                    { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 2048 };
+                if (parameter.Name == "format") parameter.Schema = new OpenApiSchema
+                    { Type = JsonSchemaType.String, Enum = [JsonValue.Create("csv")], Default = JsonValue.Create("csv") };
+                if (parameter.Name is "from" or "to") parameter.Description = "UTC calendar month start; from inclusive, to exclusive.";
+            }
         if (path.EndsWith("/usage/export", StringComparison.Ordinal))
         {
             // Shared parameter binding rejects HTTP paging on complete exports.
@@ -308,6 +343,14 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Read<CustomerTopUp[]>(org + "/billing/topups");
         Read<PaymentIntentResponse>(org + "/billing/topups/{intentId}", 404);
         Read<CustomerSettlementRefund[]>(org + "/billing/refunds");
+        Read<StatementPage>(org + "/statements", 400, 503, 504);
+        Read<StatementMetadataResponse>(org + "/statements/{id}", 404, 503, 504);
+        Read<StatementLinePage>(org + "/statements/{id}/lines", 400, 404, 503, 504);
+        Add("GET", org + "/statements/{id}/export", null, 200, 400, 401, 403, 404, 413, 503, 504);
+        const string reports = "/admin" + org + "/reports";
+        Write<StatementJobResponse>("POST", reports + "/statements", 202, 404, 409, 413, 415, 503, 504);
+        Write<StatementJobResponse>("POST", reports + "/statements/{id}/revisions", 202, 404, 409, 413, 415, 503, 504);
+        Read<StatementJobResponse>(reports + "/jobs/{id}", 404, 503, 504);
         Read<UsageActivityPage>(org + "/usage/activity", 400);
         Read<UsageRequestDetail>(org + "/usage/requests/{requestId}", 404);
         Read<UsageSummary>(org + "/usage/summary", 400);

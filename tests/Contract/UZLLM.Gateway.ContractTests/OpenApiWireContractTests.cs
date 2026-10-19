@@ -8,6 +8,8 @@ using UZLLM.Modules.Payments.Contracts;
 using UZLLM.Modules.Providers.Contracts;
 using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Usage.Contracts;
+using UZLLM.Modules.Billing.Contracts;
+using UZLLM.Management.Api.Statements;
 
 namespace UZLLM.Gateway.ContractTests;
 
@@ -139,6 +141,24 @@ public sealed class OpenApiWireContractTests : IDisposable
         }
 
         const string org = "/management/v1/organizations/{organizationId}";
+        var statement = new StatementMetadataResponse(1, "account-statement-v1", id, "AccountStatement",
+            "Not a tax invoice / No payment due from this statement", id, new(now, now.AddMonths(1)), 1, null,
+            now.AddMonths(1), new string('a', 64), "ReconciledSnapshot", new(1, 2, 3),
+            new("9007199254740993", "-5", "9007199254740988", "0", "5", "0", "5"),
+            new("9007199254740988", "10", "9007199254740978", "0"), new("0", 4, 0, 0), 1, now.AddMonths(1));
+        Add(org + "/statements", "get", 200, new StatementPage([statement], null));
+        Add(org + "/statements/{id}", "get", 200, statement);
+        Add(org + "/statements/{id}/lines", "get", 200, new StatementLinePage(id,
+            [new(1, id, "UsageCharge", now, "-5", "reservation", id)], null));
+        var reportJob = new StatementJobResponse(id, id, "Pending", 0, null, null, "Queued",
+            new(id, 0, 5, now, null, null, null));
+        const string reports = "/management/v1/admin/organizations/{organizationId}/reports";
+        Add(reports + "/statements", "post", 202, reportJob);
+        Add(reports + "/statements/{id}/revisions", "post", 202, reportJob with { ExpectedGeneration = 1 });
+        Add(reports + "/jobs/{id}", "get", 200, reportJob with { JobState = "DeadLettered",
+            Job = reportJob.Job! with { AttemptCount = 5, DeadLetteredAt = now.AddMinutes(1) } });
+        snapshots.Add(new("management", org + "/statements/{id}/export", "get", 200, "text/csv",
+            JsonSerializer.SerializeToElement("\"Not a tax invoice / No payment due from this statement\"\r\nordinal,ledger_id,category,posted_at,amount_micro_usd\r\n")));
         var unknownPolicy = UZLLM.Management.Api.Catalog.ProviderDataPolicyResponse.From(id, null);
         var reportedPolicy = UZLLM.Management.Api.Catalog.ProviderDataPolicyResponse.From(id, new(
             id, id, "MayRetain", "NoTrainingReported", "ProviderReported", ["US"], "Synthetic public API scope",

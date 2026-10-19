@@ -324,6 +324,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/admin/organizations/{organizationId}/reports/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read tenant-scoped operation and transport status, including terminal dead letters.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["GetStatementJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/organizations/{organizationId}/reports/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue one non-fiscal UTC-month snapshot; replay retains operation identity.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["CreateStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/organizations/{organizationId}/reports/statements/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue an explicit predecessor revision; never rewrite published bytes.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["ReviseStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/admin/payment-reconciliation/cases": {
         parameters: {
             query?: never;
@@ -1318,6 +1378,74 @@ export interface paths {
         };
         /** List active supported catalog providers for BYOK registration. */
         get: operations["ListByokProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/organizations/{organizationId}/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List non-fiscal immutable statement versions by posting month/revision. */
+        get: operations["ListStatements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/organizations/{organizationId}/statements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read allowlisted metadata for one immutable statement version. */
+        get: operations["GetStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/organizations/{organizationId}/statements/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download original version-pinned CSV bytes; verify length and SHA-256. */
+        get: operations["ExportStatementCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/organizations/{organizationId}/statements/{id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page fixed posting ordinals within the selected version. */
+        get: operations["ListStatementLines"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2396,6 +2524,21 @@ export interface components {
             /** Format: uuid */
             settlementId: string;
         };
+        /** @description 8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation. */
+        CreateStatementRequest: {
+            /** Format: int64 */
+            expectedGeneration: number;
+            /** Format: uuid */
+            idempotencyKey: string;
+            /** Format: date-time */
+            periodStart: string;
+            reason: string;
+            /**
+             * Format: int32
+             * @default 1
+             */
+            schemaVersion: number;
+        };
         CreateWalletAdjustmentRequest: {
             adjustmentKey: string;
             amountMicroUsd: string;
@@ -2578,6 +2721,22 @@ export interface components {
                 status: number;
             };
             secret: string;
+        };
+        JobProgress: {
+            /** Format: int32 */
+            attemptCount: number;
+            /** Format: date-time */
+            availableAt: string;
+            /** Format: date-time */
+            completedAt: null | string;
+            /** Format: date-time */
+            deadLetteredAt: null | string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            leaseExpiresAt: null | string;
+            /** Format: int32 */
+            maxAttempts: number;
         };
         LoginRequest: {
             email: string;
@@ -2866,6 +3025,19 @@ export interface components {
             requestId: string;
             response: null | string;
         };
+        /** @description 8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation. */
+        ReviseStatementRequest: {
+            /** Format: int64 */
+            expectedGeneration: number;
+            /** Format: uuid */
+            idempotencyKey: string;
+            reason: string;
+            /**
+             * Format: int32
+             * @default 1
+             */
+            schemaVersion: number;
+        };
         SessionResponse: {
             /** Format: uuid */
             accountId: string;
@@ -2894,6 +3066,116 @@ export interface components {
             enabled: boolean;
             /** Format: int32 */
             retentionMinutes: number;
+        };
+        StatementBalanceResponse: {
+            availableMicroUsd: string;
+            heldMicroUsd: string;
+            postedMicroUsd: string;
+            recoveryDebtMicroUsd: string;
+        };
+        StatementDeltaResponse: {
+            /** Format: int32 */
+            added: number;
+            /** Format: int32 */
+            changed: number;
+            closingMicroUsd: string;
+            /** Format: int32 */
+            removed: number;
+        };
+        StatementJobResponse: {
+            /** Format: int64 */
+            expectedGeneration: number;
+            failureKind: null | string;
+            /** Format: uuid */
+            id: string;
+            job: null | components["schemas"]["JobProgress"];
+            jobState: string;
+            operationStatus: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            versionId: null | string;
+        };
+        StatementLinePage: {
+            items: {
+                amountMicroUsd: string;
+                category: string;
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                occurredAt: string;
+                /** Format: int32 */
+                ordinal: number;
+                /** Format: uuid */
+                referenceId: string;
+                referenceType: string;
+            }[];
+            nextCursor: null | string;
+            /** Format: uuid */
+            versionId: string;
+        };
+        StatementMetadataResponse: {
+            balance: components["schemas"]["StatementBalanceResponse"];
+            calculationVersion: string;
+            delta: components["schemas"]["StatementDeltaResponse"];
+            financialCoverage: string;
+            /** Format: int64 */
+            generation?: number;
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            label: string;
+            /** Format: int32 */
+            lineCount: number;
+            moneyUnit?: null | string;
+            /** Format: uuid */
+            organizationId: string;
+            pending: components["schemas"]["StatementPending"];
+            period: components["schemas"]["StatementPeriodResponse"];
+            /** Format: uuid */
+            predecessorId: null | string;
+            /** Format: date-time */
+            publishedAt: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: int32 */
+            schemaVersion: number;
+            /** Format: date-time */
+            sourceAsOf: string;
+            sourceDigest: string;
+            totals: components["schemas"]["StatementTotalsResponse"];
+        };
+        StatementPage: {
+            items: components["schemas"]["StatementMetadataResponse"][];
+            nextCursor: null | string;
+        };
+        StatementPending: {
+            /** Format: int32 */
+            evidence: number;
+            /** Format: int32 */
+            merchantMismatch: number;
+            /** Format: int32 */
+            settlement: number;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            unmatchedPayment: number;
+        };
+        StatementPeriodResponse: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+        };
+        StatementTotalsResponse: {
+            closingMicroUsd: string;
+            grossUsageMicroUsd: string;
+            movementMicroUsd: string;
+            netUsageMicroUsd: string;
+            openingMicroUsd: string;
+            postPeriodMovementMicroUsd: string;
+            refundedUsageMicroUsd: string;
         };
         TeamInvitationResponse: {
             /** Format: date-time */
@@ -4616,6 +4898,313 @@ export interface operations {
             };
             /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
             409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetStatementJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementJobResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStatementRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            202: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementJobResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ReviseStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviseStatementRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            202: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementJobResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
                 headers: {
                     "Cache-Control"?: "no-store";
                     [name: string]: unknown;
@@ -9173,6 +9762,337 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ListStatements: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                /** @description UTC calendar month start; from inclusive, to exclusive. */
+                from?: string;
+                limit?: number;
+                /** @description UTC calendar month start; from inclusive, to exclusive. */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementPage"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementMetadataResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ExportStatementCsv: {
+        parameters: {
+            query?: {
+                format?: "csv";
+            };
+            header?: never;
+            path: {
+                id: string;
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    "Content-Disposition"?: string;
+                    "Content-Length"?: string;
+                    "X-Content-Type-Options"?: string;
+                    "X-UZLLM-Report-Sha256"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ListStatementLines: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementLinePage"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
             };
         };
     };

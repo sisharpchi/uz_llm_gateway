@@ -2533,6 +2533,47 @@
         ],
         "type": "object"
       },
+      "CreateStatementRequest": {
+        "additionalProperties": false,
+        "description": "8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation.",
+        "properties": {
+          "expectedGeneration": {
+            "format": "int64",
+            "maximum": 0,
+            "minimum": 0,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "type": "string"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "format": "int32",
+            "maximum": 1,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "periodStart",
+          "idempotencyKey",
+          "expectedGeneration",
+          "reason"
+        ],
+        "type": "object"
+      },
       "CreateWalletAdjustmentRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3333,6 +3374,59 @@
         "required": [
           "apiKey",
           "secret"
+        ],
+        "type": "object"
+      },
+      "JobProgress": {
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deadLetteredAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "leaseExpiresAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "maxAttempts": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "attemptCount",
+          "maxAttempts",
+          "availableAt",
+          "leaseExpiresAt",
+          "completedAt",
+          "deadLetteredAt"
         ],
         "type": "object"
       },
@@ -4435,6 +4529,42 @@
         ],
         "type": "object"
       },
+      "ReviseStatementRequest": {
+        "additionalProperties": false,
+        "description": "8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation.",
+        "properties": {
+          "expectedGeneration": {
+            "format": "int64",
+            "maximum": 9223372036854776000,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 8,
+            "type": "string"
+          },
+          "schemaVersion": {
+            "default": 1,
+            "format": "int32",
+            "maximum": 1,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "expectedGeneration",
+          "reason"
+        ],
+        "type": "object"
+      },
       "SessionResponse": {
         "properties": {
           "accountId": {
@@ -4544,6 +4674,386 @@
         "required": [
           "enabled",
           "retentionMinutes"
+        ],
+        "type": "object"
+      },
+      "StatementBalanceResponse": {
+        "properties": {
+          "availableMicroUsd": {
+            "type": "string"
+          },
+          "heldMicroUsd": {
+            "type": "string"
+          },
+          "postedMicroUsd": {
+            "type": "string"
+          },
+          "recoveryDebtMicroUsd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "postedMicroUsd",
+          "heldMicroUsd",
+          "availableMicroUsd",
+          "recoveryDebtMicroUsd"
+        ],
+        "type": "object"
+      },
+      "StatementDeltaResponse": {
+        "properties": {
+          "added": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "changed": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "closingMicroUsd": {
+            "type": "string"
+          },
+          "removed": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "closingMicroUsd",
+          "added",
+          "removed",
+          "changed"
+        ],
+        "type": "object"
+      },
+      "StatementJobResponse": {
+        "properties": {
+          "expectedGeneration": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "failureKind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "job": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JobProgress"
+              }
+            ]
+          },
+          "jobState": {
+            "type": "string"
+          },
+          "operationStatus": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "operationStatus",
+          "expectedGeneration",
+          "versionId",
+          "failureKind",
+          "jobState",
+          "job"
+        ],
+        "type": "object"
+      },
+      "StatementLinePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "amountMicroUsd": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "ordinal": {
+                  "format": "int32",
+                  "pattern": "^-?(?:0|[1-9]\\d*)$",
+                  "type": "integer"
+                },
+                "referenceId": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "referenceType": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "ordinal",
+                "id",
+                "category",
+                "occurredAt",
+                "amountMicroUsd",
+                "referenceType",
+                "referenceId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId",
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "StatementMetadataResponse": {
+        "properties": {
+          "balance": {
+            "$ref": "#/components/schemas/StatementBalanceResponse"
+          },
+          "calculationVersion": {
+            "type": "string"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/StatementDeltaResponse"
+          },
+          "financialCoverage": {
+            "type": "string"
+          },
+          "generation": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "lineCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "moneyUnit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pending": {
+            "$ref": "#/components/schemas/StatementPending"
+          },
+          "period": {
+            "$ref": "#/components/schemas/StatementPeriodResponse"
+          },
+          "predecessorId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "sourceAsOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceDigest": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/StatementTotalsResponse"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "calculationVersion",
+          "id",
+          "kind",
+          "label",
+          "organizationId",
+          "period",
+          "revision",
+          "predecessorId",
+          "sourceAsOf",
+          "sourceDigest",
+          "financialCoverage",
+          "pending",
+          "totals",
+          "balance",
+          "delta",
+          "lineCount",
+          "publishedAt"
+        ],
+        "type": "object"
+      },
+      "StatementPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StatementMetadataResponse"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "StatementPending": {
+        "properties": {
+          "evidence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "merchantMismatch": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "settlement": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          },
+          "unmatchedPayment": {
+            "default": 0,
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evidence",
+          "settlement",
+          "merchantMismatch"
+        ],
+        "type": "object"
+      },
+      "StatementPeriodResponse": {
+        "properties": {
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "StatementTotalsResponse": {
+        "properties": {
+          "closingMicroUsd": {
+            "type": "string"
+          },
+          "grossUsageMicroUsd": {
+            "type": "string"
+          },
+          "movementMicroUsd": {
+            "type": "string"
+          },
+          "netUsageMicroUsd": {
+            "type": "string"
+          },
+          "openingMicroUsd": {
+            "type": "string"
+          },
+          "postPeriodMovementMicroUsd": {
+            "type": "string"
+          },
+          "refundedUsageMicroUsd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "openingMicroUsd",
+          "movementMicroUsd",
+          "closingMicroUsd",
+          "postPeriodMovementMicroUsd",
+          "grossUsageMicroUsd",
+          "refundedUsageMicroUsd",
+          "netUsageMicroUsd"
         ],
         "type": "object"
       },
@@ -8801,6 +9311,743 @@
             "Session": []
           }
         ],
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/admin/organizations/{organizationId}/reports/jobs/{id}": {
+      "get": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "GetStatementJob",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementJobResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read tenant-scoped operation and transport status, including terminal dead letters.",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/admin/organizations/{organizationId}/reports/statements": {
+      "post": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "CreateStatement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must match the readable CSRF cookie and the current session.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStatementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementJobResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Queue one non-fiscal UTC-month snapshot; replay retains operation identity.",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/admin/organizations/{organizationId}/reports/statements/{id}/revisions": {
+      "post": {
+        "description": "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.",
+        "operationId": "ReviseStatement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Must match the readable CSRF cookie and the current session.",
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseStatementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementJobResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Queue an explicit predecessor revision; never rewrite published bytes.",
         "tags": [
           "UZLLM.Management.Api"
         ]
@@ -18436,6 +19683,836 @@
           }
         ],
         "summary": "Test a key against a fixed provider-owned endpoint without a DB transaction.",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/organizations/{organizationId}/statements": {
+      "get": {
+        "operationId": "ListStatements",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "UTC calendar month start; from inclusive, to exclusive.",
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "UTC calendar month start; from inclusive, to exclusive.",
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementPage"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "List non-fiscal immutable statement versions by posting month/revision.",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/organizations/{organizationId}/statements/{id}": {
+      "get": {
+        "operationId": "GetStatement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementMetadataResponse"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Read allowlisted metadata for one immutable statement version.",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/organizations/{organizationId}/statements/{id}/export": {
+      "get": {
+        "operationId": "ExportStatementCsv",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "default": "csv",
+              "enum": [
+                "csv"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-UZLLM-Report-Sha256": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Download original version-pinned CSV bytes; verify length and SHA-256.",
+        "tags": [
+          "UZLLM.Management.Api"
+        ]
+      }
+    },
+    "/management/v1/organizations/{organizationId}/statements/{id}/lines": {
+      "get": {
+        "operationId": "ListStatementLines",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementLinePage"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid session/credentials; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource absent or outside the authorized scope; empty body.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagementErrorResponse"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Session": []
+          }
+        ],
+        "summary": "Page fixed posting ordinals within the selected version.",
         "tags": [
           "UZLLM.Management.Api"
         ]

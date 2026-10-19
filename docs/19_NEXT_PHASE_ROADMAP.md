@@ -89,8 +89,10 @@ separately promotes REPORTING-002: bounded internal Worker publication,
 immutable versions and explicit revisions, now completed with 1106 passing
 Release tests as recorded in
 [document 48](48_STATEMENT_PUBLICATION.md). No HTTP/UI, fiscal/SLA feature or
-launch-gate pass is included. REPORTING-003 and later tasks still require
-separate approval/promotion; OPS-006 remains Blocked.
+launch-gate pass is included. The subsequent Continue separately promotes
+REPORTING-003's authorized statement/read/export/operator facade in
+[document 49](49_STATEMENT_API.md). Later proposed tasks (starting with SLO-001)
+still require separate approval/promotion; OPS-006 remains Blocked.
 
 ```text
 DOCS-002

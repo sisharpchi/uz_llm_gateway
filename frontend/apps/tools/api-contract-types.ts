@@ -2,6 +2,17 @@ import { management } from '../../packages/api-client';
 import type { paths as ManagementPaths } from '../../packages/api-client/generated/management-v1';
 import type { paths as GatewayPaths, components as GatewayComponents } from '../../packages/api-client/generated/gateway-v1';
 
+type StatementMetadata = ManagementPaths['/management/v1/organizations/{organizationId}/statements/{id}']['get']['responses'][200]['content']['application/json'];
+const exactStatementMoney: StatementMetadata['totals']['openingMicroUsd'] = '9007199254740993';
+// @ts-expect-error Statement money must never become a lossy JavaScript number.
+const lossyStatementMoney: StatementMetadata['totals']['openingMicroUsd'] = 9007199254740993;
+type StatementHeaders = ManagementPaths['/management/v1/admin/organizations/{organizationId}/reports/statements']['post']['parameters']['header'];
+// @ts-expect-error Operator statements require the existing session CSRF proof.
+const unprotectedStatement: StatementHeaders = {};
+type StatementJob = ManagementPaths['/management/v1/admin/organizations/{organizationId}/reports/statements']['post']['responses'][202]['content']['application/json'];
+const queuedStatement: StatementJob['operationStatus'] = 'Pending';
+void [exactStatementMoney, lossyStatementMoney, unprotectedStatement, queuedStatement];
+
 // Compile-only fixtures: unused @ts-expect-error directives fail tsc if a guard disappears.
 type CreditCommand = NonNullable<ManagementPaths['/management/v1/admin/wallet-adjustments']['post']['requestBody']>['content']['application/json'];
 const exactCredit: CreditCommand = { organizationId: 'uuid', adjustmentKey: 'example-key', amountMicroUsd: '9007199254740993', reason: 'Documented service credit' };

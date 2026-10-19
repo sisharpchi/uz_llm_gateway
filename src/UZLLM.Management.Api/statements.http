@@ -1,0 +1,42 @@
+@baseUrl = https://localhost:7150
+@organizationId = 11111111-1111-4111-8111-111111111111
+@versionId = 22222222-2222-4222-8222-222222222222
+@operationId = 33333333-3333-4333-8333-333333333333
+@session = supply-local-session
+@csrf = supply-local-csrf
+
+### Customer ReadBilling: all versions, UTC posting-month range
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/statements?from=2026-09-01T00:00:00Z&to=2026-10-01T00:00:00Z&limit=20
+Cookie: __Host-uzllm-session={{session}}
+
+### Customer immutable metadata (missing/out-of-tenant version returns 404)
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/statements/{{versionId}}
+Cookie: __Host-uzllm-session={{session}}
+
+### Customer stable lines; reuse returned nextCursor with identical scope/limit
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/statements/{{versionId}}/lines?limit=50
+Cookie: __Host-uzllm-session={{session}}
+
+### Customer CSV: verify Content-Length and X-UZLLM-Report-Sha256 before accepting
+GET {{baseUrl}}/management/v1/organizations/{{organizationId}}/statements/{{versionId}}/export?format=csv
+Cookie: __Host-uzllm-session={{session}}
+
+### Operator + recent MFA: accepted job; same UUID and terms replay the same operation
+POST {{baseUrl}}/management/v1/admin/organizations/{{organizationId}}/reports/statements
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+Content-Type: application/json
+
+{"periodStart":"2026-09-01T00:00:00Z","idempotencyKey":"44444444-4444-4444-8444-444444444444","expectedGeneration":0,"reason":"Monthly account statement","schemaVersion":1}
+
+### Operator + recent MFA: explicit predecessor and expected current generation
+POST {{baseUrl}}/management/v1/admin/organizations/{{organizationId}}/reports/statements/{{versionId}}/revisions
+Cookie: __Host-uzllm-session={{session}}; __Host-uzllm-csrf={{csrf}}
+X-CSRF-Token: {{csrf}}
+Content-Type: application/json
+
+{"idempotencyKey":"55555555-5555-4555-8555-555555555555","expectedGeneration":1,"reason":"Include late committed posting","schemaVersion":1}
+
+### Operator + recent MFA: operation and Worker outcome are independent
+GET {{baseUrl}}/management/v1/admin/organizations/{{organizationId}}/reports/jobs/{{operationId}}
+Cookie: __Host-uzllm-session={{session}}

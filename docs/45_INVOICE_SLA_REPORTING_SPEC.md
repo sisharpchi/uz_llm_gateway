@@ -378,7 +378,10 @@ measurement; no partitioned financial ledger or separate analytics DB now.
 
 ## 8. Proposed APIs, security, retention and UX
 
-Routes are unimplemented design; current generated OpenAPI remains unchanged.
+Original proposed routes follow. The subsequent user approval separately
+promotes REPORTING-003: the seven statement/customer/operator routes below
+are implemented in [document 49](49_STATEMENT_API.md), with generated contracts.
+SLI/fiscal/claim routes remain unimplemented proposals; no new bearer scheme.
 Browser customer base `/management/v1/organizations/{orgId}/statements`:
 GET list, GET `/{id}`, GET `/{id}/lines`, GET `/{id}/export?format=csv`.
 Use existing ReadBilling permission (Owner/Admin/BillingViewer); project-granted
@@ -478,15 +481,16 @@ No new financial/fiscal personally identifying fields are collected in this task
 and then REPORTING-002 into document 16's executable register. Follow
 [source reconciliation](47_STATEMENT_SOURCE_RECONCILIATION.md) and
 [internal publication/revision scope](48_STATEMENT_PUBLICATION.md).
-All remaining rows below stay unpromoted design proposals; no reporting endpoint,
-fiscal/SLA feature or launch-gate pass is inferred. The original table and
+The subsequent Continue also promotes REPORTING-003's bounded statement API
+in [document 49](49_STATEMENT_API.md). All other rows below stay unpromoted
+design proposals; no fiscal/SLA feature or launch-gate pass is inferred. The original table and
 dated specification validation below remain historical design evidence.
 SECURITY-009's earlier dated retention/audit finding was separately closed by
 [the correction in document 46](46_RETENTION_AUDIT_ATOMICITY.md); it is not a
 current reporting defect or authorization for guardrail implementation.
 
 Originally all nine IDs were P2 design proposals, not executable register additions.
-Only REPORTING-001/002 are now promoted as recorded above. Each remaining ID
+Only REPORTING-001/002/003 are now promoted as recorded above. Each remaining ID
 needs separate approval/promotion; table order is recommended. Completion needs
 listed fixtures, generated contracts/docs as relevant, Release baseline and a
 focused commit. No task may mark a missing fiscal/SLA external approval passed.
