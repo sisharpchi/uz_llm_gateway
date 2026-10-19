@@ -217,6 +217,9 @@ This creates clear boundaries without paying the operational cost of many micros
     transaction correction, regression evidence and unchanged launch boundaries.
 47. `47_STATEMENT_SOURCE_RECONCILIATION.md` — REPORTING-001 internal read-only
     statement source/period reconciliation; no publication, endpoint or invoice.
+48. `48_STATEMENT_PUBLICATION.md` — REPORTING-002 immutable monthly statement
+    publication/revisions, Worker bounds, migration and recovery evidence;
+    internal only, no reporting endpoint, fiscal invoice or SLA entitlement.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

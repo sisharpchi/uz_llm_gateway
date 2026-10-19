@@ -1,5 +1,32 @@
 # Post-Implementation Audit
 
+## Statement publication follow-up — 2026-10-19
+
+The subsequent Continue separately promotes REPORTING-002 after REPORTING-001.
+[Document 48](48_STATEMENT_PUBLICATION.md) records the internal Worker's bounded
+Repeatable Read publication, immutable source/artifact versions, explicit
+predecessor/delta revisions, scoped command receipts and atomic audit/outbox.
+The migration adds only reporting tables, tenant/head composite relationships,
+append-only/sealing guards and a history-preserving Down refusal. No wallet,
+ledger, budget, hold or debt mutation is introduced.
+
+Final unchanged serialized Release validation passes 1106 tests, zero FAIL/SKIP,
+with sixteen Completed TRX reports. Twenty-eight new cases (12 unit, 16 PG) and
+two extended financial cases cover ENT-004–008/018/020 at this internal scope;
+PG 264, Billing 88, architecture 15 and AppHost 2 pass. Restore/nonincremental
+build, model/migration drift and whitespace checks pass. Initial failures,
+corrections, exact commands and limitations remain in document 48 rather than
+being replaced with a success-only history. This task-only commit closes
+REPORTING-002; it starts no follow-on task.
+
+This is not an authorized reporting API, UI, fiscal invoice, SLA entitlement,
+external customer notification or production gate pass. Internal trusted stores
+do not replace REPORTING-003's future permission/operator/MFA/CSRF facade.
+Local quarantined restore does not qualify distinct-host HA/PITR. Existing
+dead-letter visibility is metadata-only; this increment adds no operator repair
+endpoint or unbounded retry. REPORTING-003 and later features require separate
+approval; OPS-006 and independent external launch approvals remain unchanged.
+
 ## Statement source reconciliation follow-up — 2026-10-19
 
 The user's approval promotes only REPORTING-001 from ENTERPRISE-002 while

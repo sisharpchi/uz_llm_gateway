@@ -31,6 +31,13 @@ coverage/attribution. Existing 99.9% target, usage CSV and wallet credits are
 not substitutes. Synthetic fixtures and product approval remain separate from
 these business approvals; the initial paid-MVP fiscal policy gate still applies.
 
+[REPORTING-002's internal publication and local quarantined restore](48_STATEMENT_PUBLICATION.md)
+are repository evidence only. No reporting HTTP authorization, external
+notification, production backup guarantee, fiscal/SLA activation or launch-gate
+status is inferred from them. Preserve statement versions/source manifests and
+receipts during restore; review terminal/pending jobs before dispatch, never
+reset retry counters or delete immutable history to force a successful report.
+
 Optional Management automation in the [approved DX-004 specification](44_MANAGEMENT_AUTOMATION_API_SPEC.md)
 is not required for the first paid MVP and is not implemented. Future activation
 requires separate feature-execution approval, cross-audience/tenant/role tests,

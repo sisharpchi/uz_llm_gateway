@@ -761,6 +761,417 @@ namespace UZLLM.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementAttemptEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_number");
+
+                    b.Property<string>("FailureKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("failure_kind");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("outcome");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId", "AttemptNumber")
+                        .IsUnique();
+
+                    b.HasIndex("OperationId", "OrganizationId");
+
+                    b.ToTable("statement_attempt", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_statement_attempt_outcome", "attempt_number BETWEEN 1 AND 5 AND ((outcome = 'Published' AND failure_kind IS NULL) OR (outcome = 'Failed' AND failure_kind IS NOT NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementHeadEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActiveOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_operation_id");
+
+                    b.Property<long>("Generation")
+                        .HasColumnType("bigint")
+                        .HasColumnName("generation");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("LatestVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("latest_version_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_start");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActiveOperationId", "OrganizationId", "Id");
+
+                    b.HasIndex("OrganizationId", "PeriodStart", "Kind")
+                        .IsUnique();
+
+                    b.HasIndex("LatestVersionId", "OrganizationId", "Id", "Generation");
+
+                    b.ToTable("statement_head", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_statement_head_generation", "generation >= 0 AND ((generation = 0 AND latest_version_id IS NULL) OR (generation > 0 AND latest_version_id IS NOT NULL))");
+
+                            t.HasCheckConstraint("CK_statement_head_period", "kind = 'AccountStatement' AND period_start = (date_trunc('month', period_start AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementLineEntity", b =>
+                {
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("version_id");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("integer")
+                        .HasColumnName("ordinal");
+
+                    b.Property<Guid>("LedgerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ledger_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload_json");
+
+                    b.HasKey("VersionId", "Ordinal");
+
+                    b.HasIndex("VersionId", "LedgerId")
+                        .IsUnique();
+
+                    b.HasIndex("VersionId", "OrganizationId");
+
+                    b.ToTable("statement_line", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_statement_line_ordinal", "ordinal BETWEEN 1 AND 100000");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementOperationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("ExpectedGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("expected_generation");
+
+                    b.Property<string>("FailureKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("failure_kind");
+
+                    b.Property<Guid>("HeadId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("head_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid?>("PredecessorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_id");
+
+                    b.Property<Guid?>("PublishedVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_version_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RequestedByAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_account_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedByAccountId");
+
+                    b.HasIndex("HeadId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "CreatedAt");
+
+                    b.HasIndex("PredecessorId", "OrganizationId", "HeadId");
+
+                    b.HasIndex("PublishedVersionId", "OrganizationId", "HeadId");
+
+                    b.ToTable("statement_operation", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_statement_operation_status", "(status = 'Pending' AND published_version_id IS NULL AND failure_kind IS NULL) OR (status = 'Failed' AND published_version_id IS NULL AND failure_kind IS NOT NULL) OR (status = 'Published' AND published_version_id IS NOT NULL AND failure_kind IS NULL)");
+
+                            t.HasCheckConstraint("CK_statement_operation_terms", "expected_generation >= 0 AND length(btrim(reason)) BETWEEN 8 AND 500 AND ((expected_generation = 0 AND predecessor_id IS NULL) OR (expected_generation > 0 AND predecessor_id IS NOT NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementReceiptEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CommandSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("command_sha256");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("OperationKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("operation_kind");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("OperationId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "OperationKind", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("statement_receipt", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_statement_receipt_terms", "schema_version = 1 AND operation_kind IN ('Build','Revision') AND idempotency_key <> '00000000-0000-0000-0000-000000000000'::uuid AND command_sha256 ~ '^[a-f0-9]{64}$'");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementSourceEntity", b =>
+                {
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("version_id");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("PayloadSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("payload_sha256");
+
+                    b.HasKey("VersionId", "Kind", "SourceId");
+
+                    b.HasIndex("VersionId", "OrganizationId");
+
+                    b.ToTable("statement_source", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_statement_source_payload", "payload_sha256 ~ '^[a-f0-9]{64}$' AND (payload_json::jsonb->>'OrganizationId') IS NOT NULL AND (payload_json::jsonb->>'OrganizationId')::uuid = organization_id");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementVersionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CalculationVersion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("calculation_version");
+
+                    b.Property<byte[]>("CsvArtifact")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("csv_artifact");
+
+                    b.Property<string>("CsvSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("csv_sha256");
+
+                    b.Property<Guid>("HeadId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("head_id");
+
+                    b.Property<byte[]>("JsonArtifact")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("json_artifact");
+
+                    b.Property<string>("JsonSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("json_sha256");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_count");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid?>("PredecessorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_id");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<DateTimeOffset>("SnapshotCapturedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("snapshot_captured_at");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("snapshot_json");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_count");
+
+                    b.Property<string>("SourceDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_digest");
+
+                    b.Property<long>("TotalBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("total_bytes");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("HeadId", "OrganizationId");
+
+                    b.HasIndex("HeadId", "Revision")
+                        .IsUnique();
+
+                    b.HasIndex("OperationId", "OrganizationId", "HeadId");
+
+                    b.HasIndex("PredecessorId", "OrganizationId", "HeadId");
+
+                    b.ToTable("statement_version", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_statement_version_bounds", "source_count BETWEEN 1 AND 100000 AND line_count BETWEEN 0 AND 100000 AND total_bytes BETWEEN 1 AND 33554432 AND octet_length(json_artifact) + octet_length(csv_artifact) + octet_length(snapshot_json) <= total_bytes");
+
+                            t.HasCheckConstraint("CK_statement_version_terms", "schema_version = 1 AND revision > 0 AND ((revision = 1 AND predecessor_id IS NULL) OR (revision > 1 AND predecessor_id IS NOT NULL)) AND source_digest ~ '^[a-f0-9]{64}$' AND json_sha256 ~ '^[a-f0-9]{64}$' AND csv_sha256 ~ '^[a-f0-9]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.BillingWalletAdjustmentApprovalEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3459,6 +3870,118 @@ namespace UZLLM.Persistence.Migrations
                         .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementAttemptEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.BillingStatementOperationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementHeadEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementOperationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ActiveOperationId", "OrganizationId", "Id")
+                        .HasPrincipalKey("Id", "OrganizationId", "HeadId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("LatestVersionId", "OrganizationId", "Id", "Generation")
+                        .HasPrincipalKey("Id", "OrganizationId", "HeadId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementLineEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.BillingStatementVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementOperationEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementHeadEntity", null)
+                        .WithMany()
+                        .HasForeignKey("HeadId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PredecessorId", "OrganizationId", "HeadId")
+                        .HasPrincipalKey("Id", "OrganizationId", "HeadId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PublishedVersionId", "OrganizationId", "HeadId")
+                        .HasPrincipalKey("Id", "OrganizationId", "HeadId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementReceiptEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.BillingStatementOperationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementSourceEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.BillingStatementVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingStatementVersionEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.BillingStatementHeadEntity", null)
+                        .WithMany()
+                        .HasForeignKey("HeadId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementOperationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId", "OrganizationId", "HeadId")
+                        .HasPrincipalKey("Id", "OrganizationId", "HeadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PredecessorId", "OrganizationId", "HeadId")
+                        .HasPrincipalKey("Id", "OrganizationId", "HeadId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.BillingWalletAdjustmentApprovalEntity", b =>

@@ -85,6 +85,7 @@ public sealed partial class FoundationDbContext(DbContextOptions<FoundationDbCon
         ConfigureCustomerAlerts(modelBuilder);
         ConfigureFinancialCompletion(modelBuilder);
         ConfigureWalletAdjustments(modelBuilder);
+        ConfigureStatements(modelBuilder);
         ConfigureProviderCredentials(modelBuilder);
         ConfigurePayments(modelBuilder);
         modelBuilder.Entity<IdentityAccountEntity>(entity =>

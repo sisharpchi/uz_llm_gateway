@@ -89,6 +89,20 @@ public sealed partial class BillingFinancialIntegrationTests
         var budget = Assert.Single(await db.Set<BillingBudgetBucketEntity>().AsNoTracking().ToListAsync());
         Assert.Equal(3_000_000, budget.CapturedMicroUsd);
         Assert.Equal(1_500_000, budget.ReservedMicroUsd);
+        var finances = await PublicationMoneyAsync(db);
+        var publication = Publication(services);
+        var operation = await publication.RequestAsync(new(seed.OrganizationId, maker, new(2026, 9), Guid.NewGuid(), 0, null, "Exact financial fixture"));
+        await publication.BuildAsync(operation.Id, 1);
+        var version = await db.Set<BillingStatementVersionEntity>().AsNoTracking().SingleAsync();
+        using var report = JsonDocument.Parse(version.JsonArtifact);
+        Assert.Equal("1500000", report.RootElement.GetProperty("Balance").GetProperty("HeldMicroUsd").GetString());
+        Assert.Equal("2800000", report.RootElement.GetProperty("Balance").GetProperty("RecoveryDebtMicroUsd").GetString());
+        Assert.Equal("2500000", report.RootElement.GetProperty("Totals").GetProperty("NetUsageMicroUsd").GetString());
+        var annotation = Assert.Single(report.RootElement.GetProperty("PaymentAnnotations").EnumerateArray());
+        Assert.Equal("10000000", annotation.GetProperty("PrincipalTiyin").GetString());
+        Assert.Equal("1250000", annotation.GetProperty("FrozenTiyinPerUsd").GetString());
+        Assert.Equal("8000000", annotation.GetProperty("CreditMicroUsd").GetString());
+        Assert.Equal(finances, await PublicationMoneyAsync(db));
     }
 
     [Fact]
@@ -200,6 +214,18 @@ public sealed partial class BillingFinancialIntegrationTests
         db.Set<PaymentReconciliationCaseEntity>().Add(new() { Id = Guid.NewGuid(), IntentId = intentId,
             Reason = "amount_mismatch", Status = "Open", CreatedAt = Start });
         await db.SaveChangesAsync();
+        var publication = Publication(services);
+        var command = await PublicationCommandAsync(db, seed.OrganizationId);
+        var operation = await publication.RequestAsync(command);
+        await publication.BuildAsync(operation.Id, 1);
+        var published = await db.Set<BillingStatementVersionEntity>().AsNoTracking().SingleAsync();
+        using (var document = JsonDocument.Parse(published.JsonArtifact))
+        {
+            var pending = document.RootElement.GetProperty("Pending");
+            Assert.Equal(1, pending.GetProperty("Evidence").GetInt32());
+            Assert.Equal(1, pending.GetProperty("Settlement").GetInt32());
+            Assert.Equal(1, pending.GetProperty("MerchantMismatch").GetInt32());
+        }
         await StatementPaymentAsync(db, seed.OrganizationId, Start.AddMinutes(1)); // Paid source without a posting.
         // Synthetic corrupt link, but wallet arithmetic remains internally balanced.
         var ledger = new WalletLedgerService(new PostgreSqlWalletLedgerStore(db), services.GetRequiredService<ITransactionCoordinator>(), clock);
@@ -224,6 +250,13 @@ public sealed partial class BillingFinancialIntegrationTests
         Assert.Null(Assert.Single(sources.Usage).PriceVersionId);
         Assert.Equal(0, result.GrossUsageMicroUsd);
         Assert.Equal(before, await StatementFinancialFingerprintAsync(db));
+        await tx.CommitAsync();
+        var finances = await PublicationMoneyAsync(db);
+        var revision = await publication.RequestAsync(command with { IdempotencyKey = Guid.NewGuid(),
+            ExpectedGeneration = 1, PredecessorId = published.Id, Reason = "Reject missing financial links" });
+        Assert.Equal("Sources", (await Assert.ThrowsAsync<StatementBuildRejectedException>(() => publication.BuildAsync(revision.Id, 1))).Code);
+        Assert.Single(await db.Set<BillingStatementVersionEntity>().ToListAsync());
+        Assert.Equal(finances, await PublicationMoneyAsync(db));
     }
 
     [Fact]

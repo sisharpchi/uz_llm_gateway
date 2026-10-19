@@ -15,6 +15,7 @@
     <ProjectReference Include="..\..\BuildingBlocks\UZLLM.Persistence\UZLLM.Persistence.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\UZLLM.Observability\UZLLM.Observability.csproj" />
     <ProjectReference Include="..\Usage\UZLLM.Modules.Usage.csproj" />
+    <ProjectReference Include="..\Audit\UZLLM.Modules.Audit.csproj" />
   </ItemGroup>
 
 </Project>

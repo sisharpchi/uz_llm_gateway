@@ -84,7 +84,13 @@ ENTERPRISE-002 while OPS-006 remains externally Blocked. Only the internal
 read-only statement source/period/reconciliation foundation is authorized;
 no report publication, endpoint, fiscal/SLA issuance or launch pass. See
 [scope and evidence](47_STATEMENT_SOURCE_RECONCILIATION.md). REPORTING-002
-remains a proposed follow-on requiring separate promotion/approval.
+was a proposed follow-on at that handoff. A subsequent explicit Continue
+separately promotes REPORTING-002: bounded internal Worker publication,
+immutable versions and explicit revisions, now completed with 1106 passing
+Release tests as recorded in
+[document 48](48_STATEMENT_PUBLICATION.md). No HTTP/UI, fiscal/SLA feature or
+launch-gate pass is included. REPORTING-003 and later tasks still require
+separate approval/promotion; OPS-006 remains Blocked.
 
 ```text
 DOCS-002

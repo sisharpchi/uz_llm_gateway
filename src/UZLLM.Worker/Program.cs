@@ -22,6 +22,7 @@ builder.Services.AddUzllmAudit();
 builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmOrganizations();
 builder.Services.AddUzllmPayments(builder.Configuration);
+builder.Services.AddUzllmStatementPublication();
 builder.Services.AddUzllmIdentityEmailDelivery(builder.Configuration);
 builder.Services.AddUzllmOperationalAlertDelivery(builder.Configuration);
 builder.Services.AddUzllmCustomerAlerts(builder.Configuration);

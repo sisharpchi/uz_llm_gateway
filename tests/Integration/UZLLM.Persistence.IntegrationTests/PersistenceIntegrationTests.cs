@@ -383,6 +383,15 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // Disposable fixture only: production rollback refuses to erase statement history.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
+            DO $$ BEGIN
+              IF to_regclass('billing.statement_head') IS NOT NULL THEN
+                TRUNCATE TABLE billing.statement_attempt, billing.statement_source, billing.statement_line,
+                  billing.statement_version, billing.statement_receipt, billing.statement_operation, billing.statement_head;
+              END IF;
+            END $$;
+            """);
         // Disposable fixture only: production Down refuses to discard maker/checker history.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>()
             .Database.ExecuteSqlRawAsync("""
@@ -533,6 +542,24 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
         await using var scope = provider.CreateAsyncScope();
         var migrator = scope.ServiceProvider.GetRequiredService<IDatabaseMigrator>();
         await migrator.MigrateAsync();
+    }
+
+    public async Task<string> RestoreStatementQuarantineAsync()
+    {
+        // Disposable container only. Never start a Worker or dispatch restored side effects here.
+        var database = "statement_restore_" + Guid.NewGuid().ToString("N");
+        var dump = "/tmp/" + database + ".dump";
+        foreach (var command in new[]
+        {
+            new[] { "pg_dump", "-U", MigratorUser, "-d", DatabaseName, "--format=custom", "--file=" + dump },
+            new[] { "createdb", "-U", MigratorUser, database },
+            new[] { "pg_restore", "-U", MigratorUser, "--no-owner", "--exit-on-error", "--dbname=" + database, dump }
+        })
+        {
+            var result = await postgres.ExecAsync(command);
+            if (result.ExitCode != 0) throw new InvalidOperationException("Quarantined statement restore failed: " + result.Stderr);
+        }
+        return new NpgsqlConnectionStringBuilder(postgres.GetConnectionString()) { Database = database }.ConnectionString;
     }
 
     public ServiceProvider CreateServiceProvider()

@@ -330,6 +330,11 @@ reports and delivers committed notifications. No new service or database.
 
 Proposed future tables, **no migration in ENTERPRISE-002**:
 
+Execution note: REPORTING-002 separately implements the statement tables,
+operations/receipts and attempts described below; see document 48. Fiscal, SLI
+and SLA tables remain proposals. ENTERPRISE-002's specification-only boundary
+is preserved, not retroactively treated as runtime implementation.
+
 - `billing.statement_head` (org/UTC period/kind, generation/latest version) and
   append-only `statement_version`, `statement_line`, `statement_source` with
   unique `(org,period,kind,revision)`, `(version,source_kind,source_id)` and line
@@ -353,7 +358,12 @@ Proposed future tables, **no migration in ENTERPRISE-002**:
 Do not assume MAX(UUID)/occurredAt/xmin is a durable cross-transaction cursor.
 Every published source set is explicit. Build at Repeatable Read; transaction-
 scoped report-head serialization and uniqueness protect publish/revision;
-audit/outbox/receipt share that commit. Financial correction uses the existing
+audit/outbox/receipt result share that commit. For asynchronous statements,
+REPORTING-002 commits the immutable command-acceptance receipt, pending
+operation, requested audit and job together first. Publication atomically
+advances that operation's result/version link with artifacts, publish audit and
+outbox; the original receipt resolves the same operation, never a replacement
+receipt or a prematurely Published response. Financial correction uses the existing
 wallet-first transaction, never inside report rendering or provider I/O.
 Read ports enlist in the caller's snapshot, no nested independent commit.
 
@@ -464,10 +474,11 @@ No new financial/fiscal personally identifying fields are collected in this task
 
 ## 10. Approved follow-on design — unscheduled, execution approval required
 
-**2026-10-19 execution update:** the user's subsequent approval promotes only
-REPORTING-001 into document 16's executable register. Follow
-[its bounded implementation/evidence](47_STATEMENT_SOURCE_RECONCILIATION.md).
-All other rows below remain unpromoted design proposals; no publication,
+**2026-10-19 execution update:** separate user approvals promote REPORTING-001
+and then REPORTING-002 into document 16's executable register. Follow
+[source reconciliation](47_STATEMENT_SOURCE_RECONCILIATION.md) and
+[internal publication/revision scope](48_STATEMENT_PUBLICATION.md).
+All remaining rows below stay unpromoted design proposals; no reporting endpoint,
 fiscal/SLA feature or launch-gate pass is inferred. The original table and
 dated specification validation below remain historical design evidence.
 SECURITY-009's earlier dated retention/audit finding was separately closed by
@@ -475,7 +486,7 @@ SECURITY-009's earlier dated retention/audit finding was separately closed by
 current reporting defect or authorization for guardrail implementation.
 
 Originally all nine IDs were P2 design proposals, not executable register additions.
-Only REPORTING-001 is now promoted as recorded above. Each remaining ID
+Only REPORTING-001/002 are now promoted as recorded above. Each remaining ID
 needs separate approval/promotion; table order is recommended. Completion needs
 listed fixtures, generated contracts/docs as relevant, Release baseline and a
 focused commit. No task may mark a missing fiscal/SLA external approval passed.
