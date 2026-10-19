@@ -168,6 +168,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
                 403 => "Tenant/role, recent operator MFA or CSRF proof denied; empty body.",
                 404 => "Resource absent or outside the authorized scope; empty body.",
                 429 => "Attempt limit reached; Retry-After is in seconds; empty body.",
+                500 => "Policy update failed; safe Problem Details, no successful mutation response.",
                 _ => "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific."
             } };
             if (status is 400 or 409 or 503
@@ -184,6 +185,11 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
             }
             if (status == 429) result.Headers = new Dictionary<string, IOpenApiHeader>
                 { ["Retry-After"] = new OpenApiHeader { Schema = new OpenApiSchema { Type = JsonSchemaType.String } } };
+            if (status == 500) result.Content = new Dictionary<string, OpenApiMediaType>
+            {
+                ["application/problem+json"] = new() { Schema = await SchemaForAsync(
+                    typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), context, cancellationToken) }
+            };
             operation.Responses[status.ToString()] = result;
         }
         foreach (OpenApiResponse result in operation.Responses.Values)
@@ -310,7 +316,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         foreach (var dimension in new[] { "model", "provider", "api-key", "project" })
             Read<UsageBreakdown>(org + "/usage/by-" + dimension, 400);
         Read<PayloadRetentionPolicy>(project + "/payload-retention", 404);
-        Write<PayloadRetentionPolicy>("PUT", project + "/payload-retention", 200, 404, 503);
+        Write<PayloadRetentionPolicy>("PUT", project + "/payload-retention", 200, 404, 500, 503);
         Read<RetainedPayload>(project + "/payload-retention/requests/{requestId}", 404);
         Read<TeamMemberResponse[]>(org + "/team/members");
         Read<TeamInvitationResponse[]>(org + "/team/invitations");

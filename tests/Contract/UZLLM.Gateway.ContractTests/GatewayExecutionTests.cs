@@ -1468,9 +1468,6 @@ public sealed partial class GatewayExecutionTests
         public int RequestCaptures;
         public Task<PayloadRetentionPolicy> GetPolicyAsync(Guid organizationId, Guid projectId,
             CancellationToken cancellationToken) => Task.FromResult(new PayloadRetentionPolicy(false, 1440));
-        public Task<PayloadRetentionPolicy?> SetPolicyAsync(Guid organizationId, Guid projectId,
-            Guid accountId, bool enabled, int retentionMinutes, CancellationToken cancellationToken) =>
-            Task.FromResult<PayloadRetentionPolicy?>(null);
         public Task<bool> CaptureRequestAsync(Guid organizationId, Guid projectId, Guid requestId,
             byte[] payload, CancellationToken cancellationToken)
         {

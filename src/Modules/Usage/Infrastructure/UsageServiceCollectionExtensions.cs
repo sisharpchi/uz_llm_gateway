@@ -15,7 +15,17 @@ public static class UsageServiceCollectionExtensions
         services.AddScoped<IUsageExportService, UsageReadService>();
         services.AddScoped<IUsageRollupStore, PostgreSqlUsageRollupStore>();
         services.AddSingleton<PayloadEnvelopeProtector>();
-        services.AddScoped<IPayloadRetentionService, PostgreSqlPayloadRetentionService>();
+        services.AddScoped<PostgreSqlPayloadRetentionService>();
+        services.AddScoped<IPayloadRetentionService>(provider =>
+            provider.GetRequiredService<PostgreSqlPayloadRetentionService>());
+        return services;
+    }
+
+    public static IServiceCollection AddUzllmPayloadRetentionPolicies(this IServiceCollection services)
+    {
+        services.AddScoped<IPayloadRetentionPolicyStore>(provider =>
+            provider.GetRequiredService<PostgreSqlPayloadRetentionService>());
+        services.AddScoped<IPayloadRetentionPolicyService, PayloadRetentionPolicyService>();
         return services;
     }
 }

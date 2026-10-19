@@ -39,6 +39,10 @@ Provider refusal and application/tool authorization remain independent layers.
 | Payload protection, retention endpoint and retention sweep integration tests | Existing encryption/AAD, opt-out/expiry, role/CSRF/no-store, restore and financial-history preservation have coverage. They do not prove atomic policy/audit rollback or any PII detection accuracy. |
 | [FRONTEND-009](30_ALERTS_PRIVACY_UX.md), [privacy eligibility design](39_PRIVACY_ELIGIBILITY_SPEC.md), [capability expansion](42_GATEWAY_CAPABILITY_EXPANSION_SPEC.md) | Current UI controls retention, not guardrails. Strict privacy and new capabilities are approved specifications, not runtime features or permission to scan more surfaces. |
 
+This source matrix describes the 2026-10-18 design-review baseline. SECURITY-009
+was separately promoted on 2026-10-19; see the [corrective task and current validation](46_RETENTION_AUDIT_ATOMICITY.md).
+It does not implement a guardrail or qualify new consent/version/receipt rules.
+
 Preserve completed delivery history. Proposed SECURITY-009 closes the existing
 retention/audit ordering gap before new guardrail consent depends on it; do not
 silently claim PRIVACY-002 or FRONTEND-009 supplied that atomicity. It is a
@@ -432,8 +436,10 @@ Existing passing suites do not execute GRD-001–020.
 
 ## 11. Approved follow-on design — unscheduled, execution approval required
 
-All nine IDs below are proposed, not new executable register rows. SECURITY-009
-is conditional corrective P0; all other rows are P2. Approval of this document
+At specification approval, all nine IDs below were proposals. SECURITY-009
+was subsequently promoted separately into the executable P0 register on
+2026-10-19; its scoped correction/evidence is in document 46. The other eight
+rows remain unpromoted P2. Approval of this document
 alone does not promote any task or authorize implementation. Every task is
 complete only with its listed criteria/tests passing, matching docs/contracts
 and a focused commit. Table order is the recommended sequential order.

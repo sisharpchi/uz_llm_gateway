@@ -1,5 +1,18 @@
 # Post-Implementation Audit
 
+## Retention/audit corrective follow-up — 2026-10-19
+
+The user's Continue after ENTERPRISE-002 explicitly promotes SECURITY-009 into
+the P0 register. [Scoped correction and evidence](46_RETENTION_AUDIT_ATOMICITY.md)
+move policy/expiry/deletion and audit into one shared transaction, with no
+guardrail implementation. Final unchanged serialized Release baseline: 1035 PASS,
+zero FAIL/SKIP; PostgreSQL 241 (all ten retention cases), architecture 15, API
+schema 16, drift/types and frontend builds pass. Initial fixture/no-store and
+unrelated provider-health timing failures plus their rechecks are preserved in
+document 46, not hidden or fixed by weakening assertions. Earlier dated findings
+below describe the prior state and remain history, not current test claims.
+OPS-006 and external launch gates remain independent.
+
 ## Invoice/SLA specification follow-up — 2026-10-19
 
 [ENTERPRISE-002's source matrix](45_INVOICE_SLA_REPORTING_SPEC.md#2-verified-baseline-and-missing-evidence)

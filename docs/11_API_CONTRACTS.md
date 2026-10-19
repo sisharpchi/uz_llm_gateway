@@ -1082,6 +1082,15 @@ bytes when at most 1 MiB), and `expiresAt`, or `404` when missing/expired or
 outside the tenant/project. All responses use `Cache-Control: no-store`.
 Metadata APIs never return bodies.
 
+`SECURITY-009` makes policy replacement, expiry shortening/opt-out deletion
+and `payload_retention.updated` audit one shared PostgreSQL transaction.
+Audit failure/cancellation before commit rolls back all effects. Audit/storage
+exceptions return a no-store HTTP 500 Problem Details response with a safe title
+and no internal details; request cancellation propagates. No route or success
+wire format changes. A lost response after commit can still mean success;
+read policy before retrying an uncertain update. PUT is state replacement,
+not a versioned/idempotent command receipt. See [scope and regression evidence](46_RETENTION_AUDIT_ATOMICITY.md).
+
 For supported inference requests, `Idempotency-Key` is scoped to organization,
 key identity, and operation for 24 hours. A repeat returns `409` with the
 original request ID; mismatched request content also conflicts. The API stores

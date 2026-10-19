@@ -1343,6 +1343,18 @@
   },
   {
     "body": {
+      "status": 500,
+      "title": "Unable to update payload retention.",
+      "type": "https://tools.ietf.org/html/rfc9110#section-15.6.1"
+    },
+    "document": "management",
+    "mediaType": "application/problem+json",
+    "method": "put",
+    "path": "/management/v1/organizations/{organizationId}/projects/{projectId}/payload-retention",
+    "status": 500
+  },
+  {
+    "body": {
       "detail": "Synthetic dependency failure",
       "status": 503,
       "title": "Service Unavailable",

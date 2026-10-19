@@ -8,7 +8,7 @@ namespace UZLLM.Modules.Usage.Infrastructure;
 
 public sealed class PostgreSqlPayloadRetentionService(
     FoundationDbContext db, PayloadEnvelopeProtector protector, TimeProvider clock)
-    : IPayloadRetentionService
+    : IPayloadRetentionService, IPayloadRetentionPolicyStore
 {
     private static readonly PayloadRetentionPolicy Disabled = new(false, 1440);
 
@@ -27,7 +27,8 @@ public sealed class PostgreSqlPayloadRetentionService(
         if (retentionMinutes is < 60 or > 10080)
             throw new ArgumentOutOfRangeException(nameof(retentionMinutes),
                 "Retention must be between one hour and seven days.");
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Retention policy changes require an enclosing audited transaction.");
         var projectExists = await db.Set<ProjectEntity>().FromSqlInterpolated(
             $"SELECT * FROM gateway.project WHERE organization_id = {organizationId} AND id = {projectId} FOR UPDATE")
             .AsNoTracking().AnyAsync(cancellationToken);
@@ -69,7 +70,6 @@ public sealed class PostgreSqlPayloadRetentionService(
                 && value.ProjectId == projectId && value.ExpiresAt <= now)
                 .ExecuteDeleteAsync(cancellationToken);
         }
-        await transaction.CommitAsync(cancellationToken);
         return new(enabled, retentionMinutes);
     }
 

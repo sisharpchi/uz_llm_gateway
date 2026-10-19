@@ -40,11 +40,12 @@ read-only permissions do not authorize financial/operator mutations. No gate
 passes from this design or an unchanged baseline; retain OPS-006/007 and all
 existing provider/merchant/business prerequisites independently.
 
-If payload retention controls are offered at paid launch, close the commit-
-before-audit risk recorded in [SECURITY-007 §2](43_GUARDRAIL_PII_POLICY_SPEC.md#2-verified-baseline-and-concrete-gap)
-with transactional audit-failure/cancellation rollback evidence (proposed
-SECURITY-009); current fixtures do not supply it. The specification does not
-promote or complete that correction. Optional guardrails additionally need
+If payload retention controls are offered at paid launch, include SECURITY-009's
+[atomic policy/audit correction and fault-injection evidence](46_RETENTION_AUDIT_ATOMICITY.md)
+in the release review. The user separately promoted this correction; it closes
+the commit-before-audit risk recorded in SECURITY-007's historical source matrix,
+not the entire Security/Privacy gate. Pin the corrected artifact and verify the
+existing retention/backup schedule independently. Optional guardrails still need
 consent/corpus/expected-miss, no-content telemetry, retention-race, financial,
 load/failure/restore and rollout evidence. Input heuristics do not prove output
 safety, lawful processing or upstream ZDR; no gate passes from this specification.

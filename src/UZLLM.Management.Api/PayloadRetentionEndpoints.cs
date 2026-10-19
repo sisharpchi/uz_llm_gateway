@@ -31,8 +31,8 @@ public static class PayloadRetentionEndpoints
 
         group.MapPut("", async (Guid organizationId, Guid projectId, SetPayloadRetentionRequest request,
             HttpContext context, IOrganizationAuthorizationService authorization,
-            IPayloadRetentionService retention, PayloadEnvelopeProtector protector,
-            IAuditTrail audit, CancellationToken cancellationToken) =>
+            IPayloadRetentionPolicyService retention, PayloadEnvelopeProtector protector,
+            ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             if (!TryAccount(context, out var accountId)) return (IResult)Results.Unauthorized();
             try { await authorization.EnsureOwnerAsync(accountId, organizationId, cancellationToken); }
@@ -49,15 +49,21 @@ public static class PayloadRetentionEndpoints
                         statusCode: StatusCodes.Status503ServiceUnavailable);
                 }
             }
-            var policy = await retention.SetPolicyAsync(organizationId, projectId, accountId,
-                request.Enabled, request.RetentionMinutes, cancellationToken);
-            if (policy is null) return Results.NotFound();
-            await audit.RecordAsync(new(organizationId, accountId, "payload_retention.updated",
-                "project", projectId, context.Connection.RemoteIpAddress?.ToString(),
-                System.Text.Json.JsonSerializer.Serialize(new { request.Enabled, request.RetentionMinutes })),
-                cancellationToken);
             context.Response.Headers.CacheControl = "no-store";
-            return Results.Ok(policy);
+            try
+            {
+                var policy = await retention.SetPolicyAsync(organizationId, projectId, accountId,
+                    request.Enabled, request.RetentionMinutes,
+                    context.Connection.RemoteIpAddress?.ToString(), cancellationToken);
+                return policy is null ? Results.NotFound() : Results.Ok(policy);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                loggerFactory.CreateLogger("UZLLM.Management.Api.PayloadRetention")
+                    .LogError("Retention policy update failed ({FailureType}).", exception.GetType().Name);
+                return Results.Problem(title: "Unable to update payload retention.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
         }).RequireManagementCsrf().WithName("SetPayloadRetentionPolicy");
 
         group.MapGet("/requests/{requestId:guid}", async (Guid organizationId, Guid projectId,

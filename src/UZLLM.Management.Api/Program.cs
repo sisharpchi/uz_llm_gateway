@@ -30,6 +30,7 @@ builder.Services.AddUzllmAudit();
 builder.Services.AddUzllmApiKeys(builder.Configuration);
 builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmUsage();
+builder.Services.AddUzllmPayloadRetentionPolicies();
 builder.Services.AddUzllmCatalog();
 builder.Services.AddUzllmProviders(builder.Configuration);
 builder.Services.AddUzllmOrganizations();

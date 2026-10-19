@@ -8341,6 +8341,16 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Policy update failed; safe Problem Details, no successful mutation response. */
+            500: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
             503: {
                 headers: {

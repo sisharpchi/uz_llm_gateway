@@ -34,6 +34,13 @@ the P0 functional/security/financial prerequisites; `OPS-006–007` wait for
 telemetry and real-stack testing. Neither load tests nor deployment rehearsal
 can prove live payment/provider agreements.
 
+**2026-10-19 corrective insertion:** the user explicitly promotes SECURITY-009
+from the approved guardrail specification to close the existing retention/audit
+gap before offering payload controls at paid launch. It follows its completed
+SECURITY-007/PRIVACY-002/SECURITY-003 dependencies and precedes final qualification;
+it does not depend on OPS-006 or authorize guardrail implementation. Follow
+[the scoped correction](46_RETENTION_AUDIT_ATOMICITY.md) and register status.
+
 ## P1 — Product completion after safe launch
 
 | Stream | Dependency-safe order | Exit criterion |

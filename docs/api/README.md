@@ -2,6 +2,11 @@
 
 Task validation evidence: [DX-002 validation](VALIDATION.md).
 
+[SECURITY-009](../46_RETENTION_AUDIT_ATOMICITY.md) preserves retention routes and
+success bodies while making policy/audit atomic. The existing PUT failure is
+explicitly documented as safe no-store HTTP 500 Problem Details; schema, generated
+client and serializer fixture are updated together. No reporting/guardrail route.
+
 The [approved ENTERPRISE-002 statement/SLA specification](../45_INVOICE_SLA_REPORTING_SPEC.md)
 defines future session-backed reporting, immutable snapshots and external
 fiscal/contract approval paths; no invoice, statement or SLA endpoint/security

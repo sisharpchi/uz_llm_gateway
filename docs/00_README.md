@@ -213,6 +213,8 @@ This creates clear boundaries without paying the operational cost of many micros
 45. `45_INVOICE_SLA_REPORTING_SPEC.md` — approved prepaid statement, fiscal/SLA
     approval boundaries, source/revision and coverage rules; specification only,
     no implemented invoice, SLA remedy or reporting endpoint.
+46. `46_RETENTION_AUDIT_ATOMICITY.md` — SECURITY-009 retention policy/audit
+    transaction correction, regression evidence and unchanged launch boundaries.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

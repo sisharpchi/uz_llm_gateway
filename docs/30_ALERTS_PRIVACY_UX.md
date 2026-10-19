@@ -53,6 +53,9 @@ encrypted bodies. No financial, provider, worker-delivery or schema changes.
   ledger and audit remain. No retroactive capture, metadata erasure, upstream ZDR
   or existing-backup byte-erasure promise. Financial/audit legal hold, approved
   operational schedules and quarantined restore scrub remain distinct.
+- SECURITY-009 subsequently makes policy, shortening/opt-out effects and audit
+  atomic. Its [rollback/cancellation evidence](46_RETENTION_AUDIT_ATOMICITY.md)
+  supplements this task's historical UI coverage; no new screen or guardrail.
 - Private inspector requires a pasted project request UUID and an explicit,
   audited read. Ordinary Activity never fetches bodies. Render as escaped text;
   nullable response explains incomplete/oversized output without implying zero

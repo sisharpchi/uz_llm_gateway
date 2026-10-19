@@ -3,6 +3,9 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using UZLLM.Modules.Audit.Application;
+using UZLLM.Modules.Audit.Infrastructure;
+using UZLLM.Modules.Usage.Application;
 using UZLLM.Modules.Usage.Infrastructure;
 using UZLLM.Persistence;
 
@@ -22,6 +25,9 @@ public sealed class PayloadRetentionIntegrationTests(PersistenceIntegrationFixtu
         var ids = await SeedAsync(db);
         var time = new FrozenClock(DateTimeOffset.UtcNow);
         var service = CreateService(db, time);
+        var policies = new PayloadRetentionPolicyService(service,
+            new AuditTrail(new PostgreSqlAuditEventStore(db), time),
+            scope.ServiceProvider.GetRequiredService<ITransactionCoordinator>());
         var request = Encoding.UTF8.GetBytes("{\"secret\":\"private prompt\"}");
         var response = Encoding.UTF8.GetBytes("{\"answer\":\"private reply\"}");
 
@@ -30,7 +36,7 @@ public sealed class PayloadRetentionIntegrationTests(PersistenceIntegrationFixtu
             request, default));
         Assert.Empty(await db.Set<UsagePayloadEntity>().ToArrayAsync());
 
-        Assert.NotNull(await service.SetPolicyAsync(ids.Org, ids.Project, ids.Account, true, 60, default));
+        Assert.NotNull(await policies.SetPolicyAsync(ids.Org, ids.Project, ids.Account, true, 60, null, default));
         Assert.True(await service.CaptureRequestAsync(ids.Org, ids.Project, ids.Request,
             request, default));
         await service.CaptureResponseAsync(ids.Org, ids.Project, ids.Request, response, default);
@@ -43,7 +49,7 @@ public sealed class PayloadRetentionIntegrationTests(PersistenceIntegrationFixtu
         Assert.Null(await service.GetPayloadAsync(Guid.NewGuid(), ids.Project, ids.Request, default));
         Assert.Null(await service.GetPayloadAsync(ids.Org, Guid.NewGuid(), ids.Request, default));
 
-        await service.SetPolicyAsync(ids.Org, ids.Project, ids.Account, false, 60, default);
+        await policies.SetPolicyAsync(ids.Org, ids.Project, ids.Account, false, 60, null, default);
         Assert.Empty(await db.Set<UsagePayloadEntity>().AsNoTracking().ToArrayAsync());
         Assert.Null(await service.GetPayloadAsync(ids.Org, ids.Project, ids.Request, default));
         Assert.True(await db.Set<UsageRequestEntity>().AnyAsync(value => value.Id == ids.Request));
@@ -60,10 +66,13 @@ public sealed class PayloadRetentionIntegrationTests(PersistenceIntegrationFixtu
         var ids = await SeedAsync(db);
         var time = new FrozenClock(DateTimeOffset.UtcNow);
         var service = CreateService(db, time);
-        await service.SetPolicyAsync(ids.Org, ids.Project, ids.Account, true, 120, default);
+        var policies = new PayloadRetentionPolicyService(service,
+            new AuditTrail(new PostgreSqlAuditEventStore(db), time),
+            scope.ServiceProvider.GetRequiredService<ITransactionCoordinator>());
+        await policies.SetPolicyAsync(ids.Org, ids.Project, ids.Account, true, 120, null, default);
         await service.CaptureRequestAsync(ids.Org, ids.Project, ids.Request,
             Encoding.UTF8.GetBytes("secret"), default);
-        await service.SetPolicyAsync(ids.Org, ids.Project, ids.Account, true, 60, default);
+        await policies.SetPolicyAsync(ids.Org, ids.Project, ids.Account, true, 60, null, default);
         var expires = (await db.Set<UsagePayloadEntity>().AsNoTracking().SingleAsync()).ExpiresAt;
         Assert.InRange((expires - time.GetUtcNow().AddMinutes(60)).Duration(),
             TimeSpan.Zero, TimeSpan.FromMilliseconds(1));

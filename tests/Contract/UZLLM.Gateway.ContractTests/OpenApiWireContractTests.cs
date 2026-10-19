@@ -195,6 +195,10 @@ public sealed class OpenApiWireContractTests : IDisposable
             new UsageAggregationInfo(1, now, "HourlyRollupsWithLiveEdges")));
 
         context = Context();
+        await Results.Problem(title: "Unable to update payload retention.", statusCode: 500).ExecuteAsync(context);
+        snapshots.Add(new("management", org + "/projects/{projectId}/payload-retention", "put", 500,
+            "application/problem+json", Body(context)));
+        context = Context();
         await Results.Problem("Synthetic dependency failure", statusCode: 503).ExecuteAsync(context);
         snapshots.Add(new("management", org + "/billing/quotes", "post", 503, "application/problem+json", Body(context)));
         context = Context();
