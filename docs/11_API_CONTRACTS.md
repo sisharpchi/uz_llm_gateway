@@ -1,5 +1,14 @@
 # API Contracts
 
+INVOICE-001 adds five operator-only operations under
+`/management/v1/admin/organizations/{organizationId}/reporting-evidence`:
+POST fiscal/contracts/links and GET kind list/detail. See
+[profile, wire, replay and external approval boundaries](52_EXTERNAL_REPORTING_EVIDENCE.md#operator-api).
+Existing session/current operator/recent MFA and mutation CSRF apply, no-store,
+8 KiB commands/30-second deadline. All contract/report linkage is EvidenceOnly;
+no issuance, arbitrary document fetch, tax calculation, SLA remedy or customer
+provenance endpoint. Generated artifacts remain authoritative.
+
 The separately promoted SLO-002 adds seven operator-only operations under
 `/management/v1/admin/sli-reports`: closed-month build, explicit predecessor/
 generation revision, job, list, summary, frozen sources and classified executions.

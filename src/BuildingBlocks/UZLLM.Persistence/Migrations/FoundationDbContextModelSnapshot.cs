@@ -444,6 +444,207 @@ namespace UZLLM.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.BillingReportingEvidenceEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("CommandSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("command_sha256");
+
+                    b.Property<string>("ContractKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("contract_key");
+
+                    b.Property<Guid?>("ContractReferenceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("contract_reference_id");
+
+                    b.Property<string>("DocumentNumber")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("document_number");
+
+                    b.Property<DateTimeOffset?>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateTimeOffset?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_to");
+
+                    b.Property<string>("ExternalOperationReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("external_operation_reference");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<bool>("IsOperationRoot")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_operation_root");
+
+                    b.Property<string>("IssuerKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("issuer_key");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LinkKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("link_key");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("PayloadSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("payload_sha256");
+
+                    b.Property<string>("PolicyVersion")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("policy_version");
+
+                    b.Property<Guid?>("PredecessorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_id");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("profile_id");
+
+                    b.Property<int>("ProfileVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("profile_version");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("ScopeId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("scope_id");
+
+                    b.Property<Guid?>("SliReportVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sli_report_version_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid?>("StatementVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("statement_version_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("PredecessorId")
+                        .IsUnique();
+
+                    b.HasIndex("SliReportVersionId");
+
+                    b.HasIndex("ContractReferenceId", "OrganizationId");
+
+                    b.HasIndex("IssuerKey", "DocumentNumber")
+                        .IsUnique()
+                        .HasFilter("kind = 'fiscal' AND state = 'Registered'");
+
+                    b.HasIndex("IssuerKey", "ExternalOperationReference")
+                        .IsUnique()
+                        .HasFilter("is_operation_root");
+
+                    b.HasIndex("OrganizationId", "LinkKey")
+                        .IsUnique()
+                        .HasFilter("kind = 'links'");
+
+                    b.HasIndex("ProfileId", "ProfileVersion");
+
+                    b.HasIndex("StatementVersionId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "ContractKey", "PolicyVersion")
+                        .IsUnique()
+                        .HasFilter("kind = 'contracts' AND state = 'EvidenceOnly'");
+
+                    b.HasIndex("OrganizationId", "Kind", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("PredecessorId", "OrganizationId", "Kind");
+
+                    b.HasIndex("OrganizationId", "Kind", "RecordedAt", "Id");
+
+                    b.ToTable("reporting_evidence", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_reporting_evidence_bounds", "octet_length(payload_json) BETWEEN 1 AND 32768 AND length(payload_sha256) = 64 AND length(command_sha256) = 64");
+
+                            t.HasCheckConstraint("CK_reporting_evidence_kind", "(kind = 'fiscal' AND state IN ('Unknown','ReviewRequired','Registered','Cancelled') AND issuer_key IS NOT NULL AND external_operation_reference IS NOT NULL AND contract_reference_id IS NULL AND sli_report_version_id IS NULL AND (state <> 'Registered' OR document_number IS NOT NULL)) OR (kind = 'contracts' AND state IN ('EvidenceOnly','Revoked') AND contract_key IS NOT NULL AND policy_version IS NOT NULL AND scope_id IS NOT NULL AND effective_from < effective_to AND statement_version_id IS NULL AND sli_report_version_id IS NULL AND contract_reference_id IS NULL AND issuer_key IS NULL AND NOT is_operation_root) OR (kind = 'links' AND state = 'EvidenceOnly' AND contract_reference_id IS NOT NULL AND link_key IS NOT NULL AND (statement_version_id IS NOT NULL OR sli_report_version_id IS NOT NULL) AND predecessor_id IS NULL AND issuer_key IS NULL AND NOT is_operation_root)");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingReportingProfileEntity", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("snapshot_json");
+
+                    b.HasKey("Id", "Version");
+
+                    b.ToTable("reporting_profile", "billing", t =>
+                        {
+                            t.HasCheckConstraint("CK_reporting_profile_bounds", "version > 0 AND octet_length(snapshot_json) BETWEEN 1 AND 32768 AND length(sha256) = 64");
+                        });
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.BillingReservationBudgetEntity", b =>
                 {
                     b.Property<Guid>("ReservationId")
@@ -4275,6 +4476,50 @@ namespace UZLLM.Persistence.Migrations
                         .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.BillingReportingEvidenceEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.SliReportVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SliReportVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("UZLLM.Persistence.BillingReportingEvidenceEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ContractReferenceId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("UZLLM.Persistence.BillingReportingProfileEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ProfileId", "ProfileVersion")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.BillingStatementVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StatementVersionId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("UZLLM.Persistence.BillingReportingEvidenceEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PredecessorId", "OrganizationId", "Kind")
+                        .HasPrincipalKey("Id", "OrganizationId", "Kind")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.BillingReservationBudgetEntity", b =>

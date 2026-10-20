@@ -1,5 +1,41 @@
 # Post-Implementation Audit
 
+## External reporting evidence follow-up — 2026-10-20
+
+The user's Continue separately promotes INVOICE-001 after REPORTING-003/SLO-002.
+[Document 52](52_EXTERNAL_REPORTING_EVIDENCE.md) records the default-empty/disabled,
+strict versioned deployment profile registry, explicit synthetic/unknown-tax
+labels, issuer/series/operation uniqueness, immutable correction/reconciliation/
+cancellation, contract effective scope/amendment/revocation and version-pinned
+statement/SLI links. Even signed contracts and complete engineering reports
+remain EvidenceOnly, not legal verification or credit eligibility.
+
+Two Billing-owned tables use tenant-composite FKs, immutable history guards,
+scoped command receipts, actual-actor atomic audit and integrity-checked JSON.
+The five additive Management operations recheck session/current operator/recent
+MFA, mutation CSRF, body/deadline/cursor bounds and no-store. No Gateway hot path,
+financial posting, provider SDK boundary, module dependency or architecture
+exception changes. No issuer/ERP connector, file/URL fetch, claim, UI or outbox
+side effect is introduced. Explicit Migrator only; no shared DB was migrated.
+
+Final same-source serialized Release baseline passes **1386 tests, zero FAIL/
+SKIP**, seventeen Completed TRX reports; all 68 new cases pass (48 policy,
+12 facade/bounds, 1 wire, 7 PG/HTTP). PG 294, Gateway 427, Billing 136,
+architecture 15 and AppHost 2 pass. API generation/drift, schema18/types, locked
+frontend builds, model drift/discovery and whitespace pass; old 110 Management
+paths/schemas and all Gateway artifacts are unchanged, with five new paths.
+Exact scenarios/commands and intermediate fixture/config-binding corrections,
+CSV timeout/recheck and interrupted/concurrent npm-install effects are recorded
+in document 52. No unrelated test, timeout or assertion was disabled or weakened.
+
+Live profiles require independent finance/legal/issuer/archive/commercial and
+security/operations evidence, consistent deployment withdrawal and quarantined
+restore review. No real profile is shipped, synthetic profiles cannot start
+Production, and profile metadata never grants operator or maker/checker rights.
+OPS-006, HA/PITR, SLI monthly input-capacity limits and source-map-js high advisory
+remain independent. BILLING-004 and later proposals remain unpromoted; no gate,
+paid traffic, invoice issuance or contractual SLA is activated by this completion.
+
 ## Operational SLI follow-up — 2026-10-20
 
 The user's Continue separately promotes SLO-002 after completed SLO-001.

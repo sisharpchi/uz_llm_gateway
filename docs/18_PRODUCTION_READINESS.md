@@ -22,6 +22,15 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
+Optional [INVOICE-001 evidence registration](52_EXTERNAL_REPORTING_EVIDENCE.md)
+passes no Payment, Financial, Legal or SLA gate. Live registry is empty/disabled
+by default; no real profile is shipped. Before activation, independently approve
+canonical issuer/customer identity, currency/scale, document/correction/tax
+requirements and complete issuer-verification/archive/retention evidence. Review
+deployment profile/version/revocation records and quarantined restore linkage.
+Synthetic records are prohibited in Production and cannot replace signed fiscal/
+commercial decisions. No issuer connector or live verification is implemented.
+
 Optional [SLO-002 operational reporting](51_OPERATIONAL_SLI_REPORTS.md) does not
 pass Reliability, Provider or Legal gates. Exact observed ratios and immutable
 revisions coexist with Incomplete/NoData. Default collection is not qualifying

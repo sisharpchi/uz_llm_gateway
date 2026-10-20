@@ -19,6 +19,7 @@ using UZLLM.Persistence;
 using UZLLM.Management.Api.Statements;
 using UZLLM.Management.Api.SliReports;
 using UZLLM.Modules.Billing.Contracts;
+using UZLLM.Management.Api.ReportingEvidence;
 
 namespace UZLLM.Management.Api.OpenApi;
 
@@ -39,6 +40,30 @@ public static class ManagementOpenApi
                 if (context.JsonTypeInfo.Type == typeof(ApiKeyPermissions) && schema.Properties is not null)
                     foreach (var property in schema.Properties.Values.OfType<OpenApiSchema>())
                         property.MaxItems = 128;
+                if (context.JsonTypeInfo.Type == typeof(RegisterFiscalEvidenceRequest)
+                    || context.JsonTypeInfo.Type == typeof(RegisterContractReferenceRequest)
+                    || context.JsonTypeInfo.Type == typeof(LinkContractReportRequest)
+                    || context.JsonTypeInfo.Type == typeof(FiscalDocumentReference)
+                    || context.JsonTypeInfo.Type == typeof(FiscalEvidenceAmounts))
+                {
+                    schema.AdditionalPropertiesAllowed = false;
+                    schema.Description = "Controlled external references only; 8 KiB command cap. Exact profile-defined integer units; null tax is unknown. No issuance, URL fetch or credit eligibility.";
+                    if (schema.Properties is { } evidenceProperties)
+                    {
+                        if (evidenceProperties.TryGetValue("reason", out var reasonSchema) && reasonSchema is OpenApiSchema reason)
+                        { reason.MinLength = 8; reason.MaxLength = 500; }
+                        if (evidenceProperties.TryGetValue("outcome", out var outcomeSchema) && outcomeSchema is OpenApiSchema outcome)
+                            outcome.Enum = [.. new[] { "Registered", "Unknown", "ReviewRequired", "Cancelled" }.Select(v => (JsonNode)JsonValue.Create(v)!)];
+                        if (evidenceProperties.TryGetValue("state", out var stateSchema) && stateSchema is OpenApiSchema state)
+                            state.Enum = [JsonValue.Create("EvidenceOnly"), JsonValue.Create("Revoked")];
+                        foreach (var name in new[] { "totalUnits", "netUnits", "taxUnits" })
+                            if (evidenceProperties.TryGetValue(name, out var unitsSchema) && unitsSchema is OpenApiSchema units)
+                            { units.Pattern = "^(0|[1-9][0-9]{0,37})$"; units.MaxLength = 38; }
+                    }
+                }
+                if (context.JsonTypeInfo.Type == typeof(ReportingEvidenceResponse) && schema.Properties is { } responseProperties
+                    && responseProperties["eligibility"] is OpenApiSchema eligibility)
+                    eligibility.Enum = [JsonValue.Create("EvidenceOnly")];
                 if (context.JsonTypeInfo.Type == typeof(TenantLimits) && schema.Properties is { } limitProperties)
                 {
                     schema.AdditionalPropertiesAllowed = false;
@@ -193,6 +218,9 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
             if (status == 202 && response.Type is not null)
                 result.Headers = new Dictionary<string, IOpenApiHeader>
                     { ["Location"] = new OpenApiHeader { Schema = new OpenApiSchema { Type = JsonSchemaType.String } } };
+            if (status == 201 && path.Contains("/reporting-evidence/", StringComparison.Ordinal))
+                result.Headers = new Dictionary<string, IOpenApiHeader>
+                    { ["Location"] = new OpenApiHeader { Schema = new OpenApiSchema { Type = JsonSchemaType.String } } };
             operation.Responses[status.ToString()] = result;
         }
         foreach (var status in response.Errors)
@@ -208,7 +236,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
             } };
             if (status is 400 or 409 or 503
                 || (path.Contains("/statements", StringComparison.Ordinal) || path.Contains("/reports/", StringComparison.Ordinal) || path.Contains("/sli-reports", StringComparison.Ordinal)
-                    || path.EndsWith("/usage/export", StringComparison.Ordinal)) && status is 413 or 504)
+                    || path.Contains("/reporting-evidence/", StringComparison.Ordinal) || path.EndsWith("/usage/export", StringComparison.Ordinal)) && status is 413 or 504)
             {
                 result.Content = new Dictionary<string, OpenApiMediaType>
                 {
@@ -247,7 +275,8 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
             AddHeader(operation, "Idempotency-Key", true, "Replay is valid only for the same immutable quote.");
         if (path.Contains("/admin/", StringComparison.Ordinal))
             operation.Description = "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.";
-        if (method == "GET" && (path.Contains("/statements", StringComparison.Ordinal) || path.Contains("/sli-reports", StringComparison.Ordinal)))
+        if (method == "GET" && (path.Contains("/statements", StringComparison.Ordinal) || path.Contains("/sli-reports", StringComparison.Ordinal)
+            || path.Contains("/reporting-evidence/", StringComparison.Ordinal)))
             foreach (var parameter in operation.Parameters?.OfType<OpenApiParameter>() ?? [])
             {
                 if (parameter.Name == "limit") parameter.Schema = new OpenApiSchema
@@ -258,6 +287,9 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
                 if (parameter.Name == "format") parameter.Schema = new OpenApiSchema
                     { Type = JsonSchemaType.String, Enum = [JsonValue.Create("csv")], Default = JsonValue.Create("csv") };
                 if (parameter.Name is "from" or "to") parameter.Description = "UTC calendar month start; from inclusive, to exclusive.";
+                if (parameter.Name == "kind" && path.Contains("/reporting-evidence/", StringComparison.Ordinal))
+                    parameter.Schema = new OpenApiSchema { Type = JsonSchemaType.String,
+                        Enum = [JsonValue.Create("fiscal"), JsonValue.Create("contracts"), JsonValue.Create("links")] };
             }
         if (path.EndsWith("/usage/export", StringComparison.Ordinal))
         {
@@ -372,6 +404,11 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Read<SliReportJobResponse>(sli + "/jobs/{id}", 404, 503, 504);
         Write<SliReportJobResponse>("POST", sli, 202, 409, 413, 415, 503, 504);
         Write<SliReportJobResponse>("POST", sli + "/{id}/revisions", 202, 404, 409, 413, 415, 503, 504);
+        const string evidence = "/admin" + org + "/reporting-evidence";
+        foreach (var kind in new[] { "fiscal", "contracts", "links" })
+            Write<ReportingEvidenceResponse>("POST", evidence + "/" + kind, 201, 404, 409, 413, 415, 503, 504);
+        Read<ReportingEvidencePage>(evidence + "/{kind}", 400, 503, 504);
+        Read<ReportingEvidenceResponse>(evidence + "/{kind}/{id}", 400, 404, 503, 504);
         Read<UsageActivityPage>(org + "/usage/activity", 400);
         Read<UsageRequestDetail>(org + "/usage/requests/{requestId}", 404);
         Read<UsageSummary>(org + "/usage/summary", 400);

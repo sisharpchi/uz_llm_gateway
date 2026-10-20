@@ -229,6 +229,9 @@ This creates clear boundaries without paying the operational cost of many micros
 51. `51_OPERATIONAL_SLI_REPORTS.md` — versioned operator-only monthly SLI
     classification/ratios, explicit coverage and immutable source/revision evidence;
     not a contractual SLA or compensation engine.
+52. `52_EXTERNAL_REPORTING_EVIDENCE.md` — approved-profile external fiscal
+    provenance and contract/report links; immutable EvidenceOnly metadata,
+    not local issuance, tax determination, claim/credit or a launch pass.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

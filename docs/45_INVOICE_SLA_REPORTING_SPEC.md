@@ -383,7 +383,10 @@ Original proposed routes follow. The subsequent user approval separately
 promotes REPORTING-003: the seven statement/customer/operator routes below
 are implemented in [document 49](49_STATEMENT_API.md), with generated contracts.
 SLO-002 subsequently adds the operator SLI routes in
-[document 51](51_OPERATIONAL_SLI_REPORTS.md); fiscal/claim routes remain proposals.
+[document 51](51_OPERATIONAL_SLI_REPORTS.md); actual issuer/claim routes remain proposals.
+The later INVOICE-001 approval separately adds only the five operator external
+metadata/contract-reference/link routes in [document 52](52_EXTERNAL_REPORTING_EVIDENCE.md).
+Actual fiscal issuance and claim/credit routes still remain proposals.
 No new bearer scheme.
 Browser customer base `/management/v1/organizations/{orgId}/statements`:
 GET list, GET `/{id}`, GET `/{id}/lines`, GET `/{id}/export?format=csv`.
@@ -480,6 +483,13 @@ No new financial/fiscal personally identifying fields are collected in this task
 
 ## 10. Approved follow-on design — unscheduled, execution approval required
 
+**INVOICE-001 execution update — 2026-10-20:** the subsequent Continue separately
+promotes approved-profile external fiscal metadata and contract/report linkage.
+Follow [document 52](52_EXTERNAL_REPORTING_EVIDENCE.md); it does not authorize local
+issuance, tax determination, claims/credit, UI, live fiscal registration or SLA
+activation. BILLING-004 and later rows remain proposals. The original nine-row
+table and specification evidence below remain historical design traceability.
+
 **2026-10-19 execution update:** separate user approvals promote REPORTING-001
 and then REPORTING-002 into document 16's executable register. Follow
 [source reconciliation](47_STATEMENT_SOURCE_RECONCILIATION.md) and
@@ -496,7 +506,7 @@ SECURITY-009's earlier dated retention/audit finding was separately closed by
 current reporting defect or authorization for guardrail implementation.
 
 Originally all nine IDs were P2 design proposals, not executable register additions.
-Only REPORTING-001/002/003 and SLO-001/002 are now promoted as recorded above. Each remaining ID
+Only REPORTING-001/002/003, SLO-001/002 and INVOICE-001 are now promoted as recorded above. Each remaining ID
 needs separate approval/promotion; table order is recommended. Completion needs
 listed fixtures, generated contracts/docs as relevant, Release baseline and a
 focused commit. No task may mark a missing fiscal/SLA external approval passed.

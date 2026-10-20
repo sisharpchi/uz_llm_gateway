@@ -80,8 +80,17 @@ approved, decomposed follow-on backlog, not production activation.
 ## Dependency spine
 
 **2026-10-20 approved independent increment:** the subsequent Continue promotes
+INVOICE-001 after REPORTING-003/SLO-002. Follow the bounded
+[external evidence and contract/report linkage](52_EXTERNAL_REPORTING_EVIDENCE.md).
+INVOICE-001 is Completed with 1386 passing serialized Release tests and unchanged
+financial/launch boundaries; exact validation/limitations are linked there.
+BILLING-004 and later proposals need separate approval. OPS-006 stays Blocked;
+actual finance/legal/issuer/commercial approvals and all launch gates remain separate.
+
+**2026-10-20 approved independent increment:** the subsequent Continue promotes
 SLO-002 after completed SLO-001. Follow [operational report scope](51_OPERATIONAL_SLI_REPORTS.md).
-INVOICE-001 and later proposals require separate promotion; OPS-006 and external
+INVOICE-001's subsequent promotion is recorded above; later proposals require
+separate promotion. OPS-006 and external
 launch prerequisites remain unchanged. No contractual SLA is authorized.
 
 **2026-10-19 approved independent increment:** the subsequent Continue promotes
@@ -103,7 +112,7 @@ Release tests as recorded in
 launch-gate pass is included. The subsequent Continue separately promotes
 REPORTING-003's authorized statement/read/export/operator facade in
 [document 49](49_STATEMENT_API.md). The separate SLO-001/002 promotions are
-recorded above; later tasks (starting with INVOICE-001)
+recorded above, followed by INVOICE-001; later tasks (starting with BILLING-004)
 still require separate approval/promotion; OPS-006 remains Blocked.
 
 ```text

@@ -11,6 +11,7 @@ using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Management.Api.Statements;
 using UZLLM.Management.Api.SliReports;
+using UZLLM.Management.Api.ReportingEvidence;
 
 namespace UZLLM.Gateway.ContractTests;
 
@@ -19,6 +20,36 @@ public sealed class OpenApiWireContractTests : IDisposable
     private readonly ServiceProvider services = new ServiceCollection().AddLogging().BuildServiceProvider();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private static string Root => FindRoot();
+
+    [Fact]
+    public async Task External_evidence_wire_keeps_operator_only_exact_units_and_no_issuance_or_entitlement_overrides()
+    {
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Root, "docs/api/management-v1.openapi.json")));
+        var paths = document.RootElement.GetProperty("paths"); const string root = "/management/v1/admin/organizations/{organizationId}/reporting-evidence";
+        foreach (var (path, method) in new[] { (root + "/fiscal", "post"), (root + "/contracts", "post"), (root + "/links", "post"),
+            (root + "/{kind}", "get"), (root + "/{kind}/{id}", "get") })
+        {
+            var op = paths.GetProperty(path).GetProperty(method); Assert.Contains("recent MFA", op.GetProperty("description").GetString());
+            Assert.Contains(op.GetProperty("security").EnumerateArray(), s => s.TryGetProperty("Session", out _));
+            foreach (var status in new[] { "401", "403", "503", "504" }) Assert.True(op.GetProperty("responses").TryGetProperty(status, out _));
+            var success = op.GetProperty("responses").GetProperty(method == "post" ? "201" : "200");
+            Assert.Equal("no-store", success.GetProperty("headers").GetProperty("Cache-Control").GetProperty("schema").GetProperty("enum")[0].GetString());
+            if (method == "post")
+            {
+                Assert.True(success.GetProperty("headers").TryGetProperty("Location", out _));
+                Assert.Contains(op.GetProperty("parameters").EnumerateArray(), p => p.GetProperty("name").GetString() == IdentityCookieNames.CsrfHeader && p.GetProperty("required").GetBoolean());
+            }
+        }
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        foreach (var name in new[] { "RegisterFiscalEvidenceRequest", "RegisterContractReferenceRequest", "LinkContractReportRequest" })
+        {
+            var schema = schemas.GetProperty(name); Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
+            foreach (var forbidden in new[] { "approved", "taxRate", "archiveUrl", "eligibility", "creditAmount" }) Assert.False(schema.GetProperty("properties").TryGetProperty(forbidden, out _));
+        }
+        Assert.Equal("EvidenceOnly", schemas.GetProperty("ReportingEvidenceResponse").GetProperty("properties").GetProperty("eligibility").GetProperty("enum")[0].GetString());
+        Assert.Equal("string", schemas.GetProperty("FiscalEvidenceAmounts").GetProperty("properties").GetProperty("totalUnits").GetProperty("type").GetString());
+        Assert.False(paths.TryGetProperty("/management/v1/invoices/issue", out _));
+    }
 
     [Fact]
     public async Task Sli_wire_is_additive_operator_only_with_no_exclusion_overrides_and_explicit_job_errors()
@@ -197,6 +228,25 @@ public sealed class OpenApiWireContractTests : IDisposable
         Add(sliPath + "/{id}/executions", "get", 200, new SliExecutionPage(id, [], null));
         Add(sliPath, "post", 202, sliJob); Add(sliPath + "/{id}/revisions", "post", 202, sliJob);
         Add(sliPath + "/jobs/{id}", "get", 200, sliJob with { JobState = "DeadLettered" });
+        const string evidencePath = "/management/v1/admin/organizations/{organizationId}/reporting-evidence";
+        var evidenceProfile = new ReportingEvidenceProfile("synthetic-evidence", 1, true, "test-issuer", "test-jurisdiction", "test-series",
+            "TEST", 3, "Invoice", "test-issuer-snapshot", "test-tax-policy", "test-correction-policy", "test-archive-policy", now, now.AddYears(1),
+            [.. new[] { "Finance", "Legal", "Security", "Operations" }.Select(role => new ReportingApproval(role, "synthetic-reviewer", "synthetic-approval", now))],
+            [new("example-chat", "test", "Chat", "All")]);
+        var fiscalCommand = new RegisterFiscalEvidenceRequest("synthetic-evidence", 1, id, "test-external-operation", "Registered", "test-external-process",
+            "Synthetic external observation", new("TEST-001", now, "Invoice", "test-customer-snapshot", new("9007199254740993", null, null),
+                new string('a', 64), "test-controlled-archive", "test-issuer-verification"));
+        var fiscalEvidence = new ReportingEvidenceResponse(id, id, "fiscal", "Registered", now, id, null, evidenceProfile, fiscalCommand,
+            null, null, null, null, null, null);
+        Add(evidencePath + "/fiscal", "post", 201, fiscalEvidence);
+        var contractCommand = new RegisterContractReferenceRequest("synthetic-evidence", 1, id, "test-contract", "v1", "example-chat", "test-customer-snapshot",
+            now, now.AddYears(1), "EvidenceOnly", "Synthetic contract provenance");
+        Add(evidencePath + "/contracts", "post", 201, fiscalEvidence with { Kind = "contracts", State = "EvidenceOnly", Fiscal = null,
+            Contract = contractCommand, Scope = evidenceProfile.Scopes[0] });
+        Add(evidencePath + "/links", "post", 201, fiscalEvidence with { Kind = "links", State = "EvidenceOnly", Fiscal = null,
+            Link = new(id, id, now, "Synthetic report linkage", id), Scope = evidenceProfile.Scopes[0], StatementSourceDigest = new string('b', 64) });
+        Add(evidencePath + "/{kind}", "get", 200, new ReportingEvidencePage([fiscalEvidence], null));
+        Add(evidencePath + "/{kind}/{id}", "get", 200, fiscalEvidence);
         snapshots.Add(new("management", org + "/statements/{id}/export", "get", 200, "text/csv",
             JsonSerializer.SerializeToElement("\"Not a tax invoice / No payment due from this statement\"\r\nordinal,ledger_id,category,posted_at,amount_micro_usd\r\n")));
         var unknownPolicy = UZLLM.Management.Api.Catalog.ProviderDataPolicyResponse.From(id, null);

@@ -386,7 +386,14 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
         // Disposable fixture only: production Down refuses to erase SLI source history.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
             DO $$ BEGIN
-              IF to_regclass('ops.sli_report_head') IS NOT NULL THEN
+              IF to_regclass('billing.reporting_evidence') IS NOT NULL THEN
+                TRUNCATE TABLE billing.reporting_evidence, billing.reporting_profile,
+                  ops.sli_report_source, ops.sli_report_version, ops.sli_report_attempt,
+                  ops.sli_report_receipt, ops.sli_report_operation, ops.sli_report_head,
+                  ops.sli_observation, ops.sli_import_receipt, ops.sli_manifest,
+                  billing.statement_attempt, billing.statement_source, billing.statement_line,
+                  billing.statement_version, billing.statement_receipt, billing.statement_operation, billing.statement_head;
+              ELSIF to_regclass('ops.sli_report_head') IS NOT NULL THEN
                 TRUNCATE TABLE ops.sli_report_source, ops.sli_report_version, ops.sli_report_attempt,
                   ops.sli_report_receipt, ops.sli_report_operation, ops.sli_report_head,
                   ops.sli_observation, ops.sli_import_receipt, ops.sli_manifest;
@@ -398,7 +405,7 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
         // Disposable fixture only: production rollback refuses to erase statement history.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
             DO $$ BEGIN
-              IF to_regclass('billing.statement_head') IS NOT NULL THEN
+              IF to_regclass('billing.reporting_evidence') IS NULL AND to_regclass('billing.statement_head') IS NOT NULL THEN
                 TRUNCATE TABLE billing.statement_attempt, billing.statement_source, billing.statement_line,
                   billing.statement_version, billing.statement_receipt, billing.statement_operation, billing.statement_head;
               END IF;

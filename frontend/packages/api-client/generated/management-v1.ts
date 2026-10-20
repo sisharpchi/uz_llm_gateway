@@ -324,6 +324,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/admin/organizations/{organizationId}/reporting-evidence/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List operator-only fiscal/contracts/links within one organization.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["ListReportingEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/organizations/{organizationId}/reporting-evidence/{kind}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read immutable external evidence provenance; never fetch an external document.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["GetReportingEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/organizations/{organizationId}/reporting-evidence/contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Append approved-profile contract evidence or revocation; never grant SLA eligibility.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["RegisterContractReference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/organizations/{organizationId}/reporting-evidence/fiscal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record external fiscal provenance only; no issuance, download, refund or tax inference.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["RegisterFiscalEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/organizations/{organizationId}/reporting-evidence/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pin immutable statement/SLI versions to one contract scope as EvidenceOnly.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["LinkContractReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/admin/organizations/{organizationId}/reports/jobs/{id}": {
         parameters: {
             query?: never;
@@ -2786,6 +2886,24 @@ export interface components {
             maxAttempts: number;
             workType: string;
         }[];
+        /** @description Controlled external references only; 8 KiB command cap. Exact profile-defined integer units; null tax is unknown. No issuance, URL fetch or credit eligibility. */
+        FiscalDocumentReference: {
+            amounts: components["schemas"]["FiscalEvidenceAmounts"];
+            archiveReference: string;
+            contentSha256: string;
+            customerIdentityReference: string;
+            /** Format: date-time */
+            issuedAt: string;
+            kind: string;
+            number: string;
+            verificationReference: string;
+        };
+        /** @description Controlled external references only; 8 KiB command cap. Exact profile-defined integer units; null tax is unknown. No issuance, URL fetch or credit eligibility. */
+        FiscalEvidenceAmounts: {
+            netUnits: null | string;
+            taxUnits: null | string;
+            totalUnits: string;
+        };
         GatewayApiKeyList: {
             /** Format: date-time */
             createdAt: string;
@@ -2872,6 +2990,20 @@ export interface components {
             leaseExpiresAt: null | string;
             /** Format: int32 */
             maxAttempts: number;
+        };
+        /** @description Controlled external references only; 8 KiB command cap. Exact profile-defined integer units; null tax is unknown. No issuance, URL fetch or credit eligibility. */
+        LinkContractReportRequest: {
+            /** Format: uuid */
+            contractReferenceId: string;
+            /** Format: uuid */
+            idempotencyKey: string;
+            /** Format: date-time */
+            periodStart: string;
+            reason: string;
+            /** Format: uuid */
+            sliReportVersionId?: null | string;
+            /** Format: uuid */
+            statementVersionId?: null | string;
         };
         LoginRequest: {
             email: string;
@@ -3135,9 +3267,121 @@ export interface components {
         RecoveryRequest: {
             email: string;
         };
+        /** @description Controlled external references only; 8 KiB command cap. Exact profile-defined integer units; null tax is unknown. No issuance, URL fetch or credit eligibility. */
+        RegisterContractReferenceRequest: {
+            contentSha256?: null | string;
+            contractId: string;
+            customerIdentityReference: string;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /** Format: date-time */
+            effectiveTo: string;
+            /** Format: uuid */
+            idempotencyKey: string;
+            policyVersion: string;
+            /** Format: uuid */
+            predecessorId?: null | string;
+            profileId: string;
+            /** Format: int32 */
+            profileVersion: number;
+            reason: string;
+            serviceScopeId: string;
+            signedContractReference?: null | string;
+            /** @enum {string} */
+            state: "EvidenceOnly" | "Revoked";
+        };
+        /** @description Controlled external references only; 8 KiB command cap. Exact profile-defined integer units; null tax is unknown. No issuance, URL fetch or credit eligibility. */
+        RegisterFiscalEvidenceRequest: {
+            document?: null | components["schemas"]["FiscalDocumentReference"];
+            externalOperationReference: string;
+            externalProcessReference: string;
+            /** Format: uuid */
+            idempotencyKey: string;
+            /** @enum {string} */
+            outcome: "Registered" | "Unknown" | "ReviewRequired" | "Cancelled";
+            /** Format: uuid */
+            predecessorId?: null | string;
+            profileId: string;
+            /** Format: int32 */
+            profileVersion: number;
+            reason: string;
+            /** Format: uuid */
+            statementVersionId?: null | string;
+        };
         RegisterRequest: {
             email: string;
             password: string;
+        };
+        ReportingApproval: {
+            /** Format: date-time */
+            approvedAt: string;
+            reference: string;
+            reviewer: string;
+            role: string;
+        };
+        ReportingEvidencePage: {
+            items: components["schemas"]["ReportingEvidenceResponse"][];
+            nextCursor: null | string;
+        };
+        ReportingEvidenceProfile: {
+            approvals: components["schemas"]["ReportingApproval"][];
+            archivePolicyReference: string;
+            correctionPolicyReference: string;
+            currency: string;
+            documentKind: string;
+            /** Format: date-time */
+            effectiveFrom: string;
+            /** Format: date-time */
+            effectiveTo: string;
+            id: string;
+            issuerId: string;
+            issuerIdentityReference: string;
+            jurisdiction: string;
+            /** Format: date-time */
+            revokedAt?: null | string;
+            scopes: components["schemas"]["ReportingServiceScope"][];
+            series: string;
+            supersedesProfileReference?: null | string;
+            synthetic: boolean;
+            taxPolicyReference: string;
+            /** Format: int32 */
+            unitScale: number;
+            /** Format: int32 */
+            version: number;
+        };
+        ReportingEvidenceResponse: {
+            /** Format: uuid */
+            actorId: string;
+            contract: null | components["schemas"]["RegisterContractReferenceRequest"];
+            /**
+             * @default EvidenceOnly
+             * @enum {string}
+             */
+            eligibility: "EvidenceOnly";
+            fiscal: null | components["schemas"]["RegisterFiscalEvidenceRequest"];
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            label?: null | string;
+            link: null | components["schemas"]["LinkContractReportRequest"];
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            predecessorId: null | string;
+            profile: components["schemas"]["ReportingEvidenceProfile"];
+            /** Format: date-time */
+            recordedAt: string;
+            scope: null | components["schemas"]["ReportingServiceScope"];
+            sliCoverage: null | string;
+            sliSourceDigest: null | string;
+            state: string;
+            statementSourceDigest: null | string;
+        };
+        ReportingServiceScope: {
+            id: string;
+            mode: string;
+            operation: string;
+            region: string;
         };
         ResetOperatorMfaRequest: {
             reason: string;
@@ -5267,6 +5511,518 @@ export interface operations {
             };
             /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
             409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ListReportingEvidence: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                kind: "fiscal" | "contracts" | "links";
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportingEvidencePage"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetReportingEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                kind: "fiscal" | "contracts" | "links";
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportingEvidenceResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    RegisterContractReference: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterContractReferenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportingEvidenceResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    RegisterFiscalEvidence: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterFiscalEvidenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportingEvidenceResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    LinkContractReport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkContractReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            201: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportingEvidenceResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
                 headers: {
                     "Cache-Control"?: "no-store";
                     [name: string]: unknown;

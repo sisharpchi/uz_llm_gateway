@@ -1181,6 +1181,505 @@
     "status": 200
   },
   {
+    "body": {
+      "actorId": "11111111-1111-4111-8111-111111111111",
+      "contract": null,
+      "eligibility": "EvidenceOnly",
+      "fiscal": {
+        "document": {
+          "amounts": {
+            "netUnits": null,
+            "taxUnits": null,
+            "totalUnits": "9007199254740993"
+          },
+          "archiveReference": "test-controlled-archive",
+          "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "customerIdentityReference": "test-customer-snapshot",
+          "issuedAt": "2026-10-01T00:00:00+00:00",
+          "kind": "Invoice",
+          "number": "TEST-001",
+          "verificationReference": "test-issuer-verification"
+        },
+        "externalOperationReference": "test-external-operation",
+        "externalProcessReference": "test-external-process",
+        "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+        "outcome": "Registered",
+        "predecessorId": null,
+        "profileId": "synthetic-evidence",
+        "profileVersion": 1,
+        "reason": "Synthetic external observation",
+        "statementVersionId": null
+      },
+      "id": "11111111-1111-4111-8111-111111111111",
+      "kind": "fiscal",
+      "label": "Synthetic evidence — no live fiscal or SLA authority",
+      "link": null,
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "predecessorId": null,
+      "profile": {
+        "approvals": [
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Finance"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Legal"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Security"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Operations"
+          }
+        ],
+        "archivePolicyReference": "test-archive-policy",
+        "correctionPolicyReference": "test-correction-policy",
+        "currency": "TEST",
+        "documentKind": "Invoice",
+        "effectiveFrom": "2026-10-01T00:00:00+00:00",
+        "effectiveTo": "2027-10-01T00:00:00+00:00",
+        "id": "synthetic-evidence",
+        "issuerId": "test-issuer",
+        "issuerIdentityReference": "test-issuer-snapshot",
+        "jurisdiction": "test-jurisdiction",
+        "revokedAt": null,
+        "scopes": [
+          {
+            "id": "example-chat",
+            "mode": "All",
+            "operation": "Chat",
+            "region": "test"
+          }
+        ],
+        "series": "test-series",
+        "supersedesProfileReference": null,
+        "synthetic": true,
+        "taxPolicyReference": "test-tax-policy",
+        "unitScale": 3,
+        "version": 1
+      },
+      "recordedAt": "2026-10-01T00:00:00+00:00",
+      "scope": null,
+      "sliCoverage": null,
+      "sliSourceDigest": null,
+      "state": "Registered",
+      "statementSourceDigest": null
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/organizations/{organizationId}/reporting-evidence/fiscal",
+    "status": 201
+  },
+  {
+    "body": {
+      "actorId": "11111111-1111-4111-8111-111111111111",
+      "contract": {
+        "contentSha256": null,
+        "contractId": "test-contract",
+        "customerIdentityReference": "test-customer-snapshot",
+        "effectiveFrom": "2026-10-01T00:00:00+00:00",
+        "effectiveTo": "2027-10-01T00:00:00+00:00",
+        "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+        "policyVersion": "v1",
+        "predecessorId": null,
+        "profileId": "synthetic-evidence",
+        "profileVersion": 1,
+        "reason": "Synthetic contract provenance",
+        "serviceScopeId": "example-chat",
+        "signedContractReference": null,
+        "state": "EvidenceOnly"
+      },
+      "eligibility": "EvidenceOnly",
+      "fiscal": null,
+      "id": "11111111-1111-4111-8111-111111111111",
+      "kind": "contracts",
+      "label": "Synthetic evidence — no live fiscal or SLA authority",
+      "link": null,
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "predecessorId": null,
+      "profile": {
+        "approvals": [
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Finance"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Legal"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Security"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Operations"
+          }
+        ],
+        "archivePolicyReference": "test-archive-policy",
+        "correctionPolicyReference": "test-correction-policy",
+        "currency": "TEST",
+        "documentKind": "Invoice",
+        "effectiveFrom": "2026-10-01T00:00:00+00:00",
+        "effectiveTo": "2027-10-01T00:00:00+00:00",
+        "id": "synthetic-evidence",
+        "issuerId": "test-issuer",
+        "issuerIdentityReference": "test-issuer-snapshot",
+        "jurisdiction": "test-jurisdiction",
+        "revokedAt": null,
+        "scopes": [
+          {
+            "id": "example-chat",
+            "mode": "All",
+            "operation": "Chat",
+            "region": "test"
+          }
+        ],
+        "series": "test-series",
+        "supersedesProfileReference": null,
+        "synthetic": true,
+        "taxPolicyReference": "test-tax-policy",
+        "unitScale": 3,
+        "version": 1
+      },
+      "recordedAt": "2026-10-01T00:00:00+00:00",
+      "scope": {
+        "id": "example-chat",
+        "mode": "All",
+        "operation": "Chat",
+        "region": "test"
+      },
+      "sliCoverage": null,
+      "sliSourceDigest": null,
+      "state": "EvidenceOnly",
+      "statementSourceDigest": null
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/organizations/{organizationId}/reporting-evidence/contracts",
+    "status": 201
+  },
+  {
+    "body": {
+      "actorId": "11111111-1111-4111-8111-111111111111",
+      "contract": null,
+      "eligibility": "EvidenceOnly",
+      "fiscal": null,
+      "id": "11111111-1111-4111-8111-111111111111",
+      "kind": "links",
+      "label": "Synthetic evidence — no live fiscal or SLA authority",
+      "link": {
+        "contractReferenceId": "11111111-1111-4111-8111-111111111111",
+        "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+        "periodStart": "2026-10-01T00:00:00+00:00",
+        "reason": "Synthetic report linkage",
+        "sliReportVersionId": null,
+        "statementVersionId": "11111111-1111-4111-8111-111111111111"
+      },
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "predecessorId": null,
+      "profile": {
+        "approvals": [
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Finance"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Legal"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Security"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Operations"
+          }
+        ],
+        "archivePolicyReference": "test-archive-policy",
+        "correctionPolicyReference": "test-correction-policy",
+        "currency": "TEST",
+        "documentKind": "Invoice",
+        "effectiveFrom": "2026-10-01T00:00:00+00:00",
+        "effectiveTo": "2027-10-01T00:00:00+00:00",
+        "id": "synthetic-evidence",
+        "issuerId": "test-issuer",
+        "issuerIdentityReference": "test-issuer-snapshot",
+        "jurisdiction": "test-jurisdiction",
+        "revokedAt": null,
+        "scopes": [
+          {
+            "id": "example-chat",
+            "mode": "All",
+            "operation": "Chat",
+            "region": "test"
+          }
+        ],
+        "series": "test-series",
+        "supersedesProfileReference": null,
+        "synthetic": true,
+        "taxPolicyReference": "test-tax-policy",
+        "unitScale": 3,
+        "version": 1
+      },
+      "recordedAt": "2026-10-01T00:00:00+00:00",
+      "scope": {
+        "id": "example-chat",
+        "mode": "All",
+        "operation": "Chat",
+        "region": "test"
+      },
+      "sliCoverage": null,
+      "sliSourceDigest": null,
+      "state": "EvidenceOnly",
+      "statementSourceDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/organizations/{organizationId}/reporting-evidence/links",
+    "status": 201
+  },
+  {
+    "body": {
+      "items": [
+        {
+          "actorId": "11111111-1111-4111-8111-111111111111",
+          "contract": null,
+          "eligibility": "EvidenceOnly",
+          "fiscal": {
+            "document": {
+              "amounts": {
+                "netUnits": null,
+                "taxUnits": null,
+                "totalUnits": "9007199254740993"
+              },
+              "archiveReference": "test-controlled-archive",
+              "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "customerIdentityReference": "test-customer-snapshot",
+              "issuedAt": "2026-10-01T00:00:00+00:00",
+              "kind": "Invoice",
+              "number": "TEST-001",
+              "verificationReference": "test-issuer-verification"
+            },
+            "externalOperationReference": "test-external-operation",
+            "externalProcessReference": "test-external-process",
+            "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+            "outcome": "Registered",
+            "predecessorId": null,
+            "profileId": "synthetic-evidence",
+            "profileVersion": 1,
+            "reason": "Synthetic external observation",
+            "statementVersionId": null
+          },
+          "id": "11111111-1111-4111-8111-111111111111",
+          "kind": "fiscal",
+          "label": "Synthetic evidence — no live fiscal or SLA authority",
+          "link": null,
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "predecessorId": null,
+          "profile": {
+            "approvals": [
+              {
+                "approvedAt": "2026-10-01T00:00:00+00:00",
+                "reference": "synthetic-approval",
+                "reviewer": "synthetic-reviewer",
+                "role": "Finance"
+              },
+              {
+                "approvedAt": "2026-10-01T00:00:00+00:00",
+                "reference": "synthetic-approval",
+                "reviewer": "synthetic-reviewer",
+                "role": "Legal"
+              },
+              {
+                "approvedAt": "2026-10-01T00:00:00+00:00",
+                "reference": "synthetic-approval",
+                "reviewer": "synthetic-reviewer",
+                "role": "Security"
+              },
+              {
+                "approvedAt": "2026-10-01T00:00:00+00:00",
+                "reference": "synthetic-approval",
+                "reviewer": "synthetic-reviewer",
+                "role": "Operations"
+              }
+            ],
+            "archivePolicyReference": "test-archive-policy",
+            "correctionPolicyReference": "test-correction-policy",
+            "currency": "TEST",
+            "documentKind": "Invoice",
+            "effectiveFrom": "2026-10-01T00:00:00+00:00",
+            "effectiveTo": "2027-10-01T00:00:00+00:00",
+            "id": "synthetic-evidence",
+            "issuerId": "test-issuer",
+            "issuerIdentityReference": "test-issuer-snapshot",
+            "jurisdiction": "test-jurisdiction",
+            "revokedAt": null,
+            "scopes": [
+              {
+                "id": "example-chat",
+                "mode": "All",
+                "operation": "Chat",
+                "region": "test"
+              }
+            ],
+            "series": "test-series",
+            "supersedesProfileReference": null,
+            "synthetic": true,
+            "taxPolicyReference": "test-tax-policy",
+            "unitScale": 3,
+            "version": 1
+          },
+          "recordedAt": "2026-10-01T00:00:00+00:00",
+          "scope": null,
+          "sliCoverage": null,
+          "sliSourceDigest": null,
+          "state": "Registered",
+          "statementSourceDigest": null
+        }
+      ],
+      "nextCursor": null
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/organizations/{organizationId}/reporting-evidence/{kind}",
+    "status": 200
+  },
+  {
+    "body": {
+      "actorId": "11111111-1111-4111-8111-111111111111",
+      "contract": null,
+      "eligibility": "EvidenceOnly",
+      "fiscal": {
+        "document": {
+          "amounts": {
+            "netUnits": null,
+            "taxUnits": null,
+            "totalUnits": "9007199254740993"
+          },
+          "archiveReference": "test-controlled-archive",
+          "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "customerIdentityReference": "test-customer-snapshot",
+          "issuedAt": "2026-10-01T00:00:00+00:00",
+          "kind": "Invoice",
+          "number": "TEST-001",
+          "verificationReference": "test-issuer-verification"
+        },
+        "externalOperationReference": "test-external-operation",
+        "externalProcessReference": "test-external-process",
+        "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+        "outcome": "Registered",
+        "predecessorId": null,
+        "profileId": "synthetic-evidence",
+        "profileVersion": 1,
+        "reason": "Synthetic external observation",
+        "statementVersionId": null
+      },
+      "id": "11111111-1111-4111-8111-111111111111",
+      "kind": "fiscal",
+      "label": "Synthetic evidence — no live fiscal or SLA authority",
+      "link": null,
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "predecessorId": null,
+      "profile": {
+        "approvals": [
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Finance"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Legal"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Security"
+          },
+          {
+            "approvedAt": "2026-10-01T00:00:00+00:00",
+            "reference": "synthetic-approval",
+            "reviewer": "synthetic-reviewer",
+            "role": "Operations"
+          }
+        ],
+        "archivePolicyReference": "test-archive-policy",
+        "correctionPolicyReference": "test-correction-policy",
+        "currency": "TEST",
+        "documentKind": "Invoice",
+        "effectiveFrom": "2026-10-01T00:00:00+00:00",
+        "effectiveTo": "2027-10-01T00:00:00+00:00",
+        "id": "synthetic-evidence",
+        "issuerId": "test-issuer",
+        "issuerIdentityReference": "test-issuer-snapshot",
+        "jurisdiction": "test-jurisdiction",
+        "revokedAt": null,
+        "scopes": [
+          {
+            "id": "example-chat",
+            "mode": "All",
+            "operation": "Chat",
+            "region": "test"
+          }
+        ],
+        "series": "test-series",
+        "supersedesProfileReference": null,
+        "synthetic": true,
+        "taxPolicyReference": "test-tax-policy",
+        "unitScale": 3,
+        "version": 1
+      },
+      "recordedAt": "2026-10-01T00:00:00+00:00",
+      "scope": null,
+      "sliCoverage": null,
+      "sliSourceDigest": null,
+      "state": "Registered",
+      "statementSourceDigest": null
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/organizations/{organizationId}/reporting-evidence/{kind}/{id}",
+    "status": 200
+  },
+  {
     "body": "\"Not a tax invoice / No payment due from this statement\"\r\nordinal,ledger_id,category,posted_at,amount_micro_usd\r\n",
     "document": "management",
     "mediaType": "text/csv",

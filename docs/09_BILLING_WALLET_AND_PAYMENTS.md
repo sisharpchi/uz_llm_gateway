@@ -1,5 +1,11 @@
 # Billing, Wallet and Payments
 
+INVOICE-001's [external metadata and contract/report linkage](52_EXTERNAL_REPORTING_EVIDENCE.md)
+is separately promoted. Its default-deny profiles and immutable EvidenceOnly
+journal do not issue invoices, determine tax, create claims/credit requests,
+convert currencies or change wallet/ledger/holds/debt/budgets. Live finance/legal/
+issuer/archive and signed commercial approvals remain external prerequisites.
+
 The [approved ENTERPRISE-002 specification](45_INVOICE_SLA_REPORTING_SPEC.md) distinguishes
 non-fiscal prepaid statements, external fiscal evidence and contractual SLA
 claims. Posting-period ledger snapshots differ from request-period analytics;

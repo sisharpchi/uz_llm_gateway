@@ -293,6 +293,15 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 
 ### Approved P2 implementation increments
 
+The user's subsequent Continue separately promotes INVOICE-001 after completed
+REPORTING-003/SLO-002, while OPS-006 remains externally Blocked. Only external
+metadata and contract/report linkage are authorized, not fiscal issuance,
+tax determination, contractual SLA activation, claim/credit or UI.
+
+| ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
+|---|---|---|---|
+| INVOICE-001 · Completed | Approved-profile external fiscal evidence and contract/report linkage; Billing, Persistence, Management, generated contracts/tests. | REPORTING-003, SLO-002; doc45 §3/5/7/8, FR-125, ADR-006/019/025. | ENT-001/009/010/017/020 pass strict/default-deny/synthetic profiles, exact units/unknown tax, issuer/operation/replay/correction/cancellation, tenant/scope/window/immutable report links, operator/MFA/CSRF/no-store and atomic audit/commit-loss/restore. Final serialized Release baseline: 1386 PASS, zero FAIL/SKIP, 17 Completed TRX reports; all 68 new cases pass (48 policy, 12 facade/bounds, 1 wire, 7 PG). PG 294, Gateway 427, Billing 136, architecture 15, AppHost 2. API generation/drift/schema18/types, locked frontend builds, discovery/model/whitespace checks pass. [Exact evidence, migration, configuration, intermediate failures and limitations](52_EXTERNAL_REPORTING_EVIDENCE.md). Actual finance/legal/issuer/archive/commercial approvals remain external activation prerequisites, never synthetic-fixture passes. No issuance, tax determination, claims/credit, UI or paid-launch pass. BILLING-004 remains proposed pending approval; OPS-006 remains Blocked. |
+
 The user's 2026-10-20 Continue separately promotes SLO-002 after SLO-001.
 This authorizes the bounded operational calculator/report/operator API only;
 OPS-006 stays Blocked and no fiscal/SLA activation or later task is approved.
@@ -314,8 +323,9 @@ The user's 2026-10-19 approval explicitly promotes REPORTING-001 from the
 approved ENTERPRISE-002 specification while OPS-006 remains externally Blocked.
 That increment is complete. The subsequent Continue separately promotes
 REPORTING-002 and, on the subsequent Continue, REPORTING-003. The separately
-approved SLO-001 capture/import increment above is the only further promoted
-task; see [scope and evidence](50_EXECUTION_OBSERVATIONS.md). Earlier rows' unpromoted notes record
+approved SLO-001 capture/import increment was promoted at that handoff;
+the later SLO-002/INVOICE-001 promotions are recorded above. See
+[capture scope and evidence](50_EXECUTION_OBSERVATIONS.md). Earlier rows' unpromoted notes record
 their original completion boundaries.
 
 | ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |

@@ -1,5 +1,10 @@
 # Database and Data Model
 
+INVOICE-001's [implemented external evidence journal](52_EXTERNAL_REPORTING_EVIDENCE.md#persistence-and-transaction-boundary)
+adds billing.reporting_profile/reporting_evidence through the explicit Migrator.
+Profile/evidence history is append-only, report/tenant links use FKs and replay/
+issuer identities are unique. It neither creates invoices nor mutates finances.
+
 The [approved ENTERPRISE-002 §7](45_INVOICE_SLA_REPORTING_SPEC.md#7-ownership-persistence-and-transaction-boundaries)
 proposes immutable statement/source/revision, operational SLI coverage/report
 and separately approved fiscal/claim evidence. Snapshot row membership is

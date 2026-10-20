@@ -1,5 +1,10 @@
 # Versioned API artifacts
 
+INVOICE-001 adds [external reporting evidence](../52_EXTERNAL_REPORTING_EVIDENCE.md)
+under the existing operator/session/MFA/CSRF boundary: five additive operations,
+exact profile-defined monetary strings and explicit synthetic/EvidenceOnly
+labels. No local invoice issuer, arbitrary fetch, credit or new bearer scheme.
+
 SLO-002 adds [operator-only versioned operational SLI reports](../51_OPERATIONAL_SLI_REPORTS.md),
 not a contractual SLA or customer telemetry endpoint. The seven additive
 build/revision/job/list/detail/source/execution operations use existing sessions,
