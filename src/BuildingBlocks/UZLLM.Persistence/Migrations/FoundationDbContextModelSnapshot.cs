@@ -3106,6 +3106,232 @@ namespace UZLLM.Persistence.Migrations
                     b.ToTable("provider_credential_project_grant", "gateway");
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.SliImportReceiptEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("BatchNumber")
+                        .HasColumnType("bigint")
+                        .HasColumnName("batch_number");
+
+                    b.Property<Guid>("Epoch")
+                        .HasColumnType("uuid")
+                        .HasColumnName("epoch");
+
+                    b.Property<Guid?>("ManifestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("manifest_id");
+
+                    b.Property<int>("ObservationCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("observation_count");
+
+                    b.Property<string>("Producer")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("producer");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ManifestId");
+
+                    b.HasIndex("Producer", "Epoch", "BatchNumber", "ReceivedAt");
+
+                    b.ToTable("sli_import_receipt", "ops", t =>
+                        {
+                            t.HasCheckConstraint("CK_sli_receipt_status", "status IN ('Accepted','Duplicate','Conflict','Expired') AND observation_count BETWEEN 0 AND 1024 AND sha256 ~ '^[a-f0-9]{64}$'");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliManifestEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("BatchNumber")
+                        .HasColumnType("bigint")
+                        .HasColumnName("batch_number");
+
+                    b.Property<bool>("ClockSynchronized")
+                        .HasColumnType("boolean")
+                        .HasColumnName("clock_synchronized");
+
+                    b.Property<bool>("CollectorContinuous")
+                        .HasColumnType("boolean")
+                        .HasColumnName("collector_continuous");
+
+                    b.Property<int>("CoverageWarnings")
+                        .HasColumnType("integer")
+                        .HasColumnName("coverage_warnings");
+
+                    b.Property<long>("Dropped")
+                        .HasColumnType("bigint")
+                        .HasColumnName("dropped");
+
+                    b.Property<Guid>("Epoch")
+                        .HasColumnType("uuid")
+                        .HasColumnName("epoch");
+
+                    b.Property<long>("FirstSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("first_sequence");
+
+                    b.Property<DateTimeOffset>("IntervalEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("interval_end");
+
+                    b.Property<DateTimeOffset>("IntervalStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("interval_start");
+
+                    b.Property<long>("LastSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_sequence");
+
+                    b.Property<int>("ObservationCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("observation_count");
+
+                    b.Property<string>("Producer")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("producer");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("region");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("TerminalCoverage")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("terminal_coverage");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoverageWarnings", "ReceivedAt");
+
+                    b.HasIndex("Producer", "Epoch", "BatchNumber")
+                        .IsUnique();
+
+                    b.HasIndex("Source", "Region", "IntervalStart");
+
+                    b.HasIndex("Producer", "Epoch", "FirstSequence", "LastSequence");
+
+                    b.ToTable("sli_manifest", "ops", t =>
+                        {
+                            t.HasCheckConstraint("CK_sli_manifest_bounds", "batch_number > 0 AND first_sequence > 0 AND last_sequence >= first_sequence - 1 AND observation_count BETWEEN 0 AND 1024 AND dropped >= 0 AND last_sequence::numeric - first_sequence + 1 = observation_count::numeric + dropped AND interval_end >= interval_start AND interval_end - interval_start <= interval '1 hour' AND sha256 ~ '^[a-f0-9]{64}$' AND source IN ('Gateway','Edge','Probe') AND terminal_coverage IN ('Partial','Unknown','NotApplicable')");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliObservationEntity", b =>
+                {
+                    b.Property<string>("Producer")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("producer");
+
+                    b.Property<Guid>("Epoch")
+                        .HasColumnType("uuid")
+                        .HasColumnName("epoch");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sequence");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<string>("EventKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("event_key");
+
+                    b.Property<Guid>("ExecutionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("execution_id");
+
+                    b.Property<Guid>("ManifestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("manifest_id");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("operation");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload_json");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.HasKey("Producer", "Epoch", "Sequence");
+
+                    b.HasIndex("At");
+
+                    b.HasIndex("ExecutionId", "At");
+
+                    b.HasIndex("Operation", "StartedAt");
+
+                    b.HasIndex("ManifestId", "Producer", "Epoch");
+
+                    b.HasIndex("Producer", "Epoch", "EventKey")
+                        .IsUnique();
+
+                    b.ToTable("sli_observation", "ops", t =>
+                        {
+                            t.HasCheckConstraint("CK_sli_observation_bounds", "sequence > 0 AND at >= started_at AND octet_length(payload_json::text) <= 2048");
+                        });
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.TelegramLinkChallengeEntity", b =>
                 {
                     b.Property<byte[]>("TokenHash")
@@ -4348,6 +4574,24 @@ namespace UZLLM.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("OrganizationId", "ProjectId")
                         .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliImportReceiptEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.SliManifestEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ManifestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliObservationEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.SliManifestEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ManifestId", "Producer", "Epoch")
+                        .HasPrincipalKey("Id", "Producer", "Epoch")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

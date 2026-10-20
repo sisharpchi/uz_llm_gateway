@@ -19,6 +19,7 @@ builder.Services.AddGatewayOpenApi();
 builder.Services.AddUzllmPersistence(builder.Configuration);
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmObservability(builder.Configuration, "UZLLM.Gateway.Api");
+builder.Services.AddUzllmExecutionObservations(builder.Configuration);
 builder.Services.AddUzllmReadinessChecks();
 builder.Services.AddUzllmGatewayApiKeys(builder.Configuration);
 builder.Services.AddUzllmCatalog();
@@ -38,6 +39,7 @@ builder.Services.AddSingleton<ICompletionWriterFactory, OpenAiCompletionWriterFa
 var app = builder.Build();
 
 app.UseUzllmRequestCorrelation();
+app.UseUzllmExecutionObservations();
 app.MapUzllmHealthEndpoints();
 app.MapUzllmInferenceEndpoints();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();

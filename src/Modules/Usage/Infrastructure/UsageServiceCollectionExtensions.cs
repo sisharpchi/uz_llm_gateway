@@ -6,6 +6,13 @@ namespace UZLLM.Modules.Usage.Infrastructure;
 
 public static class UsageServiceCollectionExtensions
 {
+    public static IServiceCollection AddUzllmSliImport(this IServiceCollection services, SliCollectorTrust trust)
+    {
+        services.AddSingleton(trust);
+        services.AddScoped<ISliManifestImporter, PostgreSqlSliManifestImporter>();
+        return services;
+    }
+
     public static IServiceCollection AddUzllmUsage(this IServiceCollection services)
     {
         services.AddScoped<IUsageStore, PostgreSqlUsageStore>();

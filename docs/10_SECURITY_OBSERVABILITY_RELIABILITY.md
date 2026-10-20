@@ -412,6 +412,12 @@ Returning `503` is safer than unmetered spend.
 
 ## 13. SLO dashboard
 
+SLO-001 separately implements [bounded unsampled execution observations and
+authenticated collector import](50_EXECUTION_OBSERVATIONS.md). These capture
+pre-admission/terminal/origin/coverage facts but add no monthly classification,
+ratio, dashboard or contractual SLA. Missing intervals, ambiguous 429, partial
+streams, unverified clocks and independent probe coverage remain explicit.
+
 The [approved ENTERPRISE-002 §6](45_INVOICE_SLA_REPORTING_SPEC.md#6-operational-sli-and-contractual-sla-design)
 defines an evidence/coverage/classification contract, not an implemented
 SLA calculator. Existing generic metrics and sampled traces cannot establish a

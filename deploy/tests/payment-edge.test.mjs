@@ -111,7 +111,7 @@ test('LAUNCH-001 payment callback edge ingress', async t => {
   try {
     openssl(['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
       '-subj', '/CN=management.internal',
-      '-addext', 'subjectAltName=DNS:management.internal',
+      '-addext', 'subjectAltName=DNS:management.internal,DNS:gateway.internal',
       '-keyout', publicKey, '-out', publicCrt]);
     writeFileSync(join(tempDir, 'internal-ca.crt'), readFileSync(publicCrt));
     command('docker', ['network', 'create', network]);
@@ -126,6 +126,36 @@ test('LAUNCH-001 payment callback edge ingress', async t => {
     const defaultEdge = startEdge();
     await waitForEdge(defaultEdge.port);
     command('docker', ['exec', edges.at(-1), 'nginx', '-t']);
+
+    await t.test('SLO_001_edge_replaces_forged_execution_ids_and_logs_only_allowlisted_metadata', async () => {
+      const forged = '11111111111111111111111111111111';
+      const captured = [];
+      for (let index = 0; index < 2; index++) {
+        const result = await send(defaultEdge.port, index === 0 ? '/v1/chat/completions?private-query=secret'
+          : '/v1/Chat/Completions/?private-query=secret', 'POST',
+          '{"prompt":"private-prompt"}', { 'X-UZLLM-Edge-Execution-Id': forged, Authorization: 'Bearer private-key' });
+        assert.equal(result.status, 200);
+        assert.match(result.json.edgeExecutionId, /^[a-f0-9]{32}$/);
+        assert.notEqual(result.json.edgeExecutionId, forged);
+        captured.push(result.json.edgeExecutionId);
+      }
+      assert.notEqual(captured[0], captured[1]);
+      assert.equal((await send(defaultEdge.port, '/v1/responses', 'POST', 'x'.repeat(5 * 1024 * 1024 + 1))).status, 413);
+      let logs = [];
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const raw = command('docker', ['exec', edges[0], 'cat', '/var/log/nginx/sli.log']);
+        assert.doesNotMatch(raw, /private-|Authorization|Bearer|prompt|query|remote_addr/);
+        logs = raw.split('\n').filter(Boolean).map(line => JSON.parse(line));
+        if (logs.length >= 3) break;
+        await new Promise(done => setTimeout(done, 100));
+      }
+      assert.equal(logs.length, 3);
+      assert.deepEqual(logs.slice(0, 2).map(item => item.executionId), captured);
+      assert.equal(logs[2].status, 413);
+      assert.equal(logs[2].operation, 'Responses');
+      assert.equal(logs[0].gatewayResponse, 'Seen');
+      assert.deepEqual(Object.keys(logs[0]).sort(), ['at', 'completion', 'duration', 'executionId', 'gatewayResponse', 'operation', 'status']);
+    });
 
     await t.test('SECURITY-002 auth_and_invitation_body_bounds_apply_at_edge', async () => {
       const login = await send(defaultEdge.port, '/management/v1/auth/login', 'POST', '{}',

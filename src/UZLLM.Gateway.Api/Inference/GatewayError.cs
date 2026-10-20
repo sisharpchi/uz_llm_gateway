@@ -8,6 +8,13 @@ public static class GatewayErrorResponse
     public static async Task WriteAsync(HttpContext context, GatewayError error,
         CancellationToken cancellationToken)
     {
+        if (UZLLM.Observability.ExecutionObservationState.From(context) is { } observation)
+        {
+            if (error.Status >= 500 && error.Code != "provider_error") observation.GatewayFault = true;
+            // The current limiter does not expose whether an operator ceiling or
+            // customer policy bound fired. Keep 429 ambiguous, never exclude it.
+            else if (error.Status is >= 400 and < 500 && error.Status != 429) observation.PolicyRejection = true;
+        }
         if (context.Response.HasStarted) return;
         context.Response.StatusCode = error.Status;
         context.Response.ContentType = "application/json";

@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Content Include="..\..\Fixtures\sli\edge-manifest.json" Link="Fixtures\Sli\edge-manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

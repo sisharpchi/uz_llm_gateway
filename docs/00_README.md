@@ -223,6 +223,9 @@ This creates clear boundaries without paying the operational cost of many micros
 
 49. `49_STATEMENT_API.md` — authorized statement metadata/lines/CSV and operator
     build/revision/job API; no fiscal/SLA/UI or paid-launch implication.
+50. `50_EXECUTION_OBSERVATIONS.md` — bounded unsampled edge/Gateway metadata,
+    authenticated private collector manifests and atomic Worker import; no SLI
+    calculator, contractual SLA or passed operational qualification.
 
 Generated current API contracts and client regeneration: [`api/README.md`](api/README.md).
 

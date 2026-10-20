@@ -22,6 +22,16 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
+Optional [SLO-001 execution capture/import](50_EXECUTION_OBSERVATIONS.md) is not a
+completed reliability gate or SLA. Before enabling it, deploy the explicit
+migration, private scoped keys/spools and physical TLS edge-peer restrictions;
+demonstrate independent probes, approved clock/retention/log-rotation policy,
+source/sequence/drop reconciliation and import recovery. Measure raw-observation
+volume, database/retention throughput and missing-source monitoring. A local
+fixture cannot qualify distinct-node HA/PITR or a month of complete coverage.
+Keep restored collectors/import and business dispatch quarantined until source
+checks finish. No launch status changes from a Completed task label.
+
 [REPORTING-003](49_STATEMENT_API.md) adds authorized immutable statement reads,
 CSV verification and operator command/job visibility, not a fiscal document,
 SLA, production archive/retention approval or passed launch gate. Preserve the

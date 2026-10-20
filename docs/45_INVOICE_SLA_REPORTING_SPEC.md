@@ -482,7 +482,8 @@ and then REPORTING-002 into document 16's executable register. Follow
 [source reconciliation](47_STATEMENT_SOURCE_RECONCILIATION.md) and
 [internal publication/revision scope](48_STATEMENT_PUBLICATION.md).
 The subsequent Continue also promotes REPORTING-003's bounded statement API
-in [document 49](49_STATEMENT_API.md). All other rows below stay unpromoted
+in [document 49](49_STATEMENT_API.md). The subsequent Continue separately promotes
+SLO-001's [capture/import-only scope](50_EXECUTION_OBSERVATIONS.md). All other rows below stay unpromoted
 design proposals; no fiscal/SLA feature or launch-gate pass is inferred. The original table and
 dated specification validation below remain historical design evidence.
 SECURITY-009's earlier dated retention/audit finding was separately closed by
@@ -490,7 +491,7 @@ SECURITY-009's earlier dated retention/audit finding was separately closed by
 current reporting defect or authorization for guardrail implementation.
 
 Originally all nine IDs were P2 design proposals, not executable register additions.
-Only REPORTING-001/002/003 are now promoted as recorded above. Each remaining ID
+Only REPORTING-001/002/003 and SLO-001 are now promoted as recorded above. Each remaining ID
 needs separate approval/promotion; table order is recommended. Completion needs
 listed fixtures, generated contracts/docs as relevant, Release baseline and a
 focused commit. No task may mark a missing fiscal/SLA external approval passed.

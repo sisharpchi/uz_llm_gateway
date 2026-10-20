@@ -159,6 +159,12 @@ public sealed class InferenceGateway(
             };
             var projectSettings = tenant.Settings ?? new ProjectSettings();
             parsed = parsed with { Routing = ProjectSettingsPolicy.ResolveRouting(projectSettings, parsed.Routing) };
+            if (ExecutionObservationState.From(context) is { } observation)
+            {
+                observation.Mode = parsed.Stream ? ObservationMode.Sse : ObservationMode.Json;
+                observation.Credential = parsed.ProviderKeyId is null ? ObservationCredential.Managed
+                    : parsed.AllowManagedFallback ? ObservationCredential.Hybrid : ObservationCredential.Byok;
+            }
             if (parsed.EmbeddingRequest is not null && parsed.Routing is not (null or "priority" or "price"))
                 throw new GatewayRequestException("Embeddings supports priority or price routing; override an incompatible project default explicitly.", "unsupported_parameter");
             var managedEnabled = await platformControls.IsEnabledAsync(PlatformFeature.ManagedTraffic,
@@ -606,6 +612,8 @@ public sealed class InferenceGateway(
                         && parsed.FallbackModels is not { Count: > 0 },
                     admission.Reservation, cancellationToken);
                 inferenceDelivered = delivered;
+                if (ExecutionObservationState.From(context) is { } completedObservation)
+                    completedObservation.TerminalSuccess = delivered;
             }
             finally
             {
@@ -712,6 +720,8 @@ public sealed class InferenceGateway(
                 completion = null;
                 embeddingResult = null;
                 dispatched = completed = false;
+                if (ExecutionObservationState.From(context) is { } nextAttemptObservation)
+                    nextAttemptObservation.ProviderFault = ObservationProviderFault.None;
                 if (index > 0)
                 {
                     if (!candidate.IsByok && !await platformControls.IsEnabledAsync(
@@ -858,6 +868,20 @@ public sealed class InferenceGateway(
                             observed.OutputTokens / attemptTimer.Elapsed.TotalSeconds);
                 }
                 if (providerError is not null) telemetry.RecordProviderFailure(providerMetric);
+                if (ExecutionObservationState.From(context) is { } attemptObservation)
+                {
+                    attemptObservation.ProviderFault = providerError is null ? ObservationProviderFault.None
+                        : Enum.TryParse<ObservationProviderFault>(providerError.Category.ToString(), out var category)
+                            ? category : ObservationProviderFault.Unknown;
+                    attemptObservation.Certainty = providerError is null ? ObservationExecutionCertainty.Dispatched
+                        : writer.Started ? ObservationExecutionCertainty.Unknown
+                        : Enum.TryParse<ObservationExecutionCertainty>(providerError.Certainty.ToString(), out var certainty)
+                            ? certainty : ObservationExecutionCertainty.Unknown;
+                    attemptObservation.UpstreamStatus = providerError?.ProviderStatusCode;
+                    context.RequestServices.GetService<ObservationBuffer>()?.TryRecord(
+                        attemptObservation.Snapshot(context, ObservationPhase.Attempt, clock.GetUtcNow(), attempt.Id)
+                            with { Credential = candidate.IsByok ? ObservationCredential.Byok : ObservationCredential.Managed });
+                }
                 await RecordHealthAsync(healthPermit, providerError, completed);
                 healthPermit = null;
                 if (!candidate.IsByok && parsed.EmbeddingRequest is null)
@@ -901,6 +925,8 @@ public sealed class InferenceGateway(
         }
         catch (Exception exception)
         {
+            if (ExecutionObservationState.From(context) is { } executionObservation)
+                executionObservation.GatewayFault = true;
             logger.LogError(exception, "Provider execution or delivery failed for {RequestId}", reservation.RequestId);
             providerError = new ProviderError(ProviderErrorCategory.Unknown,
                 ProviderExecutionCertainty.Unknown, false, false, null, providerRequestId,
@@ -940,6 +966,19 @@ public sealed class InferenceGateway(
         else if (disconnected)
             httpStatus = 499;
 
+        if (ExecutionObservationState.From(context) is { } providerObservation)
+        {
+            providerObservation.ProviderFault = providerError is null ? ObservationProviderFault.None
+                : Enum.TryParse<ObservationProviderFault>(providerError.Category.ToString(), out var category)
+                    ? category : ObservationProviderFault.Unknown;
+            providerObservation.Certainty = providerError is null
+                ? dispatched ? ObservationExecutionCertainty.Dispatched : ObservationExecutionCertainty.NotDispatched
+                : Enum.TryParse<ObservationExecutionCertainty>(providerError.Certainty.ToString(), out var certainty)
+                    ? certainty : ObservationExecutionCertainty.Unknown;
+            providerObservation.UpstreamStatus = providerError?.ProviderStatusCode;
+            if (providerError is not null && !dispatched) providerObservation.GatewayFault = true;
+        }
+
         var cleanupSucceeded = false;
         using (var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
         {
@@ -977,6 +1016,8 @@ public sealed class InferenceGateway(
             }
             catch (Exception exception)
             {
+                if (ExecutionObservationState.From(context) is { } failedObservation)
+                    failedObservation.GatewayFault = true;
                 telemetry.RecordFinancialFailure(new GatewayTelemetryContext("error", mapping.Provider.Code));
                 logger.LogError(exception, "Financial finalization failed for {RequestId}; reconciliation remains scheduled",
                     reservation.RequestId);

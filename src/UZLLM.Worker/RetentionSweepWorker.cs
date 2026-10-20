@@ -27,8 +27,8 @@ public sealed class RetentionSweepWorker(
                     var result = await sweep.SweepAsync(500, stoppingToken);
                     if (result.Total > 0)
                     {
-                        logger.LogInformation("Retention sweep minimized {TraceCount} traces, {OutboxCount} outbox messages, {JobCount} jobs and {AlertCount} alerts",
-                            result.RequestTraces, result.OutboxMessages, result.Jobs, result.OperationalAlerts);
+                        logger.LogInformation("Retention sweep minimized {TraceCount} traces, {OutboxCount} outbox messages, {JobCount} jobs, {AlertCount} alerts and {ObservationCount} raw SLI observations",
+                            result.RequestTraces, result.OutboxMessages, result.Jobs, result.OperationalAlerts, result.SliObservations);
                     }
                     if (result.Total < 500) break;
                 }

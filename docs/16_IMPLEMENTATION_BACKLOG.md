@@ -293,11 +293,20 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 
 ### Approved P2 implementation increments
 
+The subsequent Continue separately approves SLO-001's capture/import scope from
+document 45 §6/7/9/10. OPS-006 remains externally Blocked. This is not approval
+for SLO-002, contractual SLA activation or a production qualification pass.
+
+| ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
+|---|---|---|---|
+| SLO-001 · Completed | Unsampled bounded edge/Gateway metadata and authenticated collector manifest import; Observability, Gateway, Usage, Persistence, Worker, deploy. | ENTERPRISE-002, OPS-003, OPS-005; doc 45 §6/7, NFR-001/013/070–073, ADR-011/014/017. | ENT-012/013/015/016/018 at capture/import scope pass: trusted producer/epoch/sequence, pre-admission and terminal stream evidence, duplicate/conflict/gap/clock/loss disclosure, atomic bounded PG import and no payload/hot-path sink blocking. Final Release baseline: 1211 PASS, zero FAIL/SKIP, 17 Completed TRX reports; all 78 new .NET cases pass. Node collector 7, real Docker/TLS edge 17, API schema/client 18/types/drift, model drift, Compose and whitespace checks pass. [Scope, migration/default-off configuration, exact evidence and limitations](50_EXECUTION_OBSERVATIONS.md). No monthly classifier/report, contractual SLA or launch-gate pass. SLO-002 remains proposed pending separate promotion; OPS-006 remains Blocked. |
+
 The user's 2026-10-19 approval explicitly promotes REPORTING-001 from the
 approved ENTERPRISE-002 specification while OPS-006 remains externally Blocked.
 That increment is complete. The subsequent Continue separately promotes
-REPORTING-002 and, on the subsequent Continue, REPORTING-003 only; no other
-proposed reporting/SLI task is started. Earlier rows' unpromoted notes record
+REPORTING-002 and, on the subsequent Continue, REPORTING-003. The separately
+approved SLO-001 capture/import increment above is the only further promoted
+task; see [scope and evidence](50_EXECUTION_OBSERVATIONS.md). Earlier rows' unpromoted notes record
 their original completion boundaries.
 
 | ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |

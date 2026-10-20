@@ -1,5 +1,29 @@
 # Post-Implementation Audit
 
+## Execution observation follow-up — 2026-10-20
+
+The subsequent Continue separately promotes SLO-001's
+[bounded capture/import increment](50_EXECUTION_OBSERVATIONS.md) after completed
+ENTERPRISE-002/OPS-003/OPS-005. Gateway adds pre-authentication, attempt and terminal
+facts without synchronous sink I/O; edge replaces untrusted execution headers and
+logs fixed safe fields. Deployment-scoped HMAC manifests import through Worker
+into Usage-owned, sealed PostgreSQL source sets and immutable import/expiry
+receipts. Existing financial admission/settlement and module boundaries remain.
+
+Final Release validation passes 1211 tests, zero FAIL/SKIP, seventeen Completed
+TRX reports; all 78 new .NET cases pass. PostgreSQL 273, Gateway contracts 397,
+Observability 41, Usage 16, Worker 81, architecture 15 and AppHost 2 pass. Node
+collector 7 and real Docker/TLS edge 17 pass; API drift/schema 18/types, model
+drift and Compose configuration checks pass. Exact commands, initial corrections
+and limitations are recorded in document 50.
+
+The audit retains ambiguous limiter 429 provenance, incomplete streams, missing
+intervals, unverified clocks, source restarts and independent probe needs. No
+generic HTTP200, healthcheck or financial outcome becomes an availability pass.
+This adds no monthly classifier/report, customer global telemetry, new public
+endpoint, fiscal/SLA entitlement or paid-launch pass. Capture/import default off;
+OPS-006 and live infrastructure/business prerequisites remain unchanged.
+
 ## Statement API follow-up — 2026-10-19
 
 The subsequent Continue separately promotes REPORTING-003 after completed

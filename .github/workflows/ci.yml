@@ -38,11 +38,14 @@ jobs:
           node-version: '22'
       - name: Validate load evidence analyzer
         run: node --test deploy/load/qualify-report.test.mjs
+      - name: Validate unsampled observation collector protocol
+        run: node --test deploy/sli/collect.test.mjs
       - name: Exercise payment callback edge ingress
         run: node --test deploy/tests/payment-edge.test.mjs
-      - name: Validate two-node Compose manifest
+      - name: Validate two-node and observation Compose manifests
         env:
           UZLLM_PUBLIC_BASE_URL: https://example.test
+          UZLLM_DASHBOARD_BASE_URL: https://example.test
           UZLLM_PAYMENT_FEE_BPS: '100'
           UZLLM_PAYMENT_FIXED_FEE_TIYIN: '0'
           UZLLM_CERT_DIR: /tmp/uzllm-certs
@@ -51,7 +54,14 @@ jobs:
           UZLLM_SMTP_HOST: smtp.example.test
           UZLLM_SMTP_FROM: no-reply@example.test
           UZLLM_OPERATIONS_ALERT_EMAIL: oncall@example.test
-        run: docker compose -f deploy/compose.production.yml config --quiet
+          UZLLM_SLI_REGION: test
+          UZLLM_SLI_EDGE_PEER: '10.1.1.1'
+          UZLLM_SLI_EDGE_LOG_DIR: /tmp/uzllm-sli-logs
+          UZLLM_SLI_SPOOL_DIR: /tmp/uzllm-sli-inbox
+          UZLLM_SLI_SECRET_DIR: /tmp/uzllm-sli-secrets
+        run: |
+          docker compose -f deploy/compose.production.yml config --quiet
+          docker compose -f deploy/compose.production.yml -f deploy/compose.sli.yml config --quiet
       - name: Install dashboard acceptance browser
         run: |
           npm ci --prefix frontend/apps

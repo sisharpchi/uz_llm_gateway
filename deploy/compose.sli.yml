@@ -1,0 +1,64 @@
+# Optional local-node evidence overlay; not a staging/HA qualification.
+# Start only after Migrator, private directories/keys and physical peer ACLs are ready.
+x-sli-capture: &sli-capture
+  Sli__Capture__Enabled: 'true'
+  Sli__Capture__Region: ${UZLLM_SLI_REGION:?Set evidence region}
+  Sli__Capture__Directory: /run/sli/inbox
+  Sli__Capture__TrustedEdgePeers__0: ${UZLLM_SLI_EDGE_PEER:?Set exact physical edge peer address}
+  Sli__Capture__ClockSynchronized: ${UZLLM_SLI_CLOCK_VERIFIED:-false}
+x-sli-import: &sli-import
+  Sli__Import__Enabled: 'true'
+  Sli__Import__Directory: /run/sli/inbox
+  Sli__Import__Producers__gateway-a__Source: Gateway
+  Sli__Import__Producers__gateway-a__Region: ${UZLLM_SLI_REGION}
+  Sli__Import__Producers__gateway-b__Source: Gateway
+  Sli__Import__Producers__gateway-b__Region: ${UZLLM_SLI_REGION}
+  Sli__Import__Producers__edge-a__Source: Edge
+  Sli__Import__Producers__edge-a__Region: ${UZLLM_SLI_REGION}
+  Sli__Import__Producers__probe-a__Source: Probe
+  Sli__Import__Producers__probe-a__Region: ${UZLLM_SLI_REGION}
+
+services:
+  edge:
+    volumes:
+      - ${UZLLM_SLI_EDGE_LOG_DIR:?Set private edge log directory}:/var/log/nginx:rw
+  gateway-a:
+    environment:
+      <<: *sli-capture
+      Sli__Capture__Producer: gateway-a
+    volumes:
+      - ${UZLLM_SLI_SPOOL_DIR:?Set private node-local SLI inbox}:/run/sli/inbox:rw
+    secrets:
+      - { source: sli-gateway-a, target: Sli__Capture__Key }
+  gateway-b:
+    environment:
+      <<: *sli-capture
+      Sli__Capture__Producer: gateway-b
+    volumes:
+      - ${UZLLM_SLI_SPOOL_DIR}:/run/sli/inbox:rw
+    secrets:
+      - { source: sli-gateway-b, target: Sli__Capture__Key }
+  worker-a:
+    environment: *sli-import
+    volumes:
+      - ${UZLLM_SLI_SPOOL_DIR}:/run/sli/inbox:rw
+    secrets:
+      - { source: sli-gateway-a, target: Sli__Import__Producers__gateway-a__Key }
+      - { source: sli-gateway-b, target: Sli__Import__Producers__gateway-b__Key }
+      - { source: sli-edge-a, target: Sli__Import__Producers__edge-a__Key }
+      - { source: sli-probe-a, target: Sli__Import__Producers__probe-a__Key }
+  worker-b:
+    environment: *sli-import
+    volumes:
+      - ${UZLLM_SLI_SPOOL_DIR}:/run/sli/inbox:rw
+    secrets:
+      - { source: sli-gateway-a, target: Sli__Import__Producers__gateway-a__Key }
+      - { source: sli-gateway-b, target: Sli__Import__Producers__gateway-b__Key }
+      - { source: sli-edge-a, target: Sli__Import__Producers__edge-a__Key }
+      - { source: sli-probe-a, target: Sli__Import__Producers__probe-a__Key }
+
+secrets:
+  sli-gateway-a: { file: '${UZLLM_SLI_SECRET_DIR:?Set private collector key directory}/gateway-a.key' }
+  sli-gateway-b: { file: '${UZLLM_SLI_SECRET_DIR}/gateway-b.key' }
+  sli-edge-a: { file: '${UZLLM_SLI_SECRET_DIR}/edge-a.key' }
+  sli-probe-a: { file: '${UZLLM_SLI_SECRET_DIR}/probe-a.key' }

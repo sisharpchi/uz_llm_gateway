@@ -7,9 +7,9 @@ public interface IRetentionSweep
     Task<RetentionSweepResult> SweepAsync(int batchSize, CancellationToken cancellationToken = default);
 }
 
-public sealed record RetentionSweepResult(int RequestTraces, int OutboxMessages, int Jobs, int OperationalAlerts)
+public sealed record RetentionSweepResult(int RequestTraces, int OutboxMessages, int Jobs, int OperationalAlerts, int SliObservations = 0)
 {
-    public int Total => RequestTraces + OutboxMessages + Jobs + OperationalAlerts;
+    public int Total => RequestTraces + OutboxMessages + Jobs + OperationalAlerts + SliObservations;
 }
 
 /// <summary>
@@ -79,6 +79,23 @@ public sealed class PostgreSqlRetentionSweep(
             FROM candidates WHERE alert.id = candidates.id;
             """, [operationalCutoff, batchSize], cancellationToken);
 
-        return new RetentionSweepResult(traces, outbox, jobs, alerts);
+        // Raw diagnostic rows may expire; immutable source/count/digest and expiry
+        // receipts remain. Future reports must disclose missing raw membership.
+        var sliCounts = await db.Database.SqlQuery<int>($"""
+            WITH candidates AS (
+              SELECT producer, epoch, sequence FROM ops.sli_observation WHERE at < {diagnosticCutoff}
+              ORDER BY at, producer, epoch, sequence FOR UPDATE SKIP LOCKED LIMIT {batchSize}
+            ), deleted AS (
+              DELETE FROM ops.sli_observation o USING candidates c
+              WHERE o.producer = c.producer AND o.epoch = c.epoch AND o.sequence = c.sequence
+              RETURNING o.manifest_id
+            ), receipts AS (INSERT INTO ops.sli_import_receipt
+              (id, manifest_id, producer, epoch, batch_number, sha256, status, received_at, observation_count)
+            SELECT gen_random_uuid(), m.id, m.producer, m.epoch, m.batch_number, m.sha256,
+              'Expired', {now}, count(*)::int FROM deleted d JOIN ops.sli_manifest m ON m.id = d.manifest_id
+              GROUP BY m.id RETURNING id)
+            SELECT count(*)::int AS "Value" FROM deleted
+            """).ToListAsync(cancellationToken);
+        return new RetentionSweepResult(traces, outbox, jobs, alerts, sliCounts.Single());
     }
 }

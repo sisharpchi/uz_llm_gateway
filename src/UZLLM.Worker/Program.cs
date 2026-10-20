@@ -18,6 +18,11 @@ builder.Services.AddSingleton(RetentionSchedule.FromConfiguration(builder.Config
 builder.Services.AddScoped<IRetentionSweep, PostgreSqlRetentionSweep>();
 builder.Services.AddUzllmRedis(builder.Configuration);
 builder.Services.AddUzllmUsage();
+var sliImport = SliImportOptions.FromConfiguration(builder.Configuration);
+builder.Services.AddSingleton(sliImport);
+builder.Services.AddUzllmSliImport(sliImport.Trust);
+builder.Services.AddScoped<SliImportCycle>();
+builder.Services.AddHostedService<SliImportWorker>();
 builder.Services.AddUzllmAudit();
 builder.Services.AddUzllmBilling();
 builder.Services.AddUzllmOrganizations();

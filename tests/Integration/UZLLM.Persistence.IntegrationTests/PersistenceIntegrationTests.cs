@@ -383,6 +383,14 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
     {
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
+        // Disposable fixture only: production Down refuses to erase SLI source history.
+        await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
+            DO $$ BEGIN
+              IF to_regclass('ops.sli_manifest') IS NOT NULL THEN
+                TRUNCATE TABLE ops.sli_observation, ops.sli_import_receipt, ops.sli_manifest;
+              END IF;
+            END $$;
+            """);
         // Disposable fixture only: production rollback refuses to erase statement history.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
             DO $$ BEGIN

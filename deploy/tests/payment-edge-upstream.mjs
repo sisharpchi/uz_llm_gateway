@@ -23,6 +23,7 @@ createServer({
     forwardedFor: request.headers['x-forwarded-for'],
     realIp: request.headers['x-real-ip'], forwarded: request.headers.forwarded,
     seen: count,
+    edgeExecutionId: request.headers['x-uzllm-edge-execution-id'],
   };
 
   if (path.includes('simulate-upstream-reset-once') && count === 1) {
@@ -45,7 +46,7 @@ createServer({
       + (fields.get('sign_time') ?? '');
     const expected = createHash('md5').update(material).digest('hex');
     result = { ...common, error: fields.get('sign_string') === expected ? 0 : -1 };
-  } else if (path.startsWith('/management/v1/auth/') || path.includes('/team/invitations')) {
+  } else if (path.startsWith('/management/v1/auth/') || path.includes('/team/invitations') || path.startsWith('/v1/')) {
     result = common;
   } else {
     response.writeHead(404).end();
@@ -53,6 +54,6 @@ createServer({
   }
 
   response.writeHead(path.includes('simulate-upstream-503') ? 503 : 200,
-    { 'content-type': 'application/json' });
+    { 'content-type': 'application/json', 'x-request-id': '123456781234123412341234567890ab' });
   response.end(JSON.stringify(result));
 }).listen(8443, '0.0.0.0');
