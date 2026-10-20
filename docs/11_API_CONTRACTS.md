@@ -1,5 +1,13 @@
 # API Contracts
 
+The separately promoted SLO-002 adds seven operator-only operations under
+`/management/v1/admin/sli-reports`: closed-month build, explicit predecessor/
+generation revision, job, list, summary, frozen sources and classified executions.
+See [wire semantics, limits, exact ratios and qualification rules](51_OPERATIONAL_SLI_REPORTS.md#operator-wire-contract)
+and generated `docs/api/management-v1.openapi.json`. Existing session/operator/
+recent MFA and mutation CSRF apply; all responses no-store. No customer/global
+telemetry grant, maintenance exclusion, fiscal/SLA certificate or financial mutation.
+
 The [approved ENTERPRISE-002 §8](45_INVOICE_SLA_REPORTING_SPEC.md#8-proposed-apis-security-retention-and-ux)
 specifies future session-authorized statement/version/CSV and operator SLI/job
 APIs, not current wire operations. Exact monetary strings, immutable version

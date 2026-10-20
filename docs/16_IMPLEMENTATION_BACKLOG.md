@@ -293,9 +293,18 @@ mark a task complete on a stub or on mocked tests alone. `In Progress` and
 
 ### Approved P2 implementation increments
 
-The subsequent Continue separately approves SLO-001's capture/import scope from
-document 45 §6/7/9/10. OPS-006 remains externally Blocked. This is not approval
-for SLO-002, contractual SLA activation or a production qualification pass.
+The user's 2026-10-20 Continue separately promotes SLO-002 after SLO-001.
+This authorizes the bounded operational calculator/report/operator API only;
+OPS-006 stays Blocked and no fiscal/SLA activation or later task is approved.
+
+| ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
+|---|---|---|---|
+| SLO-002 · Completed | Versioned monthly SLI classification/calculation/report and operator read API; Usage, Persistence, Worker, Management, generated contracts. | SLO-001; doc 45 §6/7/8, NFR-001/013/084, ADR-011/014/017. | ENT-012–018 pass exact ratios/thresholds, separate attempts, disputed-origin/mode U, Unknown/NoData/coverage, immutable revisions, replay/concurrency/atomicity/bounds/cancel and operator/MFA/CSRF/no-store. Final corrected Release baseline: 1318 PASS, zero FAIL/SKIP, 17 Completed TRX reports; 107 new .NET cases (76 Usage, 17 API/Worker/wire, 14 PG). PG 287, Gateway 414, Usage 92, architecture 15, AppHost 2; API generation/drift/schema18/types, both frontend builds, model drift and whitespace pass. [Exact evidence, migration, default-empty registry and capacity limitations](51_OPERATIONAL_SLI_REPORTS.md). The 100k-fact bound rejects ordinary one-second monthly capture volume; separate scaling approval/qualification is required before offering that volume. No maintenance exclusion, financial mutation, SLA or paid-launch pass. INVOICE-001 remains proposed pending approval; OPS-006 remains Blocked. |
+
+The earlier Continue separately approved SLO-001's capture/import scope from
+document 45 §6/7/9/10. That approval did not itself authorize SLO-002; its later
+separate promotion is recorded above. OPS-006 remains externally Blocked, and
+neither increment activates contractual SLA or passes production qualification.
 
 | ID / status | Objective and likely files | Dependencies; requirements | Acceptance and required tests |
 |---|---|---|---|

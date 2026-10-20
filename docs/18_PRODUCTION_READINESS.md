@@ -22,6 +22,15 @@ The current baseline is audited in [17](17_POST_IMPLEMENTATION_AUDIT.md).
 
 ## Required operational validation
 
+Optional [SLO-002 operational reporting](51_OPERATIONAL_SLI_REPORTS.md) does not
+pass Reliability, Provider or Legal gates. Exact observed ratios and immutable
+revisions coexist with Incomplete/NoData. Default collection is not qualifying
+coverage; demonstrate independent probe/clock/source continuity and legal retention.
+The 100,000-fact build bound cannot process default one-second collector heartbeats
+for a production month: obtain a separately approved scaling plan and measured
+qualification before offering that volume. Never omit producers, truncate inputs
+or raise limits silently. No report approves a contractual SLA, remedy or paid launch.
+
 Optional [SLO-001 execution capture/import](50_EXECUTION_OBSERVATIONS.md) is not a
 completed reliability gate or SLA. Before enabling it, deploy the explicit
 migration, private scoped keys/spools and physical TLS edge-peer restrictions;

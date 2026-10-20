@@ -17,6 +17,7 @@ using UZLLM.Modules.Providers.Infrastructure;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Persistence;
 using UZLLM.Management.Api.Statements;
+using UZLLM.Management.Api.SliReports;
 using UZLLM.Modules.Billing.Contracts;
 
 namespace UZLLM.Management.Api.OpenApi;
@@ -58,6 +59,18 @@ public static class ManagementOpenApi
                     { generation.Minimum = context.JsonTypeInfo.Type == typeof(CreateStatementRequest) ? "0" : "1";
                       generation.Maximum = context.JsonTypeInfo.Type == typeof(CreateStatementRequest) ? "0" : "9223372036854775806"; }
                     schema.Description = "8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation.";
+                }
+                if ((context.JsonTypeInfo.Type == typeof(CreateSliReportRequest) || context.JsonTypeInfo.Type == typeof(ReviseSliReportRequest))
+                    && schema.Properties is { } sliProperties)
+                {
+                    schema.AdditionalPropertiesAllowed = false;
+                    if (sliProperties["reason"] is OpenApiSchema reason) { reason.MinLength = 8; reason.MaxLength = 500; }
+                    if (sliProperties["expectedGeneration"] is OpenApiSchema generation)
+                    { generation.Minimum = context.JsonTypeInfo.Type == typeof(CreateSliReportRequest) ? "0" : "1";
+                      generation.Maximum = context.JsonTypeInfo.Type == typeof(CreateSliReportRequest) ? "0" : "9223372036854775806"; }
+                    if (sliProperties.TryGetValue("scopeId", out var property) && property is OpenApiSchema scope)
+                    { scope.MinLength = 1; scope.MaxLength = 64; scope.Pattern = "^[A-Za-z0-9_.-]+$"; }
+                    schema.Description = "8 KiB bound; closed UTC month, registered deployment scope and UUID replay identity. No maintenance exclusions or contractual SLA.";
                 }
                 if ((context.JsonTypeInfo.Type == typeof(PublishProviderDataPolicyRequest)
                     || context.JsonTypeInfo.Type == typeof(ProviderDataPolicyResponse)) && schema.Properties is { } policyProperties)
@@ -194,7 +207,7 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
                 _ => "Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific."
             } };
             if (status is 400 or 409 or 503
-                || (path.Contains("/statements", StringComparison.Ordinal) || path.Contains("/reports/", StringComparison.Ordinal)
+                || (path.Contains("/statements", StringComparison.Ordinal) || path.Contains("/reports/", StringComparison.Ordinal) || path.Contains("/sli-reports", StringComparison.Ordinal)
                     || path.EndsWith("/usage/export", StringComparison.Ordinal)) && status is 413 or 504)
             {
                 result.Content = new Dictionary<string, OpenApiMediaType>
@@ -234,12 +247,12 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
             AddHeader(operation, "Idempotency-Key", true, "Replay is valid only for the same immutable quote.");
         if (path.Contains("/admin/", StringComparison.Ordinal))
             operation.Description = "Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.";
-        if (method == "GET" && path.Contains("/statements", StringComparison.Ordinal))
+        if (method == "GET" && (path.Contains("/statements", StringComparison.Ordinal) || path.Contains("/sli-reports", StringComparison.Ordinal)))
             foreach (var parameter in operation.Parameters?.OfType<OpenApiParameter>() ?? [])
             {
                 if (parameter.Name == "limit") parameter.Schema = new OpenApiSchema
                 { Type = JsonSchemaType.Integer, Minimum = "1", Maximum = "100",
-                    Default = JsonValue.Create(path.EndsWith("/lines", StringComparison.Ordinal) ? 50 : 20) };
+                    Default = JsonValue.Create(path.EndsWith("/lines", StringComparison.Ordinal) || path.EndsWith("/sources", StringComparison.Ordinal) || path.EndsWith("/executions", StringComparison.Ordinal) ? 50 : 20) };
                 if (parameter.Name == "cursor") parameter.Schema = new OpenApiSchema
                     { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 2048 };
                 if (parameter.Name == "format") parameter.Schema = new OpenApiSchema
@@ -351,6 +364,14 @@ public sealed class ManagementOperationTransformer : IOpenApiOperationTransforme
         Write<StatementJobResponse>("POST", reports + "/statements", 202, 404, 409, 413, 415, 503, 504);
         Write<StatementJobResponse>("POST", reports + "/statements/{id}/revisions", 202, 404, 409, 413, 415, 503, 504);
         Read<StatementJobResponse>(reports + "/jobs/{id}", 404, 503, 504);
+        const string sli = "/admin/sli-reports";
+        Read<SliReportPage>(sli, 400, 503, 504);
+        Read<SliReportResponse>(sli + "/{id}", 404, 503, 504);
+        Read<SliSourcePage>(sli + "/{id}/sources", 400, 404, 503, 504);
+        Read<SliExecutionPage>(sli + "/{id}/executions", 400, 404, 503, 504);
+        Read<SliReportJobResponse>(sli + "/jobs/{id}", 404, 503, 504);
+        Write<SliReportJobResponse>("POST", sli, 202, 409, 413, 415, 503, 504);
+        Write<SliReportJobResponse>("POST", sli + "/{id}/revisions", 202, 404, 409, 413, 415, 503, 504);
         Read<UsageActivityPage>(org + "/usage/activity", 400);
         Read<UsageRequestDetail>(org + "/usage/requests/{requestId}", 404);
         Read<UsageSummary>(org + "/usage/summary", 400);

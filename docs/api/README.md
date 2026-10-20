@@ -1,5 +1,11 @@
 # Versioned API artifacts
 
+SLO-002 adds [operator-only versioned operational SLI reports](../51_OPERATIONAL_SLI_REPORTS.md),
+not a contractual SLA or customer telemetry endpoint. The seven additive
+build/revision/job/list/detail/source/execution operations use existing sessions,
+operator/recent MFA/CSRF, safe deadlines and no-store. Unknown/NoData and exact
+fractions remain explicit; old paths and schemas retain their wire behavior.
+
 Task validation evidence: [DX-002 validation](VALIDATION.md).
 
 [SECURITY-009](../46_RETENTION_AUDIT_ATOMICITY.md) preserves retention routes and

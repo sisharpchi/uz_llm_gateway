@@ -412,6 +412,12 @@ Returning `503` is safer than unmetered spend.
 
 ## 13. SLO dashboard
 
+SLO-002 separately adds [operator-only immutable monthly operational reports](51_OPERATIONAL_SLI_REPORTS.md)
+with `sli-v1` H/G/P/C/U, exact fractions, explicit Unknown/NoData and source/probe
+coverage. No maintenance exclusion, customer SLA certificate or automatic credit.
+Default conservative collection cannot qualify a complete month; OPS-006 and
+external clock/probe/retention/availability approvals remain separate gates.
+
 SLO-001 separately implements [bounded unsampled execution observations and
 authenticated collector import](50_EXECUTION_OBSERVATIONS.md). These capture
 pre-admission/terminal/origin/coverage facts but add no monthly classification,

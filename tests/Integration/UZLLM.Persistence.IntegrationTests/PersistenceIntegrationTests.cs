@@ -386,7 +386,11 @@ public sealed class PersistenceIntegrationFixture : IAsyncLifetime
         // Disposable fixture only: production Down refuses to erase SLI source history.
         await scope.ServiceProvider.GetRequiredService<FoundationDbContext>().Database.ExecuteSqlRawAsync("""
             DO $$ BEGIN
-              IF to_regclass('ops.sli_manifest') IS NOT NULL THEN
+              IF to_regclass('ops.sli_report_head') IS NOT NULL THEN
+                TRUNCATE TABLE ops.sli_report_source, ops.sli_report_version, ops.sli_report_attempt,
+                  ops.sli_report_receipt, ops.sli_report_operation, ops.sli_report_head,
+                  ops.sli_observation, ops.sli_import_receipt, ops.sli_manifest;
+              ELSIF to_regclass('ops.sli_manifest') IS NOT NULL THEN
                 TRUNCATE TABLE ops.sli_observation, ops.sli_import_receipt, ops.sli_manifest;
               END IF;
             END $$;

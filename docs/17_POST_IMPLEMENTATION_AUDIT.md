@@ -1,5 +1,37 @@
 # Post-Implementation Audit
 
+## Operational SLI follow-up — 2026-10-20
+
+The user's Continue separately promotes SLO-002 after completed SLO-001.
+[Document 51](51_OPERATIONAL_SLI_REPORTS.md) records Usage-owned `sli-v1`
+H/G/P/C/U and exact fractions, source/probe/clock completeness, immutable
+scope/version/manifest membership, explicit revisions and existing leased Worker
+publication. Seven additive operator-only operations use current session/grant/
+recent MFA, mutation CSRF, protected scope/version cursors and no-store. Disputed
+authenticated source epochs and JSON/SSE mode conflicts remain U, not known H.
+No Gateway execution, financial rule, provider SDK boundary or architecture
+exception changes. Six `ops` tables require the explicit Migrator; default
+report registry is empty and cannot authorize a build or activate collection.
+
+Final corrected Release baseline passes **1318 tests, zero FAIL/SKIP**, seventeen
+Completed TRX reports; all 107 new cases pass (76 Usage, 17 API/Worker/wire, 14 PG).
+PostgreSQL 287, Gateway 414, Usage 92, architecture 15 and AppHost 2 pass. Exact
+source-conflict importer→revision, committed reply loss, audit/outbox rollback,
+snapshot concurrency, retention/sealing and downgrade-refusal evidence is linked
+in document 51. API generation/drift/schema18/types, both frontend builds,
+model drift and whitespace pass; all old 104 Management paths/schemas and four
+Gateway paths/schemas remain unchanged. Intermediate build/schema assertion
+corrections and the earlier 1317-test run are not substituted for this final run.
+
+Capacity is explicitly **not** launch-qualified: default one-second Gateway
+heartbeats exceed the specification's 100,000-fact monthly build bound even
+without traffic. Such builds fail Bounds rather than truncate; a separately
+approved scaling/aggregation plan is required before offering ordinary monthly
+volume. Conservative default continuity/clock/probe evidence cannot certify a
+complete month. OPS-006, managed HA/PITR, source-map-js advisory and external
+provider/merchant/legal/SLA approvals remain independent; no paid launch,
+contractual report, compensation, UI or follow-on task is activated.
+
 ## Execution observation follow-up — 2026-10-20
 
 The subsequent Continue separately promotes SLO-001's

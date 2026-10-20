@@ -331,8 +331,9 @@ reports and delivers committed notifications. No new service or database.
 Proposed future tables, **no migration in ENTERPRISE-002**:
 
 Execution note: REPORTING-002 separately implements the statement tables,
-operations/receipts and attempts described below; see document 48. Fiscal, SLI
-and SLA tables remain proposals. ENTERPRISE-002's specification-only boundary
+operations/receipts and attempts described below; see document 48. SLO-001/002
+separately implement the capture/report tables in documents 50/51. Fiscal and
+contractual SLA tables remain proposals. ENTERPRISE-002's specification-only boundary
 is preserved, not retroactively treated as runtime implementation.
 
 - `billing.statement_head` (org/UTC period/kind, generation/latest version) and
@@ -381,7 +382,9 @@ measurement; no partitioned financial ledger or separate analytics DB now.
 Original proposed routes follow. The subsequent user approval separately
 promotes REPORTING-003: the seven statement/customer/operator routes below
 are implemented in [document 49](49_STATEMENT_API.md), with generated contracts.
-SLI/fiscal/claim routes remain unimplemented proposals; no new bearer scheme.
+SLO-002 subsequently adds the operator SLI routes in
+[document 51](51_OPERATIONAL_SLI_REPORTS.md); fiscal/claim routes remain proposals.
+No new bearer scheme.
 Browser customer base `/management/v1/organizations/{orgId}/statements`:
 GET list, GET `/{id}`, GET `/{id}/lines`, GET `/{id}/export?format=csv`.
 Use existing ReadBilling permission (Owner/Admin/BillingViewer); project-granted
@@ -483,7 +486,9 @@ and then REPORTING-002 into document 16's executable register. Follow
 [internal publication/revision scope](48_STATEMENT_PUBLICATION.md).
 The subsequent Continue also promotes REPORTING-003's bounded statement API
 in [document 49](49_STATEMENT_API.md). The subsequent Continue separately promotes
-SLO-001's [capture/import-only scope](50_EXECUTION_OBSERVATIONS.md). All other rows below stay unpromoted
+SLO-001's [capture/import-only scope](50_EXECUTION_OBSERVATIONS.md). The user's
+2026-10-20 Continue separately promotes SLO-002's
+[versioned operational report scope](51_OPERATIONAL_SLI_REPORTS.md). Other rows below stay unpromoted
 design proposals; no fiscal/SLA feature or launch-gate pass is inferred. The original table and
 dated specification validation below remain historical design evidence.
 SECURITY-009's earlier dated retention/audit finding was separately closed by
@@ -491,7 +496,7 @@ SECURITY-009's earlier dated retention/audit finding was separately closed by
 current reporting defect or authorization for guardrail implementation.
 
 Originally all nine IDs were P2 design proposals, not executable register additions.
-Only REPORTING-001/002/003 and SLO-001 are now promoted as recorded above. Each remaining ID
+Only REPORTING-001/002/003 and SLO-001/002 are now promoted as recorded above. Each remaining ID
 needs separate approval/promotion; table order is recommended. Completion needs
 listed fixtures, generated contracts/docs as relevant, Release baseline and a
 focused commit. No task may mark a missing fiscal/SLA external approval passed.

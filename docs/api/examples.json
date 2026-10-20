@@ -936,6 +936,251 @@
     "status": 200
   },
   {
+    "body": {
+      "items": [
+        {
+          "capturedAt": "2026-11-01T00:00:00+00:00",
+          "counts": {
+            "c": 0,
+            "g": 0,
+            "h": 0,
+            "p": 0,
+            "u": 0
+          },
+          "coverage": "NoData",
+          "endToEnd": {
+            "denominator": 0,
+            "numerator": 0,
+            "reason": "NoData",
+            "value": null
+          },
+          "executionCount": 0,
+          "gatewayConservative": {
+            "denominator": 0,
+            "numerator": 0,
+            "reason": "NoData",
+            "value": null
+          },
+          "gatewayKnown": {
+            "denominator": 0,
+            "numerator": 0,
+            "reason": "NoData",
+            "value": null
+          },
+          "id": "11111111-1111-4111-8111-111111111111",
+          "kind": "OperationalSliReport",
+          "label": "Operational SLI — not a contractual SLA",
+          "periodEnd": "2026-11-01T00:00:00+00:00",
+          "periodStart": "2026-10-01T00:00:00+00:00",
+          "policyVersion": "sli-v1",
+          "populationBasis": "ObservedExecutionsOnly",
+          "predecessorId": null,
+          "revision": 1,
+          "scopeId": "example-chat",
+          "sourceCount": 0,
+          "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "targetStatus": "NoData",
+          "warnings": [
+            "MissingSource"
+          ]
+        }
+      ],
+      "nextCursor": null
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/sli-reports",
+    "status": 200
+  },
+  {
+    "body": {
+      "attempts": [],
+      "metadata": {
+        "capturedAt": "2026-11-01T00:00:00+00:00",
+        "counts": {
+          "c": 0,
+          "g": 0,
+          "h": 0,
+          "p": 0,
+          "u": 0
+        },
+        "coverage": "NoData",
+        "endToEnd": {
+          "denominator": 0,
+          "numerator": 0,
+          "reason": "NoData",
+          "value": null
+        },
+        "executionCount": 0,
+        "gatewayConservative": {
+          "denominator": 0,
+          "numerator": 0,
+          "reason": "NoData",
+          "value": null
+        },
+        "gatewayKnown": {
+          "denominator": 0,
+          "numerator": 0,
+          "reason": "NoData",
+          "value": null
+        },
+        "id": "11111111-1111-4111-8111-111111111111",
+        "kind": "OperationalSliReport",
+        "label": "Operational SLI — not a contractual SLA",
+        "periodEnd": "2026-11-01T00:00:00+00:00",
+        "periodStart": "2026-10-01T00:00:00+00:00",
+        "policyVersion": "sli-v1",
+        "populationBasis": "ObservedExecutionsOnly",
+        "predecessorId": null,
+        "revision": 1,
+        "scopeId": "example-chat",
+        "sourceCount": 0,
+        "sourceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "targetStatus": "NoData",
+        "warnings": [
+          "MissingSource"
+        ]
+      },
+      "scope": {
+        "id": "example-chat",
+        "independentProbeEvidence": null,
+        "mode": "All",
+        "operation": "Chat",
+        "probeMaximumGapSeconds": 300,
+        "producers": [
+          {
+            "producer": "edge-a",
+            "source": "Edge"
+          },
+          {
+            "producer": "gateway-a",
+            "source": "Gateway"
+          },
+          {
+            "producer": "probe-a",
+            "source": "Probe"
+          }
+        ],
+        "region": "test",
+        "version": 1
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/sli-reports/{id}",
+    "status": 200
+  },
+  {
+    "body": {
+      "items": [],
+      "nextCursor": null,
+      "versionId": "11111111-1111-4111-8111-111111111111"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/sli-reports/{id}/sources",
+    "status": 200
+  },
+  {
+    "body": {
+      "items": [],
+      "nextCursor": null,
+      "versionId": "11111111-1111-4111-8111-111111111111"
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/sli-reports/{id}/executions",
+    "status": 200
+  },
+  {
+    "body": {
+      "job": {
+        "attemptCount": 0,
+        "availableAt": "2026-10-01T00:00:00+00:00",
+        "completedAt": null,
+        "deadLetteredAt": null,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "leaseExpiresAt": null,
+        "maxAttempts": 5
+      },
+      "jobState": "Queued",
+      "operation": {
+        "expectedGeneration": 0,
+        "failureKind": null,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "periodStart": "2026-10-01T00:00:00+00:00",
+        "scopeId": "example-chat",
+        "status": "Pending",
+        "versionId": null
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/sli-reports",
+    "status": 202
+  },
+  {
+    "body": {
+      "job": {
+        "attemptCount": 0,
+        "availableAt": "2026-10-01T00:00:00+00:00",
+        "completedAt": null,
+        "deadLetteredAt": null,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "leaseExpiresAt": null,
+        "maxAttempts": 5
+      },
+      "jobState": "Queued",
+      "operation": {
+        "expectedGeneration": 0,
+        "failureKind": null,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "periodStart": "2026-10-01T00:00:00+00:00",
+        "scopeId": "example-chat",
+        "status": "Pending",
+        "versionId": null
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "post",
+    "path": "/management/v1/admin/sli-reports/{id}/revisions",
+    "status": 202
+  },
+  {
+    "body": {
+      "job": {
+        "attemptCount": 0,
+        "availableAt": "2026-10-01T00:00:00+00:00",
+        "completedAt": null,
+        "deadLetteredAt": null,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "leaseExpiresAt": null,
+        "maxAttempts": 5
+      },
+      "jobState": "DeadLettered",
+      "operation": {
+        "expectedGeneration": 0,
+        "failureKind": null,
+        "id": "11111111-1111-4111-8111-111111111111",
+        "periodStart": "2026-10-01T00:00:00+00:00",
+        "scopeId": "example-chat",
+        "status": "Pending",
+        "versionId": null
+      }
+    },
+    "document": "management",
+    "mediaType": "application/json",
+    "method": "get",
+    "path": "/management/v1/admin/sli-reports/jobs/{id}",
+    "status": 200
+  },
+  {
     "body": "\"Not a tax invoice / No payment due from this statement\"\r\nordinal,ledger_id,category,posted_at,amount_micro_usd\r\n",
     "document": "management",
     "mediaType": "text/csv",

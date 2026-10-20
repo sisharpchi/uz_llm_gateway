@@ -10,6 +10,7 @@ using UZLLM.Modules.Identity.Infrastructure;
 using UZLLM.Modules.Usage.Contracts;
 using UZLLM.Modules.Billing.Contracts;
 using UZLLM.Management.Api.Statements;
+using UZLLM.Management.Api.SliReports;
 
 namespace UZLLM.Gateway.ContractTests;
 
@@ -18,6 +19,32 @@ public sealed class OpenApiWireContractTests : IDisposable
     private readonly ServiceProvider services = new ServiceCollection().AddLogging().BuildServiceProvider();
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private static string Root => FindRoot();
+
+    [Fact]
+    public async Task Sli_wire_is_additive_operator_only_with_no_exclusion_overrides_and_explicit_job_errors()
+    {
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Root, "docs/api/management-v1.openapi.json")));
+        var paths = document.RootElement.GetProperty("paths");
+        const string root = "/management/v1/admin/sli-reports";
+        foreach (var (path, method) in new[] { (root, "get"), (root, "post"), (root + "/{id}", "get"),
+            (root + "/{id}/sources", "get"), (root + "/{id}/executions", "get"), (root + "/{id}/revisions", "post"), (root + "/jobs/{id}", "get") })
+        {
+            var operation = paths.GetProperty(path).GetProperty(method);
+            Assert.Contains("recent MFA", operation.GetProperty("description").GetString());
+            Assert.Contains(operation.GetProperty("security").EnumerateArray(), value => value.TryGetProperty("Session", out _));
+            foreach (var status in new[] { "401", "403", "503", "504" }) Assert.True(operation.GetProperty("responses").TryGetProperty(status, out _));
+            if (method == "post")
+            {
+                Assert.Contains(operation.GetProperty("parameters").EnumerateArray(), value => value.GetProperty("name").GetString() == IdentityCookieNames.CsrfHeader && value.GetProperty("required").GetBoolean());
+                Assert.True(operation.GetProperty("responses").GetProperty("202").GetProperty("headers").TryGetProperty("Location", out _));
+            }
+        }
+        var create = document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("CreateSliReportRequest");
+        Assert.False(create.GetProperty("additionalProperties").GetBoolean());
+        Assert.False(create.GetProperty("properties").TryGetProperty("maintenanceExclusion", out _));
+        Assert.Equal(0, create.GetProperty("properties").GetProperty("expectedGeneration").GetProperty("maximum").GetInt32());
+        Assert.False(paths.TryGetProperty("/management/v1/sli-reports", out _));
+    }
 
     [Fact]
     public async Task Provider_policy_wire_documents_unknown_provenance_and_operator_security()
@@ -157,6 +184,19 @@ public sealed class OpenApiWireContractTests : IDisposable
         Add(reports + "/statements/{id}/revisions", "post", 202, reportJob with { ExpectedGeneration = 1 });
         Add(reports + "/jobs/{id}", "get", 200, reportJob with { JobState = "DeadLettered",
             Job = reportJob.Job! with { AttemptCount = 5, DeadLetteredAt = now.AddMinutes(1) } });
+        const string sliPath = "/management/v1/admin/sli-reports";
+        var sliRatio = new SliRatio(0, 0, null, "NoData");
+        var sliMetadata = new SliReportMetadata(id, "example-chat", now, now.AddMonths(1), 1, null, "sli-v1", now.AddMonths(1),
+            new string('a', 64), new(0, 0, 0, 0, 0), sliRatio, sliRatio, sliRatio, "NoData", "NoData", ["MissingSource"], 0, 0);
+        var sliScope = new SliReportScope("example-chat", "test", "Chat", "All",
+            [new("edge-a", "Edge"), new("gateway-a", "Gateway"), new("probe-a", "Probe")]);
+        var sliJob = new SliReportJobResponse(new(id, "example-chat", now, "Pending", 0, null, null), "Queued", reportJob.Job);
+        Add(sliPath, "get", 200, new SliReportPage([sliMetadata], null));
+        Add(sliPath + "/{id}", "get", 200, new SliReportResponse(sliMetadata, sliScope, []));
+        Add(sliPath + "/{id}/sources", "get", 200, new SliSourcePage(id, [], null));
+        Add(sliPath + "/{id}/executions", "get", 200, new SliExecutionPage(id, [], null));
+        Add(sliPath, "post", 202, sliJob); Add(sliPath + "/{id}/revisions", "post", 202, sliJob);
+        Add(sliPath + "/jobs/{id}", "get", 200, sliJob with { JobState = "DeadLettered" });
         snapshots.Add(new("management", org + "/statements/{id}/export", "get", 200, "text/csv",
             JsonSerializer.SerializeToElement("\"Not a tax invoice / No payment due from this statement\"\r\nordinal,ledger_id,category,posted_at,amount_micro_usd\r\n")));
         var unknownPolicy = UZLLM.Management.Api.Catalog.ProviderDataPolicyResponse.From(id, null);

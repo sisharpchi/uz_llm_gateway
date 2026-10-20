@@ -13,7 +13,7 @@ using UZLLM.Persistence;
 
 namespace UZLLM.Gateway.ContractTests;
 
-public sealed class StatementApiTests
+public sealed partial class StatementApiTests
 {
     private static readonly Guid Org = Guid.Parse("11111111-1111-4111-8111-111111111111");
     private static readonly DateTimeOffset Month = new(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);

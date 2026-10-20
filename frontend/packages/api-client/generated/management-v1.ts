@@ -600,6 +600,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/management/v1/admin/sli-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List immutable operator-only SLI versions for a registered deployment scope.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["ListSliReports"];
+        put?: never;
+        /**
+         * Queue one closed-month operational report; no maintenance or financial override.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["CreateSliReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/sli-reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read exact ratios, Unknown/NoData and coverage; not a contractual SLA.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["GetSliReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/sli-reports/{id}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page frozen logical execution classifications, never provider content.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["ListSliReportExecutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/sli-reports/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue an explicit predecessor/generation revision; keep original bytes.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        post: operations["ReviseSliReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/sli-reports/{id}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read immutable manifest membership, loss and coverage facts for one version.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["ListSliReportSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/management/v1/admin/sli-reports/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read stable operation and leased-job failure/dead-letter state.
+         * @description Operator grant required. Except /access, recent MFA (15 minutes) is mandatory.
+         */
+        get: operations["GetSliReportJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/management/v1/admin/wallet-adjustments": {
         parameters: {
             query?: never;
@@ -2524,6 +2648,17 @@ export interface components {
             /** Format: uuid */
             settlementId: string;
         };
+        /** @description 8 KiB bound; closed UTC month, registered deployment scope and UUID replay identity. No maintenance exclusions or contractual SLA. */
+        CreateSliReportRequest: {
+            /** Format: int64 */
+            expectedGeneration: number;
+            /** Format: uuid */
+            idempotencyKey: string;
+            /** Format: date-time */
+            periodStart: string;
+            reason: string;
+            scopeId: string;
+        };
         /** @description 8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation. */
         CreateStatementRequest: {
             /** Format: int64 */
@@ -3025,6 +3160,14 @@ export interface components {
             requestId: string;
             response: null | string;
         };
+        /** @description 8 KiB bound; closed UTC month, registered deployment scope and UUID replay identity. No maintenance exclusions or contractual SLA. */
+        ReviseSliReportRequest: {
+            /** Format: int64 */
+            expectedGeneration: number;
+            /** Format: uuid */
+            idempotencyKey: string;
+            reason: string;
+        };
         /** @description 8 KiB maximum JSON body. UUID idempotency key and immutable normalized terms; only schema version 1. Not an invoice or financial mutation. */
         ReviseStatementRequest: {
             /** Format: int64 */
@@ -3066,6 +3209,232 @@ export interface components {
             enabled: boolean;
             /** Format: int32 */
             retentionMinutes: number;
+        };
+        SliCounts: {
+            /** Format: int64 */
+            c: number;
+            /** Format: int64 */
+            g: number;
+            /** Format: int64 */
+            h: number;
+            /** Format: int64 */
+            p: number;
+            /** Format: int64 */
+            u: number;
+        };
+        SliExecutionPage: {
+            items: {
+                class: string;
+                /** Format: uuid */
+                executionId: string;
+                mode: string;
+                reason: string;
+                /** Format: date-time */
+                startedAt: string;
+            }[];
+            nextCursor: null | string;
+            /** Format: uuid */
+            versionId: string;
+        };
+        SliRatio: {
+            /** Format: int64 */
+            denominator: number;
+            /** Format: int64 */
+            numerator: number;
+            reason: null | string;
+            /** Format: double */
+            value: null | number;
+        };
+        SliReportJobResponse: {
+            job: null | components["schemas"]["JobProgress"];
+            jobState: string;
+            operation: components["schemas"]["SliReportOperation"];
+        };
+        SliReportMetadata: {
+            /** Format: date-time */
+            capturedAt: string;
+            counts: components["schemas"]["SliCounts"];
+            coverage: string;
+            endToEnd: components["schemas"]["SliRatio"];
+            /** Format: int32 */
+            executionCount: number;
+            gatewayConservative: components["schemas"]["SliRatio"];
+            gatewayKnown: components["schemas"]["SliRatio"];
+            /** Format: uuid */
+            id: string;
+            /** @default OperationalSliReport */
+            kind: string;
+            /** @default Operational SLI — not a contractual SLA */
+            label: string;
+            /** Format: date-time */
+            periodEnd: string;
+            /** Format: date-time */
+            periodStart: string;
+            policyVersion: string;
+            /** @default ObservedExecutionsOnly */
+            populationBasis: string;
+            /** Format: uuid */
+            predecessorId: null | string;
+            /** Format: int64 */
+            revision: number;
+            scopeId: string;
+            /** Format: int32 */
+            sourceCount: number;
+            sourceDigest: string;
+            targetStatus: string;
+            warnings: string[];
+        };
+        SliReportOperation: {
+            /** Format: int64 */
+            expectedGeneration: number;
+            failureKind: null | string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            periodStart: string;
+            scopeId: string;
+            status: string;
+            /** Format: uuid */
+            versionId: null | string;
+        };
+        SliReportPage: {
+            items: components["schemas"]["SliReportMetadata"][];
+            nextCursor: null | string;
+        };
+        SliReportResponse: {
+            attempts: {
+                /** Format: int64 */
+                count: number;
+                credential: string;
+                fault: string;
+            }[];
+            metadata: {
+                /** Format: date-time */
+                capturedAt: string;
+                counts: {
+                    /** Format: int64 */
+                    c: number;
+                    /** Format: int64 */
+                    g: number;
+                    /** Format: int64 */
+                    h: number;
+                    /** Format: int64 */
+                    p: number;
+                    /** Format: int64 */
+                    u: number;
+                };
+                coverage: string;
+                endToEnd: {
+                    /** Format: int64 */
+                    denominator: number;
+                    /** Format: int64 */
+                    numerator: number;
+                    reason: null | string;
+                    /** Format: double */
+                    value: null | number;
+                };
+                /** Format: int32 */
+                executionCount: number;
+                gatewayConservative: {
+                    /** Format: int64 */
+                    denominator: number;
+                    /** Format: int64 */
+                    numerator: number;
+                    reason: null | string;
+                    /** Format: double */
+                    value: null | number;
+                };
+                gatewayKnown: {
+                    /** Format: int64 */
+                    denominator: number;
+                    /** Format: int64 */
+                    numerator: number;
+                    reason: null | string;
+                    /** Format: double */
+                    value: null | number;
+                };
+                /** Format: uuid */
+                id: string;
+                /** @default OperationalSliReport */
+                kind: string;
+                /** @default Operational SLI — not a contractual SLA */
+                label: string;
+                /** Format: date-time */
+                periodEnd: string;
+                /** Format: date-time */
+                periodStart: string;
+                policyVersion: string;
+                /** @default ObservedExecutionsOnly */
+                populationBasis: string;
+                /** Format: uuid */
+                predecessorId: null | string;
+                /** Format: int64 */
+                revision: number;
+                scopeId: string;
+                /** Format: int32 */
+                sourceCount: number;
+                sourceDigest: string;
+                targetStatus: string;
+                warnings: string[];
+            };
+            scope: {
+                id: string;
+                independentProbeEvidence?: null | string;
+                mode: string;
+                operation: string;
+                /**
+                 * Format: int32
+                 * @default 300
+                 */
+                probeMaximumGapSeconds: number;
+                producers: {
+                    producer: string;
+                    source: string;
+                }[];
+                region: string;
+                /**
+                 * Format: int32
+                 * @default 1
+                 */
+                version: number;
+            };
+        };
+        SliSourcePage: {
+            items: {
+                /** Format: int64 */
+                batchNumber: number;
+                clockSynchronized: boolean;
+                collectorContinuous: boolean;
+                conflict: boolean;
+                conflictReceipts?: null | string[];
+                /** Format: int64 */
+                dropped: number;
+                /** Format: uuid */
+                epoch: string;
+                /** Format: int64 */
+                firstSequence: number;
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                intervalEnd: string;
+                /** Format: date-time */
+                intervalStart: string;
+                /** Format: int64 */
+                lastSequence: number;
+                /** Format: int32 */
+                observationCount: number;
+                producer: string;
+                /** Format: int32 */
+                readCount: number;
+                /** Format: date-time */
+                receivedAt: string;
+                region: string;
+                sha256: string;
+                source: string;
+            }[];
+            nextCursor: null | string;
+            /** Format: uuid */
+            versionId: string;
         };
         StatementBalanceResponse: {
             availableMicroUsd: string;
@@ -6291,6 +6660,610 @@ export interface operations {
             };
             /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
             409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ListSliReports: {
+        parameters: {
+            query: {
+                cursor?: string;
+                limit?: number;
+                scopeId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SliReportPage"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateSliReport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSliReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            202: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SliReportJobResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSliReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SliReportResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ListSliReportExecutions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SliExecutionPage"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ReviseSliReport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Must match the readable CSRF cookie and the current session. */
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviseSliReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            202: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SliReportJobResponse"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            409: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            415: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    ListSliReportSources: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SliSourcePage"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            400: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetSliReportJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SliReportJobResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid session/credentials; empty body. */
+            401: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Tenant/role, recent operator MFA or CSRF proof denied; empty body. */
+            403: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource absent or outside the authorized scope; empty body. */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            503: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagementErrorResponse"];
+                    "application/problem+json": components["schemas"]["ProblemDetails"] | components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Rejected request. Body may be empty; JSON error and Problem Details forms are endpoint-specific. */
+            504: {
                 headers: {
                     "Cache-Control"?: "no-store";
                     [name: string]: unknown;

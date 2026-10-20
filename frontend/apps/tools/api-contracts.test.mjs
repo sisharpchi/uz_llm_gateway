@@ -112,7 +112,13 @@ test('versioned documents cover implemented surfaces and resolve all schema refe
         assert.ok(Object.keys(operation.responses).some(status => /^2\d\d$/.test(status)));
         for (const [status, response] of Object.entries(operation.responses)) {
           if (name === 'management') assert.deepEqual(response.headers['Cache-Control'].schema.enum, ['no-store']);
-          if (status === '204' || status === '202' && !path.includes('/reports/statements')) assert.equal(response.content, undefined);
+          const sliJob = path === '/management/v1/admin/sli-reports'
+            || path === '/management/v1/admin/sli-reports/{id}/revisions';
+          if (status === '204' || status === '202' && !path.includes('/reports/statements') && !sliJob) assert.equal(response.content, undefined);
+          if (status === '202' && sliJob) {
+            assert.equal(response.content['application/json'].schema.$ref, '#/components/schemas/SliReportJobResponse');
+            assert.ok(response.headers.Location);
+          }
           for (const media of Object.values(response.content ?? {})) assert.ok(media.schema);
         }
       }

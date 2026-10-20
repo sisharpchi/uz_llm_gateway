@@ -3332,6 +3332,294 @@ namespace UZLLM.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UZLLM.Persistence.SliReportAttemptEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_number");
+
+                    b.Property<string>("FailureKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("failure_kind");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("outcome");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId", "AttemptNumber")
+                        .IsUnique();
+
+                    b.ToTable("sli_report_attempt", "ops");
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportHeadEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActiveOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_operation_id");
+
+                    b.Property<long>("Generation")
+                        .HasColumnType("bigint")
+                        .HasColumnName("generation");
+
+                    b.Property<Guid?>("LatestVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("latest_version_id");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_start");
+
+                    b.Property<string>("ScopeId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("scope_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScopeId", "PeriodStart")
+                        .IsUnique();
+
+                    b.ToTable("sli_report_head", "ops", t =>
+                        {
+                            t.HasCheckConstraint("CK_sli_report_head_generation", "generation >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportOperationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("ExpectedGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("expected_generation");
+
+                    b.Property<string>("FailureKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("failure_kind");
+
+                    b.Property<Guid>("HeadId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("head_id");
+
+                    b.Property<Guid?>("PredecessorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ScopeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("scope_json");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("VersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("version_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("HeadId");
+
+                    b.ToTable("sli_report_operation", "ops", t =>
+                        {
+                            t.HasCheckConstraint("CK_sli_report_operation_status", "status IN ('Pending','Failed','Published') AND expected_generation >= 0 AND (status <> 'Published' OR version_id IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportReceiptEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CommandSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("command_sha256");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId");
+
+                    b.HasIndex("Kind", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("sli_report_receipt", "ops");
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportSourceEntity", b =>
+                {
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("version_id");
+
+                    b.Property<Guid>("ManifestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("manifest_id");
+
+                    b.Property<string>("SourceJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("source_json");
+
+                    b.HasKey("VersionId", "ManifestId");
+
+                    b.HasIndex("ManifestId");
+
+                    b.ToTable("sli_report_source", "ops");
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportVersionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<byte[]>("Artifact")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("artifact");
+
+                    b.Property<string>("ArtifactSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("artifact_sha256");
+
+                    b.Property<Guid>("HeadId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("head_id");
+
+                    b.Property<string>("MetadataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata_json");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("policy_version");
+
+                    b.Property<Guid?>("PredecessorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predecessor_id");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("ScopeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("scope_json");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_count");
+
+                    b.Property<string>("SourceDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_digest");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("HeadId", "Revision")
+                        .IsUnique();
+
+                    b.HasIndex("OperationId", "HeadId");
+
+                    b.HasIndex("PredecessorId", "HeadId");
+
+                    b.ToTable("sli_report_version", "ops", t =>
+                        {
+                            t.HasCheckConstraint("CK_sli_report_version_bounds", "revision > 0 AND source_count BETWEEN 0 AND 100000 AND octet_length(artifact) BETWEEN 1 AND 33554432");
+                        });
+                });
+
             modelBuilder.Entity("UZLLM.Persistence.TelegramLinkChallengeEntity", b =>
                 {
                     b.Property<byte[]>("TokenHash")
@@ -4594,6 +4882,70 @@ namespace UZLLM.Persistence.Migrations
                         .HasPrincipalKey("Id", "Producer", "Epoch")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportAttemptEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.SliReportOperationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportOperationEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.IdentityAccountEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.SliReportHeadEntity", null)
+                        .WithMany()
+                        .HasForeignKey("HeadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportReceiptEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.SliReportOperationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportSourceEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.SliManifestEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ManifestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.SliReportVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UZLLM.Persistence.SliReportVersionEntity", b =>
+                {
+                    b.HasOne("UZLLM.Persistence.SliReportOperationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId", "HeadId")
+                        .HasPrincipalKey("Id", "HeadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UZLLM.Persistence.SliReportVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PredecessorId", "HeadId")
+                        .HasPrincipalKey("Id", "HeadId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("UZLLM.Persistence.TelegramLinkChallengeEntity", b =>
